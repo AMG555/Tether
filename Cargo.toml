@@ -1,0 +1,47 @@
+[package]
+name = "savepoint"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Crash-proof, offline, encrypted typing recovery. Never lose half-written text again."
+license = "MIT"
+repository = "https://github.com/USER/savepoint"
+keywords = ["crash-recovery", "privacy", "encryption", "keyboard", "autosave"]
+categories = ["command-line-utilities"]
+
+[[bin]]
+name = "savepoint"
+path = "src/main.rs"
+
+[lib]
+name = "savepoint"
+path = "src/lib.rs"
+
+[dependencies]
+# Storage. Bundled SQLite => no system deps, single static binary, mature crash semantics (WAL).
+rusqlite = { version = "0.32", features = ["bundled", "blob"] }
+# Serialization of drafts/metadata (never the plaintext secrets themselves).
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Crypto. AES-256-GCM = authenticated encryption; tampering is detected, not silently decrypted.
+aes-gcm = "0.10"
+hkdf = "0.12"
+sha2 = "0.10"
+zeroize = { version = "1", features = ["derive"] }
+getrandom = "0.2"
+directories = "5"
+# CLI
+# `default-features = false` drops clap's colour + suggestion + error-context stack. Measured:
+# 74 KB (3.6%) saved with std+help+usage only. `--help` must keep working, so `help` and `usage`
+# stay; coloured output and typo suggestions are not worth 74 KB in a tool that sells being small.
+clap = { version = "4", default-features = false, features = ["std", "help", "usage", "derive", "env"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = "z"     # size: "ultra lightweight" is a design goal
+lto = true
+codegen-units = 1
+panic = "abort"     # a panic must never leave a half-written buffer in memory
+strip = true
