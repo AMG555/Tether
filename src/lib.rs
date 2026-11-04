@@ -19,6 +19,7 @@
 //! - [`cli`]     — argument parsing and human-facing output.
 
 pub mod crypto;
+pub mod recover;
 pub mod ring;
 
 /// The one-line answer to "where is my stuff and is it safe?".
