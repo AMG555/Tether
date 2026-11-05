@@ -18,8 +18,8 @@
 //! - [`pet`]     — desktop companion manifests: validation (untrusted content) + procedural art.
 //! - [`cli`]     — argument parsing and human-facing output.
 
-pub mod cli;
 pub mod crypto;
+pub mod engine;
 pub mod policy;
 pub mod recover;
 pub mod ring;
