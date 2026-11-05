@@ -242,6 +242,11 @@ impl CrashRing {
         let slots = capacity_slots.max(8);
         let file =
             OpenOptions::new().read(true).write(true).create(true).truncate(false).open(&path)?;
+        // The ring holds the last ~20k keystrokes in ciphertext. It is created by umask like any
+        // other file, so without this it lands 0644 while the vault is 0600 — the one file in the
+        // directory that a second user on the machine could read. Ciphertext, but no reason to
+        // share it.
+        let _ = crate::vault::set_private(&path);
         // Pre-size so that writes never extend the file mid-crash (extension can silently
         // produce a short, sparse tail). But never blow away a short file: it may be all that
         // survived a full disk or an interrupted copy, and extending it with zeros would
