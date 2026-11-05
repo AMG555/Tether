@@ -19,8 +19,10 @@
 //! - [`cli`]     — argument parsing and human-facing output.
 
 pub mod crypto;
+pub mod policy;
 pub mod recover;
 pub mod ring;
+pub mod vault;
 
 /// The one-line answer to "where is my stuff and is it safe?".
 pub const TAGLINE: &str = "Savepoint — nothing you type is ever lost again.";
