@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  test:
+    name: test / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Tests
+        run: cargo test --all-targets
+
+      # The crash guarantee is the product. Prove it on every OS, every commit.
+      - name: Crash survivability (real SIGKILL / abort, no flush)
+        shell: bash
+        run: |
+          set -euo pipefail
+          export SAVEPOINT_HOME="$RUNNER_TEMP/sp-ci"
+          rm -rf "$SAVEPOINT_HOME"
+          cargo build --release
+          BIN=./target/release/savepoint
+          [ -f "$BIN.exe" ] && BIN="$BIN.exe"
+          "$BIN" init > /dev/null
+          # Die without flushing, exactly like a crash.
+          "$BIN" simulate --text "ninety characters of a prompt that a crash must not eat" --crash || true
+          "$BIN" recover | tee /tmp/recover.txt
+          grep -q "recovered 1 rescue" /tmp/recover.txt
+          "$BIN" list --preview 80 | tee /tmp/list.txt
+          grep -q "a crash must not eat" /tmp/list.txt
+          echo "crash recovery verified"
+
+      - name: Privacy invariants (no plaintext on disk)
+        run: cargo test --test privacy -- --nocapture
+
+  supply-chain:
+    name: audit + license
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install cargo-audit --locked
+      - run: cargo audit
+      - run: cargo install cargo-deny --locked
+      - run: cargo deny check licenses
+
+  size:
+    name: binary size budget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release
+      - name: Enforce the "ultra lightweight" claim
+        run: |
+          SIZE=$(stat -c %s target/release/savepoint)
+          echo "release binary: $((SIZE/1024)) KiB"
+          # 2.75 MiB budget: today it is ~2.0 MB, so this only trips on real bloat.
+          if [ "$SIZE" -gt 2883584 ]; then
+            echo "::error::binary exceeded the 2.75 MiB budget (${SIZE} bytes)"
+            exit 1
+          fi
+
+  frontend:
+    name: js + installer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # The clip player and avatar maths are plain JS with their own test files.
+      - name: Clip player maths
+        run: node --test gui/clip-player-math.test.js
+      - name: Avatar maths
+        run: node --test gui/avatar-math.test.js
+      # A syntax error in a shipped page renders a blank sheet and fails nothing else.
+      # This compiles the inline scripts the way the browser would.
+      - name: Shipped pages compile
+        run: node --test gui/pages.test.js
+
+      - name: Design rules (no stock-AI UI)
+        run: cargo test --test design
+
+      # A binary you pipe from the internet must be verified before it is installed.
+      # This proves the installer refuses a tampered or unverifiable download.
+      - name: Installer refuses bad checksums
+        run: |
+          cargo build --release
+          sh scripts/test-install.sh
