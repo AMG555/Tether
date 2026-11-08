@@ -1,0 +1,16 @@
+[licenses]
+allow = ["MIT", "Apache-2.0", "BSD-3-Clause", "ISC", "Unicode-3.0", "Zlib", "MPL-2.0", "CC0-1.0"]
+confidence-threshold = 0.9
+
+[bans]
+# A crash-recovery tool has no business making network calls. Belt-and-braces alongside
+# tests/privacy.rs::dependencies_are_offline_only.
+deny = [
+  { name = "reqwest" }, { name = "hyper" }, { name = "ureq" }, { name = "surf" },
+  { name = "isahc" }, { name = "curl" }, { name = "openssl" }, { name = "native-tls" },
+]
+multiple-versions = "warn"
+
+[advisories]
+vulnerability = "deny"
+unmaintained = "warn"
