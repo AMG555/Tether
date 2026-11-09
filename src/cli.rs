@@ -147,6 +147,9 @@ pub enum Command {
         /// Install a pet folder after validating it.
         #[arg(long, value_name = "DIR")]
         install: Option<PathBuf>,
+        /// Simulate a working day and print every reminder, so you can tune the schedule.
+        #[arg(long)]
+        check: bool,
     },
     /// Feed synthetic keystrokes into the capture path (demos and tests).
     ///
@@ -233,7 +236,7 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         Command::Export { path, i_understand } => cmd_export(&home, &path, i_understand),
         Command::Doctor => cmd_doctor(&home),
         Command::Status => cmd_status(&home),
-        Command::Ask { new, frame_size, body, accent, list, install } => {
+        Command::Ask { new, frame_size, body, accent, list, install, check } => {
             let data = data_dir(&home);
             let action = if let Some(name) = new {
                 crate::companion::Action::New { name, frame_size, body, accent }
@@ -241,8 +244,10 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 crate::companion::Action::List
             } else if let Some(path) = install {
                 crate::companion::Action::Install { path }
+            } else if check {
+                crate::companion::Action::Check
             } else {
-                crate::companion::Action::List
+                crate::companion::Action::Run { ascii: false }
             };
             crate::companion::run(&data, action)
         }
