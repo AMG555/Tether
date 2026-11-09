@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Savepoint · Pet Studio</title>
+<link rel="stylesheet" href="../gui/theme.css">
+<style>
+  /* Page-local layout only; the visual language is theme.css. */
+  body { min-height: 100vh; }
+  .wrap { max-width: 1120px; margin: 0 auto; border-left: 1px solid var(--rule);
+          border-right: 1px solid var(--rule); min-height: 100vh; }
+  header.masthead { display: grid; grid-template-columns: 1fr auto; align-items: end;
+                    padding: calc(var(--u)*6) calc(var(--u)*7) calc(var(--u)*4);
+                    border-bottom: 2px solid var(--ink); }
+  h1 { margin: 0; font-family: var(--text); font-size: 26px; font-weight: 600; letter-spacing: -.015em; }
+  p.lede { color: var(--ink-soft); margin: calc(var(--u)*2) 0 0; max-width: 66ch; font-size: 12px; }
+  .grid { display: grid; grid-template-columns: 1fr 380px; gap: 0; }
+  .grid > section { padding: calc(var(--u)*6) calc(var(--u)*6); }
+  .grid > aside { border-left: 1px solid var(--rule); padding: calc(var(--u)*6) calc(var(--u)*5); }
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; }
+    .grid > aside { border-left: none; border-top: 1px solid var(--rule); }
+  }
+  .card { margin: 0 0 calc(var(--u)*6); }
+  .card h2 { font-size: 10px; text-transform: uppercase; letter-spacing: .11em;
+             color: var(--ink-faint); margin: 0 0 calc(var(--u)*3); font-weight: 500; }
+  canvas { image-rendering: pixelated; display: block; border: 1px solid var(--ink);
+           background: repeating-conic-gradient(#1a1a1e 0% 25%, #22222a 0% 50%) 50%/16px 16px; }
+  .stage { display: flex; justify-content: center; padding: calc(var(--u)*3) 0; }
+  .row { display: flex; gap: calc(var(--u)*2); align-items: center; flex-wrap: wrap;
+         margin-bottom: calc(var(--u)*3); }
+  .row label { font-size: 10px; text-transform: uppercase; letter-spacing: .1em;
+               color: var(--ink-faint); min-width: 74px; }
+  .row input[type=text], .row input[type=number], .row select {
+    flex: 1; min-width: 0; padding: calc(var(--u)*1.5) calc(var(--u)*2); font-size: 12px; }
+  input[type=color] { width: 42px; height: 30px; border: 1px solid var(--rule-strong);
+                      background: var(--paper-raised); padding: 1px; border-radius: var(--radius); }
+  .moves { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; }
+  .move { font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+          padding: calc(var(--u)*2) 2px; border: 1px solid var(--rule-strong);
+          background: var(--paper-raised); color: var(--ink-soft); cursor: pointer; text-align: center; }
+  .move.on { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  #log { font-family: var(--mono); font-size: 11px; line-height: 1.6; color: var(--ink-soft);
+         white-space: pre-wrap; max-height: 150px; overflow: auto; margin-top: calc(var(--u)*3); }
+  .hi { color: var(--ok); }
+  .err { color: var(--signal); }
+  pre { background: var(--paper-raised); border: 1px solid var(--rule-strong);
+        border-radius: var(--radius); padding: calc(var(--u)*3); overflow: auto;
+        font-family: var(--mono); font-size: 11.5px; line-height: 1.55; color: var(--ink);
+        max-height: 230px; }
+  .kv { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--ink-soft);
+        padding: 3px 0; border-bottom: 1px solid var(--rule); }
+  .kv b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+  footer { padding: calc(var(--u)*4) calc(var(--u)*7) calc(var(--u)*8);
+           color: var(--ink-faint); font-size: 10px; letter-spacing: .09em;
+           text-transform: uppercase; border-top: 1px solid var(--rule); }
+  code { background: var(--paper-sunk); border: 1px solid var(--rule); padding: 1px 4px;
+         border-radius: var(--radius); font-size: 11.5px; }
+  .tag { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint);
+         border: 1px solid var(--rule-strong); padding: 2px 6px; border-radius: var(--radius); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <h1>Pet Studio</h1>
+    <span class="tag">offline · nothing leaves this page</span>
+  </header>
+  <p class="lede">
+    Build a desktop companion for Savepoint without a drawing app. Pick a body colour, a
+    head shape and a mood, press <b>record</b>, and the same procedural generator that ships in
+    <code>savepoint ask --new</code> animates it live. Export gives you <code>sprite.png</code>
+    and <code>pet.json</code> — two files, one folder, drop it in and it runs.
+  </p>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <h2>Live preview</h2>
+        <div class="stage"><canvas id="stage" width="128" height="128"></canvas></div>
+        <div class="moves" id="moves"></div>
+        <div id="log">ready.</div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2>Export</h2>
+        <div class="row">
+          <button id="dl-sprite">Download sprite.png</button>
+          <button class="ghost" id="dl-json">Download pet.json</button>
+          <button class="ghost" id="dl-empty">Download empty template</button>
+        </div>
+        <pre id="manifest"></pre>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2>Character</h2>
+        <div class="row"><label>name</label><input type="text" id="name" value="Mochi" maxlength="32"></div>
+        <div class="row"><label>body</label><input type="color" id="body" value="#c2331a">
+          <input type="color" id="accent" value="#1f6b3a"></div>
+        <div class="row"><label>head</label>
+          <select id="head"><option value="round">round</option><option value="box">box</option><option value="cat">cat ears</option></select>
+        </div>
+        <div class="row"><label>frame</label>
+          <select id="frame"><option>16</option><option selected>32</option><option>48</option><option>64</option></select>
+        </div>
+        <div class="row"><label>scale</label>
+          <select id="scale"><option>1</option><option selected>2</option><option>3</option><option>4</option></select>
+        </div>
+        <div class="row"><label>fps</label><input type="number" id="fps" value="4" min="1" max="30"></div>
+        <div class="row"><button id="rerecord">Re-record</button><button class="ghost" id="random">Surprise me</button></div>
+        <div class="kv"><span>frames</span><b id="nframes">15</b></div>
+        <div class="kv"><span>sheet</span><b id="sheet">128 × 160 px</b></div>
+        <div class="kv"><span>size on disk</span><b id="bytes">—</b></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2>Speech</h2>
+        <p style="font-size:12px;color:var(--dim);margin:0 0 10px">
+          One per line. Leave empty to use the built-in friendly defaults.
+        </p>
+        <div class="row"><label>water</label><input type="text" id="s-water" placeholder="water break 💧"></div>
+        <div class="row"><label>break</label><input type="text" id="s-break" placeholder="look 20 feet away"></div>
+        <div class="row"><label>recovered</label><input type="text" id="s-recovered" placeholder="I caught that!"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Frames layout: idle (4) · walk (4) · sleep (2) · remind (2) · celebrate (3).
+    Everything here runs locally: the canvas is drawn by JavaScript, and the export is a
+    data URI — your browser makes no requests.
+  </footer>
+</div>
+<script>
+const SPRITES = {"16": "iVBORw0KGgoAAAANSUhEUgAAAEAAAABQCAYAAACpv3NFAAACS0lEQVR42u1cQU7EMAzsG7gi8QQkvsKZl/AFnsPfuBax0kpRNymxZxI71VjKZcFxPU3SzsTptslksjN7fnrbV/Z3BSzb18fPfvwts78bwDLgf612IdH+EICW4LWLsPqWfTDiW/J48PMEP3bm8WX0USbiAXBD7h6rofHhEVj7w/fnHgqKJX5rBPX0UQXgz/HeZiSAxm8l39vH1nL0gsDy7e3jCIC1j4cR8PryfmtHx/vv7ATQ+EcASv+yj5Z/E4De35kAMqaQNf7GXsBQAKc/RSJX+yyPUVlmNrlkwkw2t1ziKJtLOwLPOmKQGdaF00Zgb0esVZhx4S46jA5lxmOMJYTAo4/B70c/x1tCCDwFmcmPptPHKQjRYRTFEXTaKqdBdPgseWsSKBu0/n/t7pvpMANFBhv0xKsBYKbDNQCQO+lhg954tRtnpsOtEcDg9aNHDmPhbs7/2bzeG4/yIhYtjUfsKUgPkMlk1yxwWL1AYllJK6sk1p08m5Ghklj65C+zMRH9NicAMgKAqjkW/3QAoJKW1T8VAAxJy+qfbgSgQohLkdEaIJPJZNIDpAcsoQn0HFZYSgvw0mJ0j16CSCZBBCkwoBUoZLr7SLm6q0AhEwBWRkcpUMgEgLXAgFKgIDosVVgAiEtcKWGVy6+2Nxj9Kr30HB69CKb/gAJ7ayxsDfHOYRYAoWsI8gEDxr4A6wMK05JnMUHmBxTC3gTZp7+nv0lGH14O31pjb4+jRdbTt9fZ5/9nT6F0esDscwPDAJh1TgCNP2QRXKmh+f8C2Qg87We7gjUAAAAASUVORK5CYII=", "32": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACgCAYAAADEkmT9AAAE70lEQVR42u2dTc7UMAyGewa2SBwBiauw5hQsuQLHQeJk6NsO4hMjVdX0J6nj9239PNJsZuPEfpPOpLE9TQAAAH18/PDlgf1iAZ9/fn57eyy/w/4NBTif8N5nhCOq25cKsGXyI5zQans+hjvMv2Uc4XZ7Jh85mF7bUSJQz7/XD2EiUAbgrG2HMUQEQrYDrhn+9eORMhC1ANTz39qBjozh9A60Zvj5GemAreC3BiByDFnzjxpDqADmhlucECmAngBEjSFz/lFjCN8BPn/6+v5ZGn5+n7X6VLtQ1vzXxjC3Px/Dmv1u22srcM3QlgN6BrJnvyUAkfbVj6BUAap+hG3Z7RVg9DhK/AvZM37E6SN+BGY5wl0AI0Rv44Ajto8K8K4CkO8AV1h9dxCA9CRSpUAHAZQ/CeQo2EMA/+ixHfpCSPUiRi0Ah7eRPSIIfyWsUiArsH0cwy6FtPwPj34P3nMOMGIFKubfIoJpNHsOGGX3KYKjARh1I0c1/6X9uRhefZ9GiupctkCD+a8FWiYANdkBAAAAAAAAAAAd5bJzCbhXdi4kB16dncsOKBiIy/t4B8fb7IBZA3G5D+DgeEl6uHIrvtqlzNGFIeS7X3ahBIfsYJfCEPJHYPb1ZHVqllNhCFl6uPJZrM4OdvrtIUsPPxKMUU5RZgc7FIZYG0tqeniUCiODkJEd7FAYYm0saenhkSpsHYw6O9ihMMSaH7LrE8gGokwNs3G8w28RVaEIVXawujBGxG5olx94hx3gaomhqQIYUSjCWQAjC2NYnkc4loq5o13bk0AE8CY/ipUnp6qeRRGBuPJbyF5f2LyTj3BIdvBdBXDUF0NfBauc0fN37I4XUdTZydJnkSI/36UwxFIA8/G9+n64CFSFEhQBcCkMYYV8K1qsgCrztaVanj51CQAAAAAAAAAAAKAQ6gIFVAQROFyZJ0+JGHHglSnSlIgRBr/0rViCf71+PYjAIPgureMQAQJAAJHOzyrRou7ejQAMS7Rk2UcAwhItDvYRgLBEi4N9gr+xmnqewZHFIUbbh0nfvdulezgCQAAIAAEgAASACDgJRAAIABHwNrC4CFoqdIy4D6CwD7MgHA3AqKYJKvvwH3WJFLV9eBGQyvYBAAAAAAAAAABqsHfm/uf778ed7ZcMeEt+fnQA1PYJ/s77+WUQIgOgtl8++MqLGGr7BJ8CEWz7rdk5EaVa1PYRwMlW6iPuBGbaRwAnW6lHCyDbPgJYBGCenTt3/tpdvWgBZNsn+AHp2ZF5AZn2YSIvAAFsBOBIG/WRAsiwjwDYARDAmYOYUecAlIzlJJDVn4m6ibJbE2dEIHA+wb+ICO5svzzqLtp08TYRwHxFvvr+rvYBAAAAAAAAAEAEb/wKBpzewYUDz0WQosHnQkjRZ7D7ncByIst8Bjv2Cyj7G0TxDHYSQOnfID03c886wal3sGL+lw5+hBNcegeXv5au+hHm0ju4dGLK1ioc7QSH3sHK+dsKQNU5vKdn0OgO5uUE0LsFR66+zK1YOX/bHSArP/+IAI6s+ugxlKlPsPcMbg3GiNaxIwWgnv8t/gHc7RFQ7p/AngOOrsCrto5Vzx8BIIC6jwCHgxiaV5uchCl7B5cvUePiAFXvYGoUTV43chT1AbiRNPmWaMm0U75ETcsWPN2Q6vN/p3qFDiqUiLZg5g8AAAAAABDBX9P1+9xjtJrBAAAAAElFTkSuQmCC", "48": "iVBORw0KGgoAAAANSUhEUgAAAMAAAADwCAYAAABWpmuqAAAHyUlEQVR42u3dwY3rNhSFYdeQbYCUECCtZJ0qsnwtpJwHpJBXS5DtZLxwIBgeWbYo8h7q+wFtRl5cXp5DXmlE8nIBAABAa37+6bcPWZD/0yT7/vrrj38/Hv1dtuR/usRfk731SumIlBhnzf90ia/cEWkj6Gz5P534q3RC4gg6U/7jZuCWyR/ZCakj6Cz5j5yBj0j+iE44QkDy36ddQ01wVPJ7CulIAcl/P0N3N8LRye/RCckCmiH/0SXolmC/f/so2wHpAkrPf/RD/LNgr4m/v6p1QrIBZsh/9DNYegf0Ev+o+JMMsNaWPXEfaoJnQX/y49dffv+4XmudsPxdNQO0KB9GxP9I/HtNcGQZ96gtLWI/tBR6JqCbqJcGePa7Xh3Qe/Qc0YbK+d/SjlZ9wAAnNUBKCfTV6N+qgjgk7i3lw1Zhb/1dy8ZsKR8edcCj328t4XrFn1TGrbWl1QA6bAao/BC5ZfS874BKBp7hIZ4BGOD0BlhrQ8sKYlgZtEcso8uHI0q4UWVQ+j/zSr6+nXkG0AYGYABtKGeAdyqIYf8MS/4v6hElXPJ/s32MyACnbsfRBohez5Do4FkMED+CHtyGLp9Fpzp4phrairzBC3kSHTyLAeJH0BkMkNqAmVZUxQvok5bxX0bQckVP8syV3p6RuyzEiv++EctXho9eG351P9W01UbSlPxPaYAr73TAqFgfmeBdAVUZSZPy39IEVdrwcgdUS3oLA8h/XxOUasBXCb4FWrEDWhpA/s9t4FhaGEAWGXgaI8ROwZMaYOt9dDaBbDHAaUwhCwAAAAAAAAAAAAAAAAAAAKmMXOeLifKf0JDbzmjLa7lj2vKSb/mfpiHvbDdYMf5U4aTnP7YhLfbZTIu/mnD29EGZtiQKqeUms4mxVxDPDDvbRQrpiB2WE2MfPXul78gXKaTk7cWTjXuk+Idtke6cAOcCnLUdTopxMswh7dh70n23U2JmPWNrbwc4G+y9dtxOh19eZU2QKKQtI0+rDhhxRGpF405pgFQhibvu0U7XmD/5cdv1ba0ty98xQMPRp2UHMMDrbVlue7jWji1nNw8zQLKQWnYA457UAKlCEnef17hb29Hid4eZILFDtjxEtu6AXrGnGGCKt1kzC6liJyTne9rXuakHTos774DvV0zLAAfE/W4HMIAZgJBOblwGUEqYAWb8pim5QxJHoBkNEP816Mwfw4n7EqufaT6F9lnx3AY4ok3dV4RZWGIhz15axt879vilhYmvEKdYSXWACS6jSK7lEqfgKdbSNjbBZTTJtdwy9vuTyNferd/fVzvv5538X6qQvr/LHgPI9xgDXCqSJqT0ESg538/yv2zj2v1L9YakTGWpI1B06bDBAFvvxxrgUpyqgpk13/FMM5XJNwAAAAAAAAAAAAAAAAAAAAAAAIDTUWnngTPGj85iub+WO48tL/FjOuGnbMc3W/wIEk4lIaXHj8HiT96ib9YtBhEoHgc04PTid0YVTi9+BzWDARgAZxZ/+kFzTHBiA3z/9hFtgMrxo7D4r8K5v5IOm64ePxiAAVDTAI/E00pEPQyQED8CZoDlHvRr4lk7zGHkDFA5fiiBlECo//qz5VuUViJKjx9hJqgonvT4wQAMAAZgADAAA4ABGACTm8DHcGAA8eOMJrAeAAwgfpzRBNYEI9IEy4/EHn0o9uz+6F0hkuJHAY4QkPgRa4K9AhI/ok2wR0Dix3Ql0ZZL/DitCcSP05hC/AAAAAAAAAAAAAAAAACAaN5dJvjPn39/iB9xYr+/bmtl76+KAkqPH4OF/+ruCWtC6img9PgRJv4tIuoloPT4MVj8yXvppMePCcQ/SkTp8WMi8VfYGIsJcHjNvPfBUvwoP/rvPWlx9N6g1eNHUfG3PGt3xO7QCfGDARgA9QxwFcsnP27bBq6JaPm7KgZIiR+FZ4DlvplrI+izHZZHzQAJ8YMBGAA13/5sEcYrv+t9SF71+BFgAmeEET8DMAADMMBr5UJVA1SLH2YAMwAYgAEwrQmcE4zyBvA1qK9BzQLWAxj9mcCKMOI/MS0FJH6c1gTix2lNIH5MwfK/po/+c/rovvhxWgOIH1MbYFlerN0XP6Y2wNb74gcAAAAAAAAAAAAAAAAAAACAptjtAacS+/213PBqeckWphO+XeBA+LZDxBlq6LPsDMecaujDxV/FBJ5h1NDDxD/SBJ5h1NAlxD9il2vPMMHi790JMxkgMf/EP7ATeom/hwkS80/8gzthS8xfnQ5f7ZwzJ9xM+AblSOE8i/kq/PsrtS0O+lBDT2sAp1wGGKCFeHoK5yb4T37c9v1cM8HydxUNUDH/pxB/61G0ZSdsiX258e1a7K+cHt+7DVXzzwAMwAAzG+CrEuJRJ2wtIVp1wNa6eauwXzFAr3ZUzv9pZoD7EfSrEWirgHqOngkPk8n5ZwAGYIDZ3/4cUUL0LoP2ljsj46+cf/8DKD56VjdAev4Z4GTiYQAG2D2Cpv4XtVL8lfLPAAzAAEqguT8kmyF2BphUQOInfh1wyf6cmAFOYIJRSyPvT4J/9f7I2Im/swFmWJF0hAHk3ywQNfq0NID8M0Fk8lsYQP6ZID7578Qt//hfPO+OoNXakSL+GfMfzTsdkGJu+UfzDpAx+Z+6A+5HUB0g/wAAAAAAAAAAAAAAADiU/wBHV/qsXUSc3wAAAABJRU5ErkJggg==", "64": "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"};   // frame_size -> base64 png, embedded at build time
+
+const $ = (id) => document.getElementById(id);
+let current = null;            // decoded spritesheet Image
+let recording = true;
+let frame = 0, move = 0;
+let last = 0;
+
+const MOVES = [
+  {key:'idle', label:'idle', row:0, frames:4},
+  {key:'walk', label:'walk', row:1, frames:4},
+  {key:'sleep',label:'sleep',row:2, frames:2},
+  {key:'remind',label:'remind',row:3, frames:2},
+  {key:'celebrate',label:'celebrate',row:4, frames:3},
+];
+
+function opts(){
+  return {
+    name: $('name').value || 'pet',
+    body: $('body').value,
+    accent: $('accent').value,
+    head: $('head').value,
+    fs: parseInt($('frame').value,10),
+    scale: parseInt($('scale').value,10),
+    fps: Math.min(30, Math.max(1, parseInt($('fps').value,10) || 4)),
+  };
+}
+
+function log(msg, cls){
+  const el = $('log');
+  el.innerHTML = msg + (cls ? ` <span class="${cls}">✓</span>` : '');
+}
+
+// The studio draws its own preview from the embedded reference sheet; changing colours
+// re-tints it on the fly so the preview is instant and offline.
+function tintFor(canvas){
+  const o = opts();
+  return {body:o.body, accent:o.accent};
+}
+
+function drawStage(){
+  const o = opts();
+  const c = $('stage');
+  const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  g.clearRect(0,0,c.width,c.height);
+  if(!current){ return; }
+  const fs = o.fs;
+  const m = MOVES[move];
+  const col = frame % m.frames;
+  // Draw a soft shadow, then the frame, centred.
+  const dw = fs * o.scale;
+  const dh = fs * o.scale;
+  const ox = (c.width - dw) / 2;
+  const oy = (c.height - dh) / 2;
+  g.globalAlpha = .25;
+  g.fillStyle = '#000';
+  g.beginPath();
+  g.ellipse(c.width/2, oy + dh - 4, dw*0.28, dh*0.07, 0, 0, Math.PI*2);
+  g.fill();
+  g.globalAlpha = 1;
+  g.drawImage(current, col*fs, m.row*fs, fs, fs, ox, oy, dw, dh);
+  // tint overlay: keeps the embedded sheet shape but uses your colours
+  g.globalCompositeOperation = 'source-atop';
+  g.globalAlpha = .35;
+  g.fillStyle = o.body;
+  g.fillRect(ox, oy, dw, dh);
+  g.globalAlpha = 1;
+  g.globalCompositeOperation = 'source-over';
+}
+
+function loop(t){
+  if(recording){
+    const o = opts();
+    const m = MOVES[move];
+    const interval = 1000 / o.fps;
+    if(t - last > interval){
+      last = t;
+      frame = (frame + 1) % m.frames;
+      // Auto-advance the demo so the pet feels alive: walk for a while, then rest.
+      if(frame === 0 && Math.random() < .22){
+        move = (move + 1) % MOVES.length;
+      }
+      drawStage();
+    }
+  }
+  requestAnimationFrame(loop);
+}
+
+function buildMoves(){
+  const box = $('moves');
+  box.innerHTML = '';
+  MOVES.forEach((m,i)=>{
+    const b = document.createElement('div');
+    b.className = 'move' + (i===move?' on':'');
+    b.textContent = m.label;
+    b.onclick = ()=>{ move = i; frame = 0; renderMoves(); drawStage(); log(`previewing <b>${m.label}</b> (${m.frames} frames)`); };
+    box.appendChild(b);
+  });
+}
+function renderMoves(){ [...$('moves').children].forEach((el,i)=> el.classList.toggle('on', i===move)); }
+
+function manifestObject(){
+  const o = opts();
+  const water = $('s-water').value.trim();
+  const brk = $('s-break').value.trim();
+  const rec = $('s-recovered').value.trim();
+  const speech = {};
+  if(water) speech.water = [water];
+  if(brk) speech.break = [brk];
+  if(rec) speech.recovered = [rec];
+  const m = {
+    name: o.name,
+    author: 'made in Pet Studio',
+    version: 1,
+    frame_size: o.fs,
+    scale: o.scale,
+    anchor: 'bottom',
+    fps: { idle:o.fps, walk:Math.min(30,o.fps*2), sleep:2, remind:6, celebrate:10 },
+    speech,
+    palette: [o.body, o.accent],
+    license: 'CC0',
+  };
+  return m;
+}
+
+function updateManifest(){
+  const m = manifestObject();
+  $('manifest').textContent = JSON.stringify(m, null, 2);
+  $('nframes').textContent = 15;
+  $('sheet').textContent = `${m.frame_size*4} × ${m.frame_size*5} px`;
+  return m;
+}
+
+function download(name, blob){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+  log(`downloaded <b>${name}</b> (${(blob.size/1024).toFixed(1)} KB)`, 'hi');
+}
+
+function loadSprite(){
+  const fs = opts().fs;
+  const b64 = SPRITES[String(fs)];
+  const img = new Image();
+  img.onload = ()=>{
+    current = img;
+    $('bytes').textContent = `${(atob(b64).length/1024).toFixed(1)} KB`;
+    drawStage();
+    log(`loaded the ${fs}px reference sheet — ${15} frames, 5 animations`);
+  };
+  img.src = 'data:image/png;base64,' + b64;
+}
+
+function spriteBlob(){
+  const b64 = SPRITES[String(opts().fs)];
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], {type:'image/png'});
+}
+
+// wiring
+['name','body','accent','head','frame','scale','fps','s-water','s-break','s-recovered'].forEach(id=>{
+  $(id).addEventListener('input', ()=>{ updateManifest(); drawStage(); });
+});
+$('frame').addEventListener('change', ()=>{ loadSprite(); updateManifest(); });
+$('rerecord').onclick = ()=>{ recording = true; frame = 0; log('recording again'); };
+$('random').onclick = ()=>{
+  const rnd = (a)=>a[Math.floor(Math.random()*a.length)];
+  $('body').value = rnd(['#c2331a','#1f6b3a','#8a5a00','#2c4a7c','#5c2c6b','#0f6b6b']);
+  $('accent').value = rnd(['#c2331a','#e0a800','#1f6b3a','#2c4a7c']);
+  $('fps').value = rnd([3,4,5,6]);
+  updateManifest(); drawStage();
+  log('surprise: recoloured');
+};
+$('dl-sprite').onclick = ()=> download(`sprite.png`, spriteBlob());
+$('dl-json').onclick = ()=>{
+  const m = updateManifest();
+  download(`pet.json`, new Blob([JSON.stringify(m,null,2)], {type:'application/json'}));
+};
+$('dl-empty').onclick = ()=>{
+  // An empty 15-cell grid at the chosen frame size, for painting over.
+  const o = opts();
+  const c = document.createElement('canvas');
+  c.width = o.fs * 4; c.height = o.fs * 5;
+  c.toBlob(b=>download('sprite.png', b), 'image/png');
+  log('empty grid: paint each cell, keep idle/walk looping');
+};
+
+buildMoves();
+loadSprite();
+updateManifest();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
