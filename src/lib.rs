@@ -20,10 +20,14 @@
 
 pub mod capture;
 pub mod cli;
+pub mod companion;
+pub mod config;
 pub mod crypto;
 pub mod engine;
+pub mod pet;
 pub mod policy;
 pub mod recover;
+pub mod remind;
 pub mod ring;
 pub mod vault;
 

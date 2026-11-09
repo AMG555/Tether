@@ -128,6 +128,31 @@ pub enum Command {
     /// This exists so the crash guarantee is *reproducible*: CI can type a sentence, SIGKILL
     /// the process mid-stream, and assert the text comes back. It writes nothing to the
     /// vault and never commits — only the crash ring sees these keystrokes.
+    Ask {
+        /// Create a new pet from procedural art (no drawing needed).
+        #[arg(long)]
+        new: Option<String>,
+        /// Frame size in px for `--new` (16, 32, 48 or 64).
+        #[arg(long, default_value_t = 32)]
+        frame_size: u32,
+        /// Body colour for `--new`, as #rrggbb.
+        #[arg(long, default_value = "#c2331a")]
+        body: String,
+        /// Accent colour for `--new`, as #rrggbb.
+        #[arg(long, default_value = "#1f6b3a")]
+        accent: String,
+        /// List installed pets (and anything broken, with the reason).
+        #[arg(long)]
+        list: bool,
+        /// Install a pet folder after validating it.
+        #[arg(long, value_name = "DIR")]
+        install: Option<PathBuf>,
+    },
+    /// Feed synthetic keystrokes into the capture path (demos and tests).
+    ///
+    /// This exists so the crash guarantee is *reproducible*: CI can type a sentence, SIGKILL
+    /// the process mid-stream, and assert the text comes back. It writes nothing to the
+    /// vault and never commits — only the crash ring sees these keystrokes.
     Simulate {
         /// Text to "type".
         #[arg(long)]
@@ -208,6 +233,19 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         Command::Export { path, i_understand } => cmd_export(&home, &path, i_understand),
         Command::Doctor => cmd_doctor(&home),
         Command::Status => cmd_status(&home),
+        Command::Ask { new, frame_size, body, accent, list, install } => {
+            let data = data_dir(&home);
+            let action = if let Some(name) = new {
+                crate::companion::Action::New { name, frame_size, body, accent }
+            } else if list {
+                crate::companion::Action::List
+            } else if let Some(path) = install {
+                crate::companion::Action::Install { path }
+            } else {
+                crate::companion::Action::List
+            };
+            crate::companion::run(&data, action)
+        }
         Command::Simulate { text, app, crash, ring_slots, quiet } => {
             cmd_simulate(&home, &text, &app, crash, ring_slots, quiet)
         }
