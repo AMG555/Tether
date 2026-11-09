@@ -19,6 +19,7 @@ pub const MAX_NAME_CHARS: usize = 32;
 /// A 3D avatar is a bigger file than a sprite sheet, but not unbounded: this is the same cap
 /// the audit in [`crate::avatar::audit`] enforces, kept here so a manifest can be rejected
 /// before the file is even opened.
+pub const MAX_MODEL_BYTES: u64 = 96 * 1024 * 1024;
 pub const MAX_SPEECH_LINE: usize = 120;
 pub const MAX_SPEECH_LINES: usize = 24;
 
@@ -31,6 +32,117 @@ pub struct Animation {
     pub frames: u8,
     /// Column offset in the sheet (rows are `idle, walk, sleep, remind, celebrate`).
     pub row: u8,
+}
+
+/// A rigged 3D avatar (`VRM` for humans, `glTF`/`GLB` for anything else).
+///
+/// Optional: a pet with a `model` renders in 3D, and a pet without one keeps using its
+/// `sprite.png`. The two paths are independent on purpose — 2D pets must never break because
+/// 3D exists, and a machine without a GPU must still be able to show a pet.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Model {
+    /// File name inside the pet folder. Must be a bare name: no directories, no `..`.
+    pub file: String,
+    /// Size multiplier, 0.25–4.0.
+    pub scale: f32,
+    /// Where the model's origin sits: `bottom` (default), `center` or `top`.
+    pub anchor: String,
+    /// Vertical nudge in world units, -2.0–2.0. For a model whose origin is not at its feet.
+    pub y_offset: f32,
+    /// Clip names to use for each state, if the file has them.
+    pub clips: Clips,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct Clips {
+    pub idle: String,
+    pub walk: String,
+    pub sleep: String,
+    pub remind: String,
+    pub celebrate: String,
+}
+
+impl Model {
+    pub fn is_set(&self) -> bool {
+        !self.file.trim().is_empty()
+    }
+
+    /// Validates the model *declaration*. The file itself is audited separately by
+    /// [`crate::avatar::audit`], which is the only place allowed to look inside it.
+    fn validate(&self, dir: &Path, errs: &mut Vec<Invalid>) {
+        if !self.is_set() {
+            return;
+        }
+        // Path traversal: a manifest is downloaded content, so `../../../etc/passwd` in a `file`
+        // field is the obvious attack. Only a bare file name is allowed.
+        let f = self.file.trim();
+        if f.contains('/') || f.contains('\\') || f.contains("..") || f.starts_with('.') {
+            errs.push(Invalid {
+                field: "model.file",
+                reason: format!("{f:?} must be a bare file name, not a path"),
+            });
+            return;
+        }
+        let ext = Path::new(f)
+            .extension()
+            .map(|e| e.to_string_lossy().to_lowercase())
+            .unwrap_or_default();
+        if !matches!(ext.as_str(), "vrm" | "glb" | "gltf") {
+            errs.push(Invalid {
+                field: "model.file",
+                reason: format!("{f:?} is not .vrm, .glb or .gltf"),
+            });
+        }
+        if !(0.25..=4.0).contains(&self.scale) || self.scale.is_nan() {
+            errs.push(Invalid {
+                field: "model.scale",
+                reason: format!("{} is outside 0.25..=4.0", self.scale),
+            });
+        }
+        if !matches!(self.anchor.as_str(), "bottom" | "center" | "top") {
+            errs.push(Invalid {
+                field: "model.anchor",
+                reason: format!("{:?} is not bottom|center|top", self.anchor),
+            });
+        }
+        if !(-2.0..=2.0).contains(&self.y_offset) || self.y_offset.is_nan() {
+            errs.push(Invalid {
+                field: "model.y_offset",
+                reason: format!("{} is outside -2.0..=2.0", self.y_offset),
+            });
+        }
+        for (field, v) in [
+            ("model.clips.idle", &self.clips.idle),
+            ("model.clips.walk", &self.clips.walk),
+            ("model.clips.sleep", &self.clips.sleep),
+            ("model.clips.remind", &self.clips.remind),
+            ("model.clips.celebrate", &self.clips.celebrate),
+        ] {
+            if let Err(e) = clean_text(field, v, 64) {
+                errs.push(e);
+            }
+        }
+
+        let path = dir.join(f);
+        match std::fs::metadata(&path) {
+            Err(_) => errs.push(Invalid {
+                field: "model.file",
+                reason: format!("{f} is missing beside pet.json"),
+            }),
+            Ok(m) => {
+                if m.len() > MAX_MODEL_BYTES {
+                    errs.push(Invalid {
+                        field: "model.file",
+                        reason: format!("{} bytes, limit is {MAX_MODEL_BYTES}", m.len()),
+                    });
+                } else if let Err(reason) = check_model_header(&path) {
+                    errs.push(Invalid { field: "model.file", reason });
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,6 +158,8 @@ pub struct Pet {
     pub speech: Speech,
     pub palette: Vec<String>,
     pub license: String,
+    /// Optional rigged 3D avatar. Independent of `sprite.png`.
+    pub model: Model,
     /// Filled in by the loader: where the files actually are.
     #[serde(skip)]
     pub dir: Option<PathBuf>,
@@ -64,6 +178,7 @@ impl Default for Pet {
             speech: Speech::default(),
             palette: Vec::new(),
             license: "CC0".into(),
+            model: Model::default(),
             dir: None,
         }
     }
@@ -253,6 +368,16 @@ pub fn validate(pet: &Pet, dir: &Path) -> Result<(), Vec<Invalid>> {
         }
     }
 
+    pet.model.validate(dir, &mut errs);
+
+    // A pet needs exactly one kind of art. Saying so is kinder than "sprite.png missing".
+    let has_model = pet.model.is_set();
+
+    // Files. A pet needs art: a sprite sheet, a 3D model, or both. A pet with a working model
+    // is allowed to ship no sprite at all, which is the point of the 3D path.
+    if pet.model.is_set() && !dir.join("sprite.png").exists() {
+        return if errs.is_empty() { Ok(()) } else { Err(errs) };
+    }
     let sprite = dir.join("sprite.png");
     match std::fs::metadata(&sprite) {
         Err(_) => {
@@ -302,6 +427,32 @@ fn read_head(path: &Path, n: usize) -> std::io::Result<Vec<u8>> {
     Ok(buf)
 }
 
+/// GLB header (`glTF`, version, declared length) or a JSON-looking `.gltf`/`.vrm`.
+///
+/// Header only: never parses the JSON, never touches a buffer. The deep inspection happens in
+/// [`crate::avatar::audit`], on demand, so opening a pet folder stays cheap.
+fn check_model_header(path: &Path) -> Result<(), String> {
+    let head = read_head(path, 12).map_err(|e| e.to_string())?;
+    match path.extension().map(|e| e.to_string_lossy().to_lowercase()).as_deref() {
+        Some("gltf") => {
+            let first = head.iter().copied().find(|c| !c.is_ascii_whitespace());
+            if first != Some(b'{') {
+                return Err("does not start with a JSON object".into());
+            }
+            Ok(())
+        }
+        _ => {
+            if head.len() < 12 || &head[..4] != b"glTF" {
+                return Err("is not a binary glTF (missing glTF magic)".into());
+            }
+            let version = u32::from_le_bytes([head[4], head[5], head[6], head[7]]);
+            if version != 2 {
+                return Err(format!("binary glTF version {version}, this build reads 2"));
+            }
+            Ok(())
+        }
+    }
+}
 
 /// Reads width/height straight from the IHDR chunk.
 ///
@@ -386,6 +537,9 @@ pub fn install(src: &Path, pets_dir: &Path) -> Result<PathBuf, String> {
     let mut wanted = vec![PathBuf::from("pet.json")];
     if src.join("sprite.png").exists() {
         wanted.push(PathBuf::from("sprite.png"));
+    }
+    if pet.model.is_set() {
+        wanted.push(PathBuf::from(pet.model.file.trim()));
     }
     wanted.extend(std::fs::read_dir(src).into_iter().flatten().flatten().filter_map(|e| {
         // A `.companion` bundle may ship extras (a licence, a preview); copy anything small.
