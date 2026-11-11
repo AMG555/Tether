@@ -25,6 +25,7 @@ pub mod companion;
 pub mod config;
 pub mod crypto;
 pub mod engine;
+pub mod pack;
 pub mod pet;
 pub mod policy;
 pub mod recover;
