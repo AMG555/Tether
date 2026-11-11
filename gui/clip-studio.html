@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Character Studio — Savepoint</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Page-local layout only. All visual language comes from theme.css. */
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--u) * 5); align-items: start; }
+  @media (max-width: 900px) { .two { grid-template-columns: 1fr; } .step { grid-template-columns: 1fr; }
+    .step > .gutter { text-align: left; border-right: none; border-bottom: 1px solid var(--rule);
+      padding-bottom: calc(var(--u) * 1.5); } }
+
+  .tabs { display: flex; border-bottom: 1px solid var(--ink); padding: 0 calc(var(--u) * 7); background: var(--paper-sunk); }
+  .tabs button {
+    background: transparent; border: none; border-radius: 0; color: var(--ink-soft);
+    border-right: 1px solid var(--rule);
+    padding: calc(var(--u) * 2.5) calc(var(--u) * 4);
+    font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase;
+  }
+  .tabs button[aria-selected="true"] {
+    background: var(--paper); color: var(--ink);
+    box-shadow: inset 0 -2px 0 var(--signal);
+  }
+  .tabs button:hover { background: var(--paper); color: var(--ink); }
+
+  .drop {
+    border: 1px solid var(--rule-strong);
+    border-left: 3px solid var(--ink);
+    background: var(--paper-sunk);
+    padding: calc(var(--u) * 5);
+    text-align: center;
+    font-size: 12px;
+    color: var(--ink-soft);
+  }
+  .drop.over { border-left-color: var(--signal); background: var(--signal-wash); color: var(--signal); }
+  .drop a { color: var(--signal); }
+
+  /* Credit meter: a real instrument. Bar length is proportional, numbers are tabular. */
+  .meter { display: flex; gap: 2px; margin: calc(var(--u) * 2) 0; }
+  .meter i { flex: 1; height: 16px; background: var(--paper-sunk); border: 1px solid var(--rule); position: relative; overflow: hidden; }
+  .meter i > b { position: absolute; inset: 0 auto 0 0; background: var(--signal); }
+  .legend { display: flex; gap: calc(var(--u) * 4); font-size: 11px; color: var(--ink-soft); flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend b { width: 10px; height: 10px; display: inline-block; border: 1px solid var(--rule); }
+
+  .stamp-row { display: flex; gap: calc(var(--u) * 2); flex-wrap: wrap; margin-top: calc(var(--u) * 3); }
+  .stamp-row button { font-size: 11px; padding: calc(var(--u) * 1) calc(var(--u) * 2); }
+
+  .clips { width: 100%; }
+  .clips .blk { display: inline-block; width: 9px; height: 9px; }
+  .clips .has { background: var(--ok); }
+  .clips .has-req { background: var(--ink); }
+  .clips .none { border: 1px solid var(--rule-strong); }
+
+  footer { padding: calc(var(--u) * 4) calc(var(--u) * 7) calc(var(--u) * 8); color: var(--ink-faint);
+    font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase;
+    display: flex; justify-content: space-between; gap: calc(var(--u) * 4); flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <header class="masthead">
+    <div>
+      <h1>Character Studio</h1>
+      <p class="sub">Build a desktop companion from a character image and a handful of animated
+        clips. Runs offline. No account, no upload, no network request from this page.</p>
+    </div>
+    <div class="stamp">
+      Savepoint · companion tooling<br>
+      clip pack format v1<br>
+      offline
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="plan">01 · Plan</button>
+    <button role="tab" aria-selected="false" data-tab="make">02 · Generate</button>
+    <button role="tab" aria-selected="false" data-tab="pack">03 · Assemble</button>
+    <button role="tab" aria-selected="false" data-tab="ship">04 · Ship</button>
+  </nav>
+
+  <!-- ============================================================ 01 PLAN -->
+  <section id="tab-plan" role="tabpanel">
+
+    <div class="step">
+      <div class="gutter">01.1</div>
+      <div class="body">
+        <h2>What one character actually costs</h2>
+        <p class="note">A companion is not one generation. It is eight short clips, and every
+          generation can fail or need a second take. Plan for <b>12 generations</b> per character —
+          that is what buys you retries. Google Flow's free tier gives <b>50 credits per day</b>,
+          so the arithmetic below decides whether you can afford the model you picked.</p>
+
+        <div class="two">
+          <div>
+            <label class="field"><span>Generator</span>
+              <select id="gen">
+                <option value="10|flow">Google Flow · Veo 3.1 Lite (10 credits)</option>
+                <option value="20|flow">Google Flow · Veo 3.1 Fast (20 credits)</option>
+                <option value="6|flow">Google Flow · Omni Flash 360p (6 credits)</option>
+                <option value="12|flow">Google Flow · Omni Flash 720p (12 credits)</option>
+                <option value="100|flow">Google Flow · Veo 3.1 Quality (100 credits)</option>
+                <option value="0|other">Other tool / free</option>
+              </select>
+            </label>
+            <label class="field"><span>Generations per character (clips + retries)</span>
+              <input type="number" id="gens" value="12" min="1" max="60">
+            </label>
+          </div>
+          <div>
+            <div class="legend" style="margin-bottom:6px">
+              <span><b style="background:var(--signal);border-color:var(--signal)"></b> credits spent on this character</span>
+              <span><b></b> allowance left that day</span>
+            </div>
+            <div class="meter" id="meter" role="img" aria-label="credits needed per day"></div>
+            <div class="legend" id="meterLabel" style="margin-top:6px"></div>
+            <table class="ledger" style="margin-top:calc(var(--u)*4)">
+              <thead><tr><th>Measure</th><th class="num">Value</th></tr></thead>
+              <tbody id="costRows"></tbody>
+            </table>
+            <p class="hint" id="verdict"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="gutter">01.2</div>
+      <div class="body">
+        <h2>The honest limits of the free tier</h2>
+        <p class="note">Read this before you plan a workflow around it. These are Google's rules,
+          not ours, and they change.</p>
+        <table class="ledger">
+          <thead><tr><th>Rule</th><th>What it means for you</th></tr></thead>
+          <tbody>
+            <tr><td>50 credits, per day</td><td>Enough for <span class="nums">5</span> Lite or
+              <span class="nums">2</span> Fast generations. A full 8-clip character is not one day's work.</td></tr>
+            <tr><td>No rollover</td><td>Unused credits are gone tomorrow. Plan in days, not batches.</td></tr>
+            <tr><td>Clock starts on first generation</td><td>Your next 50 arrive that many hours later, not at midnight.</td></tr>
+            <tr><td>Peak-hour pause, ~14:00–17:00 UTC</td><td>Free accounts may be blocked from <i>video</i>
+              generation in that window. Images and the agent still work.</td></tr>
+            <tr><td>Cost is per generation, not per click</td><td>One request can return two videos and charge twice.</td></tr>
+            <tr><td>Clip length 4–8 s</td><td>Our target is 1–8 s per clip, so a single generation is enough. Do not extend.</td></tr>
+            <tr><td>Visible watermark in some regions</td><td>India, South Korea and Vietnam force a visible mark on
+              free output. It will be cropped into your character. Check before you commit.</td></tr>
+            <tr><td>720p output</td><td>You need roughly 300 px tall. Downscale; never upload footage.</td></tr>
+          </tbody>
+        </table>
+        <p class="hint">Sources: Google Flow help centre credit table and the current published
+          free-tier rules. Prices move; the planner above is what matters, and you can change the
+          numbers yourself.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="gutter">01.3</div>
+      <div class="body">
+        <h2>So: yes, you can do it for free — over four or five days</h2>
+        <p class="note">This is the answer to "is 50 credits enough?". For one character, with
+          <b>Veo 3.1 Lite</b>, twelve generations is 120 credits: three days of allowance if you
+          spend nothing else. Assemble the pack whenever you like — the clips keep. If you want a
+          character today, use <b>Omni Flash at 360p</b> (6 credits) and accept softer art, or start
+          from a still image you already have.</p>
+        <table class="ledger" id="planRows">
+          <thead><tr><th>Approach</th><th class="num">Credits</th><th class="num">Days</th><th>Trade</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ 02 GENERATE -->
+  <section id="tab-make" role="tabpanel" hidden>
+    <div class="step">
+      <div class="gutter">02.1</div>
+      <div class="body">
+        <h2>The character image</h2>
+        <p class="note">One still, generated once. This is the frame every animation starts from,
+          so spend your retries here — a bad first frame cannot be animated into a good clip.
+          Paste into Flow's image mode or any image model.</p>
+        <div class="row" style="margin-bottom:calc(var(--u)*3)">
+          <label class="field" style="flex:1 1 320px"><span>Character</span>
+            <input type="text" id="who" value="a friendly Kerala mother in a cream saree and gold jewellery"></label>
+          <label class="field" style="flex:1 1 260px"><span>Style</span>
+            <select id="style">
+              <option value="a stylised 3D animated-film character, soft studio lighting, large expressive eyes, clean surfaces">3D animated film</option>
+              <option value="a clean 2D cartoon character with flat shading and a bold outline">2D cartoon</option>
+              <option value="a claymation character with visible fingerprints under warm light">Claymation</option>
+              <option value="a hand-painted watercolour character with soft edges and paper grain">Watercolour</option>
+            </select></label>
+        </div>
+        <div class="prompt" id="imgPrompt"></div>
+        <div class="row" style="margin-top:calc(var(--u)*3)">
+          <button data-copy="imgPrompt">Copy prompt</button>
+          <button class="quiet" data-copy="setup">Copy setup notes</button>
+        </div>
+        <pre class="code hidden" id="setupSrc"></pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="gutter">02.2</div>
+      <div class="body">
+        <h2>Animate it — eight clips, one prompt each</h2>
+        <p class="note">Feed the image in as the <b>first frame</b> (Flow calls this Frames to Video).
+          Keep the camera locked in every prompt: a drifting camera makes the pet appear to
+          teleport, and no runtime can correct that. <span class="state ok"><i class="sq"></i>required to load</span>
+          marks the two clips a pack cannot ship without.</p>
+        <table class="ledger" id="animTable">
+          <thead><tr><th>Clip</th><th>Prompt</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="gutter">02.3</div>
+      <div class="body">
+        <h2>Export, then strip the background</h2>
+        <p class="note">Flow returns video. You need alpha. The order that works: download the
+          clip, keep only the middle frames (the first and last are usually the model settling),
+          remove the background, crop tight to the body, then encode.</p>
+        <table class="ledger">
+          <thead><tr><th>Setting</th><th>Value</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td>Canvas</td><td class="nums">264 × 280</td><td>What the built-in companions ship. The player scales to fit, so any size works, but keep every clip identical.</td></tr>
+            <tr><td>Frame rate</td><td class="nums">17 fps</td><td>Slower than video, and it is what the art was drawn for. 30 fps doubles the bytes for no visible gain.</td></tr>
+            <tr><td>Duration</td><td class="nums">1–8 s</td><td>Idle and eyes can be long; walk should be 1–2 s so it loops.</td></tr>
+            <tr><td>Format</td><td>animated WebP</td><td>Roughly a quarter of APNG at the same quality. APNG and GIF are accepted as fallbacks.</td></tr>
+            <tr><td>Loop</td><td>forever</td><td>A walk cycle that plays once and freezes is a bug the validator refuses.</td></tr>
+            <tr><td>Alpha</td><td>on</td><td>Without it you ship a rectangle.</td></tr>
+          </tbody>
+        </table>
+        <p class="hint">Background removal: any local tool or keyer. If you generated on a flat green
+          screen (the prompt asks for it), a colour key is exact and free.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ 03 ASSEMBLE -->
+  <section id="tab-pack" role="tabpanel" hidden>
+    <div class="step">
+      <div class="gutter">03.1</div>
+      <div class="body">
+        <h2>Drop the clips in</h2>
+        <p class="note">Files are read in this tab to write the manifest. Nothing is uploaded.
+          Name a file after its state — <span class="mono-sm">amma_walk.webp</span> is recognised as
+          <b>walk</b>.</p>
+        <div class="drop" id="drop">
+          Drop animated .webp / .apng / .gif here, or
+          <a href="#" id="pick">choose files</a>
+          <input type="file" id="file" multiple accept=".webp,.png,.apng,.gif" hidden>
+        </div>
+        <table class="ledger clips" style="margin-top:calc(var(--u)*4)">
+          <thead><tr><th></th><th>State</th><th>What it plays for</th><th>File</th><th class="num">Frames</th><th class="num">Seconds</th><th class="num">Size</th></tr></thead>
+          <tbody id="stateRows"></tbody>
+        </table>
+        <div class="stage" id="stage" style="margin-top:calc(var(--u)*4)"><span class="empty">Preview</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ 04 SHIP -->
+  <section id="tab-ship" role="tabpanel" hidden>
+    <div class="step">
+      <div class="gutter">04.1</div>
+      <div class="body">
+        <h2>Identify the pet</h2>
+        <div class="row">
+          <label class="field"><span>Name</span><input type="text" id="petName" value="Amma" size="16"></label>
+          <label class="field"><span>Author</span><input type="text" id="petAuthor" value="you" size="16"></label>
+          <label class="field"><span>Licence</span><input type="text" id="petLicense" value="CC0" size="10"></label>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="gutter">04.2</div>
+      <div class="body">
+        <h2>pet.json</h2>
+        <p class="note">Save beside your clips. Bare file names only — Savepoint refuses paths.</p>
+        <pre class="code" id="json"></pre>
+        <div class="row" style="margin-top:calc(var(--u)*3)"><button data-copy="json">Copy pet.json</button></div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="gutter">04.3</div>
+      <div class="body">
+        <h2>Validate and install</h2>
+        <p class="note">Savepoint reads each clip's header before it decodes anything. It will
+          refuse a decompression bomb, a path traversal, a still image where an animation is
+          needed, and a walk cycle that does not loop — and it names the state that is wrong.</p>
+        <pre class="code" id="installCmd">savepoint ask --install ./my-companion</pre>
+        <div class="row" style="margin-top:calc(var(--u)*3)"><button data-copy="installCmd">Copy command</button></div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="gutter">04.4</div>
+      <div class="body">
+        <h2>Weight</h2>
+        <p class="note" id="sizeSummary">No clips loaded.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Savepoint · character studio</span>
+    <span>offline · no network requests · no uploads</span>
+  </footer>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const clip = (id, name) => `assets/companions/${id}/${name}.webp`;
+void clip; // kept for parity with the app's own path builder
+
+// ------------------------------------------------------------------ state table
+const STATES = [
+  ['idle',      true,  'at rest: breathing, blinking'],
+  ['walk',      false, 'wandering across the screen — add it second'],
+  ['remind',    false, 'waving for attention'],
+  ['water',     false, 'holding up a glass'],
+  ['stretch',   false, 'arms up'],
+  ['eyes',      false, 'looking away from the screen'],
+  ['celebrate', false, 'after a recovery'],
+  ['happy',     false, 'a small smile'],
+  ['sad',       false, 'a missed one'],
+  ['sleep',     false, 'overnight'],
+];
+
+// ------------------------------------------------------------------ 01 planner
+const MODEL = { '10': 'Lite', '20': 'Fast', '6': 'Omni 360p', '12': 'Omni 720p', '100': 'Quality', '0': 'free' };
+
+function plan() {
+  const [costStr] = $('gen').value.split('|');
+  const cost = Number(costStr);
+  const gens = Math.max(1, Number($('gens').value) || 12);
+  const total = cost * gens;
+  const perDay = 50;
+  const days = cost > 0 ? Math.ceil(total / perDay) : 0;
+
+  // Meter: one cell per 50-credit day the character needs, capped for sanity.
+  const cells = Math.max(1, Math.min(8, days || 1));
+  // One cell per day of allowance. Each cell fills left-to-right as that day's 50 credits
+  // are spent, so the shape of the bar *is* the schedule.
+  $('meter').innerHTML = Array.from({ length: cells }, (_, i) => {
+    const usedThisDay = Math.min(perDay, Math.max(0, total - i * perDay));
+    const pct = (usedThisDay / perDay) * 100;
+    return `<i title="day ${i + 1}: ${usedThisDay} of ${perDay} credits"><b style="width:${pct}%"></b></i>`;
+  }).join('');
+  $('meterLabel').textContent = total
+    ? `${days} day${days === 1 ? '' : 's'} of allowance · each cell is one day's 50 credits`
+    : 'nothing to spend';
+
+  const rows = [
+    ['Credits per generation', cost ? `${cost}` : '—'],
+    ['Generations for one character', `${gens}`],
+    ['Total credits', cost ? `${total}` : '0'],
+    ['Free allowance', `${perDay} / day`],
+    ['Days of allowance needed', cost ? `${days}` : '0'],
+    ['Left over on the last day', cost ? `${(perDay - (total % perDay || perDay)) % perDay}` : '—'],
+  ];
+  $('costRows').innerHTML = rows
+    .map(([k, v]) => `<tr><td>${k}</td><td class="num">${v}</td></tr>`).join('');
+
+  let verdict;
+  if (!cost) {
+    verdict = 'Free tool: the limit is your time and retries, not credits.';
+  } else if (total <= perDay) {
+    verdict = `Fits in <b>one day</b> of the free tier, with ${perDay - total} credits spare.`;
+  } else if (days > 14) {
+    verdict = `Needs <b>${days} days</b> of allowance for one character. Pick a cheaper model, or make one character and share the clips.`;
+  } else {
+    verdict = `Needs <b>${days} days</b> of the free allowance. Clips keep, so generate one state per day and assemble at the end.`;
+  }
+  if (cost >= 100) {
+    verdict += ' <span class="bad">Quality costs more than a whole day\u2019s credits — it cannot run on the free tier.</span>';
+  }
+  $('verdict').innerHTML = verdict;
+
+  // Comparison table.
+  const approaches = [
+    ['Veo 3.1 Lite, 12 gens', 10 * 12, 'Best balance on the free tier; needs patience'],
+    ['Omni Flash 360p, 12 gens', 6 * 12, 'One day or less; softer, smaller art'],
+    ['Veo 3.1 Fast, 12 gens', 20 * 12, 'Faster queue; five days of allowance'],
+    ['Veo 3.1 Quality, 12 gens', 100 * 12, 'Not reachable without a paid plan'],
+    ['Still image, no animation', 0, 'Static pet. Valid, but it does not walk'],
+  ];
+  $('planRows').innerHTML = approaches.map(([name, credits, trade]) => {
+    const d = credits ? Math.ceil(credits / perDay) : 0;
+    const badge = d <= 1 ? '<span class="state ok"><i class="sq"></i>1 day</span>' : `<span class="state missing"><i class="sq"></i>${d} days</span>`;
+    return `<tr><td>${name}</td><td class="num">${credits || '—'}</td><td class="num">${d || '—'}</td><td>${trade} ${badge}</td></tr>`;
+  }).join('');
+}
+$('gen').addEventListener('change', plan);
+$('gens').addEventListener('input', plan);
+plan();
+
+// ------------------------------------------------------------------ 02 prompts
+function imgPromptText() {
+  const who = $('who').value.trim() || 'a friendly character';
+  const style = $('style').value;
+  return `Full-body character design of ${who}, ${style}.\n\n`
+    + `Pose: standing straight, facing the viewer, arms relaxed at the sides, feet together and flat on the ground.\n`
+    + `Framing: whole body in shot, square, centred, clear empty space above the head and a little below the feet.\n`
+    + `Background: plain flat #00FF00 chroma green, evenly lit, no shadow cast on it, no props, no text.\n`
+    + `Quality: one consistent character, clean silhouette, symmetrical, front three-quarter view, even lighting.\n`
+    + `Do not: change the costume between limbs, add a pattern to the background, or crop the feet.`;
+}
+
+const SETUP = `FLOW SETUP CHECKLIST
+
+1. Model: Veo 3.1 Lite (10 credits) unless you have credits to burn.
+2. Mode: Frames to Video. Upload the character image as the FIRST frame.
+3. Aspect: keep the vertical/square frame the image was made in.
+   The player crops to the body, so do not letterbox.
+4. Length: 4 s is enough for every clip except the walk, which wants 1-2 s.
+   Do not use "extend": it costs a second generation.
+5. One clip per generation. Do not ask for two motions in one prompt.
+6. Download the mp4. Keep frames 2..N-1; the first and last are usually settling.
+7. Key out the green, crop tight, encode to animated WebP at 17 fps.
+8. Name files after their state: amma_walk.webp, amma_idle.webp, ...
+
+ORDER THAT SAVES CREDITS
+   Generate idle and walk first: idle is the only clip a pack must have, and
+   walk is the one that makes it feel alive. If they look wrong,
+   stop: your character image is the problem, not the animation, and every
+   further generation inherits it.`;
+
+const ANIM = {
+  idle:      'The character stands still and breathes: chest rises and falls, blinks every few seconds, a small weight shift. Camera completely locked off. The feet never move.',
+  walk:      'The character walks in place at a steady pace, arms swinging naturally, and the cycle repeats seamlessly. Camera completely locked off. The character does not travel across the frame.',
+  remind:    'The character waves at the viewer with a warm smile, then returns to standing. Camera completely locked off.',
+  water:     'The character raises a glass of water to their lips, drinks, and lowers it. Camera completely locked off.',
+  stretch:   'The character stretches both arms above their head, holds for a second, then relaxes. Camera completely locked off.',
+  eyes:      'The character rubs their eyes and looks away to the side, then turns back to the viewer. Camera completely locked off.',
+  celebrate: 'The character cheers with both arms up and a small bounce. Camera completely locked off.',
+  happy:     'The character smiles and nods once. Camera completely locked off.',
+  sad:       'The character looks down and their shoulders drop. Camera completely locked off.',
+  sleep:     'The character closes their eyes and breathes slowly, asleep on the spot. Camera completely locked off.',
+};
+
+function renderPrompts() {
+  $('imgPrompt').textContent = imgPromptText();
+  $('setupSrc').textContent = SETUP;
+  $('animTable').querySelector('tbody').innerHTML = STATES.filter(([s]) => ANIM[s]).map(([state, req, desc]) => `
+    <tr>
+      <td style="white-space:nowrap">
+        <b>${state}</b><br>
+        <span class="mono-sm">${req ? '<span class="state bad"><i class="sq"></i>required</span>' : desc}</span>
+      </td>
+      <td class="mono-sm" style="line-height:1.6">${ANIM[state]}</td>
+      <td><button class="quiet" data-copy-text="${state}">Copy</button></td>
+    </tr>`).join('');
+}
+$('who').addEventListener('input', renderPrompts);
+$('style').addEventListener('change', renderPrompts);
+renderPrompts();
+
+// ------------------------------------------------------------------ tabs
+document.querySelector('.tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  document.querySelectorAll('.tabs button').forEach((x) =>
+    x.setAttribute('aria-selected', String(x === b)));
+  for (const t of ['plan', 'make', 'pack', 'ship']) $('tab-' + t).hidden = t !== b.dataset.tab;
+  if (b.dataset.tab === 'ship') refreshShip();
+});
+
+// ------------------------------------------------------------------ 03 intake
+/** Reads the container header. Mirrors src/avatar/clips.rs, which is authoritative. */
+function sniff(buf) {
+  const u8 = new Uint8Array(buf), dv = new DataView(buf);
+  const ascii = (o, n) => String.fromCharCode(...u8.slice(o, o + n));
+  if (ascii(0, 4) === 'RIFF' && ascii(8, 4) === 'WEBP') {
+    let p = 12, animated = false, w = 0, h = 0, alpha = false, frames = 0, ms = 0;
+    while (p + 8 <= u8.length) {
+      const kind = ascii(p, 4), len = dv.getUint32(p + 4, true), body = p + 8;
+      if (kind === 'VP8X' && body + 10 <= u8.length) {
+        const f = u8[body]; animated = !!(f & 0x02); alpha = !!(f & 0x10);
+        w = 1 + (u8[body + 4] | (u8[body + 5] << 8) | (u8[body + 6] << 16));
+        h = 1 + (u8[body + 7] | (u8[body + 8] << 8) | (u8[body + 9] << 16));
+      } else if (kind === 'ANMF' && body + 16 <= u8.length) {
+        frames++; ms += u8[body + 12] | (u8[body + 13] << 8) | (u8[body + 14] << 16);
+      }
+      p = body + len + (len & 1);
+    }
+    return { type: animated ? 'animated WebP' : 'still WebP', animated, w, h, alpha, frames, ms };
+  }
+  if (ascii(1, 3) === 'PNG') {
+    const w = dv.getUint32(16), h = dv.getUint32(20);
+    let p = 8, animated = false, frames = 0;
+    while (p + 8 <= u8.length) {
+      const len = dv.getUint32(p), kind = ascii(p + 4, 4);
+      if (kind === 'acTL') { animated = true; frames = dv.getUint32(p + 8); }
+      if (kind === 'IDAT' || kind === 'IEND') break;
+      p += 12 + len;
+    }
+    return { type: animated ? 'APNG' : 'PNG', animated, w, h, alpha: true, frames, ms: 0 };
+  }
+  if (ascii(0, 3) === 'GIF') {
+    return { type: 'GIF', animated: true, w: dv.getUint16(6, true), h: dv.getUint16(8, true), alpha: true, frames: 0, ms: 0 };
+  }
+  return null;
+}
+
+const files = {};
+
+function renderStates() {
+  $('stateRows').innerHTML = STATES.map(([state, req, desc]) => {
+    const f = files[state];
+    const info = f && f.info;
+    const bad = info && !info.animated;
+    const mark = !f
+      ? `<span class="state ${req ? 'bad' : 'missing'}"><i class="sq"></i>${req ? 'required' : '—'}</span>`
+      : bad
+        ? '<span class="state bad"><i class="sq"></i>not animated</span>'
+        : `<span class="state ok"><i class="sq"></i>${req ? 'ready' : 'optional'}</span>`;
+    return `<tr>
+      <td>${mark}</td>
+      <td><b>${state}</b></td>
+      <td class="mono-sm">${desc}</td>
+      <td class="mono-sm">${f ? f.name : '<span style="color:var(--ink-faint)">—</span>'}</td>
+      <td class="num">${info && info.frames ? info.frames : '—'}</td>
+      <td class="num">${info && info.ms ? (info.ms / 1000).toFixed(1) : '—'}</td>
+      <td class="num">${f ? (f.size / 1048576).toFixed(2) + ' MB' : '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function takeFiles(list) {
+  for (const f of list) {
+    const base = f.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const state = STATES.map((s) => s[0]).find((s) => base === s || base.endsWith(s) || base.includes(s));
+    if (!state) continue;
+    const r = new FileReader();
+    r.onload = () => {
+      if (files[state]?.url) URL.revokeObjectURL(files[state].url);
+      files[state] = { name: f.name, info: sniff(r.result), size: f.size, url: URL.createObjectURL(f) };
+      renderStates();
+      const shown = files.walk || files.idle || Object.values(files)[0];
+      if (shown?.url) $('stage').innerHTML = `<img src="${shown.url}" alt="clip preview">`;
+      refreshShip();
+    };
+    r.readAsArrayBuffer(f.slice(0, 1048576));
+  }
+}
+
+const drop = $('drop');
+drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); takeFiles(e.dataTransfer.files); });
+$('pick').addEventListener('click', (e) => { e.preventDefault(); $('file').click(); });
+$('file').addEventListener('change', (e) => takeFiles(e.target.files));
+
+// ------------------------------------------------------------------ 04 ship
+function manifest() {
+  const clips = {};
+  for (const [state, f] of Object.entries(files)) if (f) clips[state] = f.name;
+  return {
+    name: $('petName').value.trim() || 'companion',
+    author: $('petAuthor').value.trim() || 'you',
+    version: 1,
+    frame_size: 32,
+    scale: 2,
+    anchor: 'bottom',
+    license: $('petLicense').value.trim() || 'CC0',
+    clips,
+  };
+}
+
+function refreshShip() {
+  $('json').textContent = JSON.stringify(manifest(), null, 2);
+  const loaded = Object.values(files).filter(Boolean);
+  const total = loaded.reduce((n, f) => n + f.size, 0);
+  const problems = [];
+  for (const [state, req] of STATES) {
+    if (req && !files[state]) problems.push(`<span class="bad">missing required clip: ${state}</span>`);
+    if (files[state]?.info && !files[state].info.animated) problems.push(`<span class="bad">${state} is a still image</span>`);
+    const i = files[state]?.info;
+    if (i && i.w * i.h > 4096 * 4096) problems.push(`<span class="bad">${state} canvas is too large</span>`);
+  }
+  if (total > 24 * 1048576) problems.push(`<span class="warn">pack is ${(total / 1048576).toFixed(1)} MB; the limit is 24 MB</span>`);
+  $('sizeSummary').innerHTML = (total
+    ? `<b>${(total / 1048576).toFixed(2)} MB</b> across ${loaded.length} clips. The built-in companions run about 5 MB for eight states at 264×280.`
+    : 'No clips loaded.')
+    + (problems.length ? '<br><br>' + problems.join('<br>') : '<br><br><span class="state ok"><i class="sq"></i>ready to install</span>');
+}
+['petName', 'petAuthor', 'petLicense'].forEach((id) => $(id).addEventListener('input', refreshShip));
+
+// ------------------------------------------------------------------ copy
+document.addEventListener('click', async (e) => {
+  const byText = e.target.closest('[data-copy-text]');
+  const byId = e.target.closest('[data-copy]');
+  if (!byText && !byId) return;
+  let text;
+  if (byText) text = ANIM[byText.dataset.copyText];
+  else {
+    const el = $(byId.dataset.copy);
+    text = el.textContent;
+    byId.textContent = 'Copied';
+    setTimeout(() => { byId.textContent = byId.dataset.copy === 'setup' ? 'Copy setup notes' : 'Copy prompt'; }, 1200);
+  }
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
+  }
+  if (byText) {
+    const old = byText.textContent; byText.textContent = 'Copied';
+    setTimeout(() => { byText.textContent = old; }, 1200);
+  }
+});
+
+renderStates();
+refreshShip();
+</script>
+</body>
+</html>
