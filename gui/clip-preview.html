@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Companion — clip pack preview</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* The only page where the subject is a dark desktop, so the shell stays paper
+     and the viewport is a bordered instrument panel. */
+  body { height: 100vh; overflow: hidden; }
+  .frame { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; border-top: 2px solid var(--ink); }
+
+  .titlebar {
+    display: flex; align-items: baseline; gap: calc(var(--u) * 4);
+    padding: calc(var(--u) * 2.5) calc(var(--u) * 4);
+    border-bottom: 1px solid var(--ink);
+    background: var(--paper);
+  }
+  .titlebar h1 {
+    margin: 0; font-family: var(--text); font-size: 16px; font-weight: 600; letter-spacing: -0.01em;
+  }
+  .titlebar .meta { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); }
+  .titlebar .spacer { flex: 1; }
+  .titlebar .now { font-size: 11px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .titlebar .now b { color: var(--ink); }
+
+  .viewport { position: relative; background: #14131a; overflow: hidden; }
+  .viewport .window { position: absolute; }
+  .viewport .desk-note {
+    position: absolute; left: calc(var(--u) * 4); top: calc(var(--u) * 3);
+    color: #8d8794; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    line-height: 1.8;
+  }
+  .viewport .desk-note b { color: #cfc9d6; font-weight: 500; }
+
+  /* The pet's own element. */
+  .sp-clip-pet { position: absolute; left: 0; top: 0; will-change: transform; transform-origin: 50% 100%; }
+  .sp-clip-pet img { display: block; width: 100%; height: 100%; object-fit: contain; }
+
+  /* Reminder card: a printed slip, not a rounded bubble. */
+  .slip {
+    position: absolute; right: calc(var(--u) * 5); top: calc(var(--u) * 5);
+    width: 250px; background: var(--paper); color: var(--ink);
+    border: 1px solid #000; border-left: 4px solid var(--signal);
+    border-radius: var(--radius);
+    padding: calc(var(--u) * 3);
+    font-size: 12px;
+  }
+  .slip .hd { font-size: 9.5px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--signal); margin-bottom: 6px; }
+  .slip .bd { font-family: var(--text); font-size: 14px; margin-bottom: calc(var(--u) * 3); }
+  .slip .acts { display: flex; gap: 6px; }
+  .slip button { font-size: 11px; padding: 5px 9px; }
+
+  .rail { border-top: 1px solid var(--ink); background: var(--paper); }
+  .rail .readout b { font-weight: 500; color: var(--ink); }
+
+  #err { position: absolute; inset: 0; display: none; place-items: center; background: #14131a; color: #cfc9d6; text-align: center; padding: 40px; }
+  #err.show { display: grid; }
+  #err h2 { font-family: var(--text); font-size: 18px; color: #f2efe6; margin: 0 0 8px; }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <div class="titlebar">
+    <h1>Companion</h1>
+    <span class="meta">clip pack · 264×280 · 17 fps</span>
+    <span class="spacer"></span>
+    <span class="now">clip <b id="nowState">idle</b> · position <b id="nowX">0.72</b></span>
+  </div>
+
+  <div class="viewport desktop" id="desk">
+    <div class="window">
+      <div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i></div>
+      <div class="content">
+        <h3>Weekly plan</h3>
+        <div>☐ Edit the tutorial<br>☑ Reply to comments<br>☐ Record the thumbnail<br>☐ Drink more water</div>
+        <ul><li>10:00 standup</li><li>13:30 lunch</li></ul>
+      </div>
+    </div>
+    <div class="desk-note"><b>drag the pet</b> to move it<br>resize the window</div>
+
+    <div class="slip" id="slip" hidden>
+      <div class="hd">Reminder · water</div>
+      <div class="bd">Time for a glass of water.</div>
+      <div class="acts">
+        <button data-answer="ok">I drank it</button>
+        <button class="quiet" data-answer="later">Later</button>
+      </div>
+    </div>
+
+    <div id="err"><div>
+      <h2>This browser cannot play animated WebP</h2>
+      <p style="color:#8d8794;font-size:12px">The desktop app uses the same files. Try Safari, Firefox or Chrome from the last two years.</p>
+    </div></div>
+  </div>
+
+  <div class="rail">
+    <button data-play="wave">Wave</button>
+    <button data-play="water">Water</button>
+    <button data-play="eyes">Rest eyes</button>
+    <button data-play="happy">Happy</button>
+    <span class="spacer"></span>
+    <button data-walk="1">Walk</button>
+    <button data-walk="0">Stand</button>
+    <button data-scale="-1">−</button>
+    <button data-scale="1">+</button>
+    <span class="readout">scale <b id="nowScale">1.00</b></span>
+  </div>
+</div>
+
+<script type="module">
+import { ClipPet } from './clip-player.js';
+
+const CLIPS = {
+  walk:  './demo-clips/walk.webp',
+  wave:  './demo-clips/wave.webp',
+  eyes:  './demo-clips/eyes.webp',
+  water: './demo-clips/water.webp',
+  happy: './demo-clips/happy.webp',
+};
+
+const desk = document.getElementById('desk');
+const $ = (id) => document.getElementById(id);
+let pet;
+
+try {
+  pet = new ClipPet({ mount: desk, clips: CLIPS, placement: { scale: 1, anchor: 'bottom', x: 0.72, y: 1 }, seed: 3 });
+  pet.setRestX(0.72);
+  pet.naturalW = 264;
+  pet.naturalH = 280;
+  pet._applyPlacement();
+} catch (e) {
+  $('err').classList.add('show');
+  console.error(e);
+}
+
+const NAMES = { wave: 'wave', water: 'water', eyes: 'eyes', happy: 'happy' };
+
+document.querySelector('.rail').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b || !pet) return;
+  if (b.dataset.play) {
+    pet.play(NAMES[b.dataset.play] || 'water', 4500, performance.now());
+    showSlip(b.dataset.play);
+  }
+  if (b.dataset.walk) pet.setWalking(b.dataset.walk === '1', performance.now());
+  if (b.dataset.scale) {
+    pet.placement.scale = Math.max(0.5, Math.min(2.5, pet.placement.scale + Number(b.dataset.scale) * 0.25));
+    $('nowScale').textContent = pet.placement.scale.toFixed(2);
+    pet._applyPlacement();
+  }
+});
+
+function showSlip(kind) {
+  const slip = $('slip');
+  if (kind !== 'water') { slip.hidden = true; return; }
+  slip.hidden = false;
+}
+$('slip').addEventListener('click', (e) => {
+  if (!e.target.closest('[data-answer]')) return;
+  $('slip').hidden = true;
+  pet?.play('happy', 3200, performance.now());
+});
+
+// Drag to reposition.
+let drag = null;
+pet?.el.addEventListener('pointerdown', (e) => {
+  drag = { x: e.clientX };
+  pet.el.setPointerCapture(e.pointerId);
+});
+addEventListener('pointermove', (e) => {
+  if (!drag || !pet) return;
+  pet.x = Math.max(0.02, Math.min(0.98, pet.x + (e.clientX - drag.x) / desk.clientWidth));
+  pet.setRestX(pet.x);
+  drag = { x: e.clientX };
+  pet._applyPlacement();
+});
+addEventListener('pointerup', () => { drag = null; });
+addEventListener('resize', () => pet?._applyPlacement());
+
+// Instrument readout, updated at 4 Hz rather than every frame: it is a gauge, not a debugger.
+let last = performance.now();
+let gauge = 0;
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000);
+  last = now;
+  pet?.update(dt, now);
+  if (now - gauge > 250) {
+    gauge = now;
+    $('nowState').textContent = pet?.state ?? '—';
+    $('nowX').textContent = (pet?.x ?? 0).toFixed(2);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+setTimeout(() => { pet?.play('water', 6000, performance.now()); showSlip('water'); }, 2200);
+</script>
+</body>
+</html>
