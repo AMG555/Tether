@@ -1,0 +1,336 @@
+/* ============================================================================
+   Savepoint design system — "instrument", not "app".
+
+   The default look of AI-generated UI is now so consistent that it reads as a
+   fingerprint: near-black plum background, violet-to-pink gradients, 12–16 px
+   rounded cards floating on a blurred backdrop, an emoji standing in for an
+   icon, everything centred, nothing aligned to anything.
+
+   This is the opposite of that, on purpose. It borrows from things made before
+   AI existed: Swiss technical manuals, oscilloscope panels, printed circuit
+   board legends, train timetables. Rules:
+
+     · PAPER, not void. Light, warm, printed. Dark only where the thing being
+       shown is dark (the desktop the pet stands on).
+     · ONE accent. Signal red. It means "act" or "wrong", never "decoration".
+     · HAIRLINES, not shadows. Structure comes from rules and alignment.
+     · MONOSPACE for anything measured. Numbers line up or they are wrong.
+     · NO gradients, NO glows, NO backdrop blur, NO radius over 3px.
+     · Left-aligned, grid-based, dense. Information over whitespace theatre.
+
+   Enforced by tests/design.rs, which fails the build if a gradient, a purple,
+   a rounded pill or a blurred panel reappears in any shipped page.
+   ========================================================================= */
+
+:root {
+  /* Surfaces: warm printed paper, not screen black. */
+  --paper:        #f2efe6;
+  --paper-sunk:   #e7e3d7;
+  --paper-raised: #fbf9f3;
+  --ink:          #14120f;
+  --ink-soft:     #4a443c;
+  --ink-faint:    #8b8378;
+
+  /* Structure */
+  --rule:         #cdc7b8;
+  --rule-strong:  #a9a192;
+
+  /* One accent. Signal red. */
+  --signal:       #c2331a;
+  --signal-wash:  #f3ded9;
+
+  /* Status, used sparingly and only in words + a 6px square */
+  --ok:           #1f6b3a;
+  --warn:         #8a5a00;
+
+  /* Type */
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  --text: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+
+  /* Rhythm: 4px base */
+  --u: 4px;
+  --radius: 2px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------------------------------------------------------- structure */
+.sheet {
+  max-width: 1180px;
+  margin: 0 auto;
+  border-left: 1px solid var(--rule);
+  border-right: 1px solid var(--rule);
+  background: var(--paper);
+  min-height: 100vh;
+}
+
+.masthead {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: calc(var(--u) * 4);
+  padding: calc(var(--u) * 6) calc(var(--u) * 7) calc(var(--u) * 4);
+  border-bottom: 2px solid var(--ink);
+}
+.masthead h1 {
+  margin: 0;
+  font-family: var(--text);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
+}
+.masthead .sub {
+  margin: calc(var(--u) * 1.5) 0 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  max-width: 62ch;
+}
+.masthead .stamp {
+  text-align: right;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  line-height: 1.7;
+  white-space: nowrap;
+}
+
+/* A numbered section: the number is real information, not ornament. */
+.step {
+  display: grid;
+  grid-template-columns: calc(var(--u) * 13) 1fr;
+  border-bottom: 1px solid var(--rule);
+}
+.step > .gutter {
+  padding: calc(var(--u) * 6) calc(var(--u) * 3);
+  border-right: 1px solid var(--rule);
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  color: var(--ink-faint);
+  text-align: right;
+  text-transform: uppercase;
+}
+.step > .body { padding: calc(var(--u) * 6) calc(var(--u) * 7); }
+.step h2 {
+  margin: 0 0 calc(var(--u) * 1.5);
+  font-family: var(--text);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.step h2 .req {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--signal);
+  border: 1px solid var(--signal);
+  border-radius: var(--radius);
+  padding: 1px 4px;
+  margin-left: calc(var(--u) * 2);
+  vertical-align: 3px;
+}
+.step p.note {
+  margin: 0 0 calc(var(--u) * 4);
+  color: var(--ink-soft);
+  font-size: 12px;
+  max-width: 78ch;
+}
+
+/* ---------------------------------------------------------------- controls */
+label.field {
+  display: block;
+  margin-bottom: calc(var(--u) * 3);
+}
+label.field > span {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: calc(var(--u) * 1.5);
+}
+input[type=text], input[type=number], select, textarea {
+  width: 100%;
+  background: var(--paper-raised);
+  color: var(--ink);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  padding: calc(var(--u) * 2) calc(var(--u) * 2.5);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+input:focus, select:focus, textarea:focus, button:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: -1px;
+}
+.row { display: flex; gap: calc(var(--u) * 3); flex-wrap: wrap; align-items: flex-end; }
+.row > * { flex: 0 1 auto; }
+
+button {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  padding: calc(var(--u) * 2) calc(var(--u) * 3.5);
+  border-radius: var(--radius);
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+}
+button:hover { background: var(--signal); border-color: var(--signal); }
+button.quiet {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--rule-strong);
+}
+button.quiet:hover { background: var(--signal-wash); border-color: var(--signal); color: var(--signal); }
+
+/* A copy block: the thing people actually need to move. */
+.prompt {
+  background: var(--paper-sunk);
+  border: 1px solid var(--rule-strong);
+  border-left: 3px solid var(--ink);
+  border-radius: var(--radius);
+  padding: calc(var(--u) * 3);
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.prompt em { font-style: normal; background: var(--signal-wash); box-shadow: 0 0 0 1px var(--signal) inset; }
+
+.code {
+  background: var(--paper-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  padding: calc(var(--u) * 3);
+  font-size: 11.5px;
+  line-height: 1.55;
+  white-space: pre;
+  overflow: auto;
+  max-height: 340px;
+}
+
+/* ---------------------------------------------------------------- tables */
+table.ledger { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.ledger th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 10px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: 0 calc(var(--u) * 2) calc(var(--u) * 1.5);
+  border-bottom: 1px solid var(--ink);
+  white-space: nowrap;
+}
+table.ledger td {
+  padding: calc(var(--u) * 2) calc(var(--u) * 2);
+  border-bottom: 1px solid var(--rule);
+  vertical-align: baseline;
+}
+table.ledger td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.ledger tr:last-child td { border-bottom: none; }
+
+/* Status is words plus a small square. Never colour alone. */
+.state { display: inline-flex; align-items: center; gap: calc(var(--u) * 1.5); white-space: nowrap; }
+.state .sq { width: 6px; height: 6px; display: inline-block; }
+.state.ok { color: var(--ok); }
+.state.ok .sq { background: var(--ok); }
+.state.missing { color: var(--ink-faint); }
+.state.missing .sq { border: 1px solid var(--rule-strong); }
+.state.bad { color: var(--signal); }
+.state.bad .sq { background: var(--signal); }
+
+/* ---------------------------------------------------------------- the stage */
+.stage {
+  position: relative;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 23px, rgba(255,255,255,.035) 23px 24px),
+    repeating-linear-gradient(90deg, transparent 0 23px, rgba(255,255,255,.035) 23px 24px),
+    #17161a;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  min-height: 320px;
+}
+.stage img { max-height: 300px; display: block; }
+.stage .empty { color: #6f6a72; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* ============================================================================
+   The desktop shell, used only where the subject is a dark desktop.
+   Still no gradients, no blur, no pills.
+   ========================================================================= */
+.desktop { position: absolute; inset: 0; background: #14131a; overflow: hidden; }
+.desktop .window {
+  position: absolute; left: 5%; top: 13%; width: 33%; min-width: 270px;
+  background: #f2efe6; color: var(--ink);
+  border: 1px solid #000;
+  border-radius: var(--radius);
+}
+.desktop .window .bar {
+  display: flex; gap: 5px; padding: 6px 9px;
+  border-bottom: 1px solid #cfc9ba; background: #e7e3d7;
+}
+.desktop .window .dot { width: 8px; height: 8px; border-radius: 50%; background: #b3ab9c; }
+.desktop .window .content { padding: 12px 14px 16px; font-size: 12px; }
+.desktop .window h3 {
+  margin: 0 0 8px; font-family: var(--text); font-size: 14px; font-weight: 600;
+}
+.desktop .window ul { margin: 8px 0 0; padding-left: 16px; color: var(--ink-soft); }
+.desktop .window li { margin: 3px 0; }
+.desktop .window .done { color: var(--ink-faint); text-decoration: line-through; }
+
+/* Control rail: a strip of instruments along the bottom edge. */
+.rail {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: flex; align-items: center; gap: 0;
+  background: var(--paper);
+  border-top: 1px solid var(--ink);
+  padding: 0;
+  font-size: 11px;
+}
+.rail button {
+  border: none; border-right: 1px solid var(--rule);
+  border-radius: 0; background: transparent; color: var(--ink);
+  padding: 9px 13px; font-size: 11px; letter-spacing: 0.04em;
+}
+.rail button:hover { background: var(--signal); color: var(--paper); }
+.rail .spacer { flex: 1; }
+.rail .readout {
+  border-left: 1px solid var(--rule);
+  padding: 9px 13px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--ink-soft);
+  border-top: 1px solid var(--rule);
+  padding-top: calc(var(--u) * 2);
+  margin-top: calc(var(--u) * 3);
+}
+
+/* Utility */
+.mono-sm { font-size: 11px; color: var(--ink-soft); }
+.nums { font-variant-numeric: tabular-nums; }
+.ok { color: var(--ok); }
+.bad { color: var(--signal); }
+.warn { color: var(--warn); }
+.hidden { display: none !important; }
