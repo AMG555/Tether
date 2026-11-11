@@ -19,7 +19,9 @@ pub const MAX_NAME_CHARS: usize = 32;
 /// A 3D avatar is a bigger file than a sprite sheet, but not unbounded: this is the same cap
 /// the audit in [`crate::avatar::audit`] enforces, kept here so a manifest can be rejected
 /// before the file is even opened.
-pub const MAX_MODEL_BYTES: u64 = 96 * 1024 * 1024;
+pub const MAX_MODEL_BYTES: u64 = crate::avatar::audit::MAX_AVATAR_BYTES;
+/// Whole clip pack ceiling. Ten clips at ~1 MB each is already generous for a desktop pet.
+pub const MAX_CLIP_PACK_BYTES: u64 = 24 * 1024 * 1024;
 pub const MAX_SPEECH_LINE: usize = 120;
 pub const MAX_SPEECH_LINES: usize = 24;
 
@@ -160,6 +162,13 @@ pub struct Pet {
     pub license: String,
     /// Optional rigged 3D avatar. Independent of `sprite.png`.
     pub model: Model,
+    /// Optional **clip pack**: state name (`idle`, `walk`, `water`, …) to animated image file.
+    ///
+    /// This is the format realistic AI-generated characters arrive in: a character image, run
+    /// through an image-to-video model, delivered as animated WebP with a real alpha channel.
+    /// Full-frame art, no rig, no engine, no GPU. A pet with `clips` needs no sprite and no
+    /// model, and every clip is header-audited before the renderer sees it.
+    pub clips: BTreeMap<String, String>,
     /// Filled in by the loader: where the files actually are.
     #[serde(skip)]
     pub dir: Option<PathBuf>,
@@ -179,6 +188,7 @@ impl Default for Pet {
             palette: Vec::new(),
             license: "CC0".into(),
             model: Model::default(),
+            clips: BTreeMap::new(),
             dir: None,
         }
     }
@@ -369,13 +379,21 @@ pub fn validate(pet: &Pet, dir: &Path) -> Result<(), Vec<Invalid>> {
     }
 
     pet.model.validate(dir, &mut errs);
+    validate_clips(pet, dir, &mut errs);
 
     // A pet needs exactly one kind of art. Saying so is kinder than "sprite.png missing".
+    let has_clips = !pet.clips.is_empty();
     let has_model = pet.model.is_set();
+    if has_clips && has_model {
+        errs.push(Invalid {
+            field: "clips",
+            reason: "a pet uses either `clips` or `model`, not both — pick the one you have".into(),
+        });
+    }
 
     // Files. A pet needs art: a sprite sheet, a 3D model, or both. A pet with a working model
     // is allowed to ship no sprite at all, which is the point of the 3D path.
-    if pet.model.is_set() && !dir.join("sprite.png").exists() {
+    if (pet.model.is_set() || has_clips) && !dir.join("sprite.png").exists() {
         return if errs.is_empty() { Ok(()) } else { Err(errs) };
     }
     let sprite = dir.join("sprite.png");
@@ -425,6 +443,97 @@ fn read_head(path: &Path, n: usize) -> std::io::Result<Vec<u8>> {
     let got = f.read(&mut buf)?;
     buf.truncate(got);
     Ok(buf)
+}
+
+/// Validates a clip pack: known state names, bare file names, and a header audit of every clip.
+///
+/// The audit is the reason this exists. An animated WebP is a container whose header can claim a
+/// 16000×16000 canvas and 100 000 frames; the decoder believes it and allocates. Reading the
+/// header costs a few hundred bytes and lets us refuse the file before any of that happens.
+fn validate_clips(pet: &Pet, dir: &Path, errs: &mut Vec<Invalid>) {
+    if pet.clips.is_empty() {
+        return;
+    }
+    // Only `idle` is required. A pack is assembled over days and across accounts, so requiring
+    // `walk` on day one would make the intended workflow impossible. A pet with no walk cycle
+    // stands still, which is a valid pet; `savepoint ask --clips` shows what is still missing.
+    if !pet.clips.contains_key("idle") {
+        errs.push(Invalid {
+            field: "clips",
+            reason: "a clip pack needs `idle` — it is what the pet plays at rest. \
+                     Add it with: savepoint ask --set-clip idle FILE"
+                .into(),
+        });
+    }
+    let mut total_bytes: u64 = 0;
+    for (state, file) in &pet.clips {
+        if !crate::avatar::clips::is_clip_state(state) {
+            let known: Vec<&str> =
+                crate::avatar::clips::CLIP_STATES.iter().map(|(k, _)| *k).collect();
+            errs.push(Invalid {
+                field: "clips",
+                reason: format!("{state:?} is not an animation state (try {})", known.join(", ")),
+            });
+            continue;
+        }
+        if let Err(e) = clean_text("clips", file, 128) {
+            errs.push(e);
+            continue;
+        }
+        let f = file.trim();
+        if f.contains('/') || f.contains('\\') || f.contains("..") || f.starts_with('.') {
+            errs.push(Invalid {
+                field: "clips",
+                reason: format!("{f:?} must be a bare file name, not a path"),
+            });
+            continue;
+        }
+        let path = dir.join(f);
+        match std::fs::metadata(&path) {
+            Err(_) => errs.push(Invalid {
+                field: "clips",
+                reason: format!("{state}: {f} is missing beside pet.json"),
+            }),
+            Ok(m) => {
+                total_bytes = total_bytes.saturating_add(m.len());
+                match crate::avatar::clips::sniff(&path) {
+                    Ok(info) => {
+                        if !info.container.is_animated() {
+                            errs.push(Invalid {
+                                field: "clips",
+                                reason: format!(
+                                    "{state}: {f} is a still image — {state} needs frames to play"
+                                ),
+                            });
+                        } else if state == "walk" && (info.loops != 0) {
+                            // A walk cycle that plays once then freezes is a bug the author
+                            // cannot see in a browser preview, so say it here.
+                            errs.push(Invalid {
+                                field: "clips",
+                                reason: format!(
+                                    "{state}: {f} does not loop (loop count {}); a walk cycle \
+                                     should loop forever",
+                                    info.loops
+                                ),
+                            });
+                        }
+                    }
+                    Err(e) => {
+                        errs.push(Invalid { field: "clips", reason: format!("{state}: {f} {e}") })
+                    }
+                }
+            }
+        }
+    }
+    if total_bytes > MAX_CLIP_PACK_BYTES {
+        errs.push(Invalid {
+            field: "clips",
+            reason: format!(
+                "the pack is {total_bytes} bytes, limit is {MAX_CLIP_PACK_BYTES}. Re-encode the \
+                 clips smaller; 264×280 at 17 fps is what the built-ins use."
+            ),
+        });
+    }
 }
 
 /// GLB header (`glTF`, version, declared length) or a JSON-looking `.gltf`/`.vrm`.
@@ -540,6 +649,9 @@ pub fn install(src: &Path, pets_dir: &Path) -> Result<PathBuf, String> {
     }
     if pet.model.is_set() {
         wanted.push(PathBuf::from(pet.model.file.trim()));
+    }
+    for file in pet.clips.values() {
+        wanted.push(PathBuf::from(file.trim()));
     }
     wanted.extend(std::fs::read_dir(src).into_iter().flatten().flatten().filter_map(|e| {
         // A `.companion` bundle may ship extras (a licence, a preview); copy anything small.
@@ -859,4 +971,518 @@ pub fn mood_colors(pet: &Pet) -> ([u8; 3], [u8; 3]) {
     let body = pet.palette.first().map(|c| hex_rgb(c)).unwrap_or([0x8b, 0x5c, 0xf6]);
     let accent = pet.palette.get(1).map(|c| hex_rgb(c)).unwrap_or([0xf4, 0x72, 0xb6]);
     (body, accent)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tmp() -> tempfile::TempDir {
+        tempfile::tempdir().unwrap()
+    }
+
+    fn write_pet(dir: &Path, pet: &Pet) {
+        std::fs::write(dir.join("pet.json"), serde_json::to_string_pretty(pet).unwrap()).unwrap();
+        let sprite = generate(pet.frame_size, [0x8b, 0x5c, 0xf6], [0xf4, 0x72, 0xb6]);
+        std::fs::write(dir.join("sprite.png"), sprite.encode_png()).unwrap();
+    }
+
+    /// Minimal but structurally valid GLB: magic, version 2, declared length, one JSON chunk.
+    fn glb_bytes() -> Vec<u8> {
+        let json = br#"{"asset":{"version":"2.0"},"nodes":[]}"#;
+        let mut out = Vec::new();
+        out.extend_from_slice(b"glTF");
+        out.extend_from_slice(&2u32.to_le_bytes());
+        let total = 12 + 8 + json.len();
+        out.extend_from_slice(&(total as u32).to_le_bytes());
+        out.extend_from_slice(&(json.len() as u32).to_le_bytes());
+        out.extend_from_slice(b"JSON");
+        out.extend_from_slice(json);
+        out
+    }
+
+    fn pet_with_model(file: &str) -> Pet {
+        Pet {
+            name: "Mochi".into(),
+            model: Model {
+                file: file.into(),
+                scale: 1.0,
+                anchor: "bottom".into(),
+                y_offset: 0.0,
+                clips: Clips::default(),
+            },
+            ..Pet::default()
+        }
+    }
+
+    #[test]
+    fn a_3d_pet_needs_no_sprite() {
+        let d = tmp();
+        std::fs::write(d.path().join("model.glb"), glb_bytes()).unwrap();
+        let pet = pet_with_model("model.glb");
+        std::fs::write(d.path().join("pet.json"), serde_json::to_string(&pet).unwrap()).unwrap();
+        assert!(validate(&pet, d.path()).is_ok(), "model alone is enough art");
+        assert!(load(d.path()).is_ok());
+    }
+
+    #[test]
+    fn a_pet_with_neither_art_is_still_refused() {
+        let d = tmp();
+        let pet = Pet::default();
+        let errs = validate(&pet, d.path()).unwrap_err();
+        assert!(errs.iter().any(|e| e.field == "sprite.png"));
+    }
+
+    #[test]
+    fn a_2d_pet_is_unaffected_by_the_model_field() {
+        let d = tmp();
+        let pet = Pet::default();
+        write_pet(d.path(), &pet);
+        assert!(validate(&pet, d.path()).is_ok());
+        let loaded = load(d.path()).unwrap();
+        assert!(!loaded.model.is_set());
+    }
+
+    #[test]
+    fn model_path_traversal_is_refused() {
+        let d = tmp();
+        for bad in ["../evil.glb", "sub/model.glb", "/etc/passwd.glb", ".hidden.glb", "..\\x.glb"] {
+            let pet = pet_with_model(bad);
+            let errs = validate(&pet, d.path()).unwrap_err();
+            assert!(
+                errs.iter().any(|e| e.field == "model.file" && e.reason.contains("bare file name")),
+                "{bad:?} should be refused"
+            );
+        }
+    }
+
+    #[test]
+    fn model_extension_is_checked() {
+        let d = tmp();
+        std::fs::write(d.path().join("pet.exe"), b"MZ").unwrap();
+        let errs = validate(&pet_with_model("pet.exe"), d.path()).unwrap_err();
+        assert!(errs.iter().any(|e| e.reason.contains("not .vrm, .glb or .gltf")));
+    }
+
+    #[test]
+    fn a_file_that_is_not_glb_is_refused_by_header_alone() {
+        let d = tmp();
+        std::fs::write(d.path().join("model.glb"), b"RIFF....WEBP").unwrap();
+        let errs = validate(&pet_with_model("model.glb"), d.path()).unwrap_err();
+        assert!(errs.iter().any(|e| e.reason.contains("missing glTF magic")));
+    }
+
+    #[test]
+    fn a_wrong_glb_version_is_named_in_the_error() {
+        let d = tmp();
+        let mut b = glb_bytes();
+        b[4..8].copy_from_slice(&3u32.to_le_bytes());
+        std::fs::write(d.path().join("model.glb"), b).unwrap();
+        let errs = validate(&pet_with_model("model.glb"), d.path()).unwrap_err();
+        assert!(errs.iter().any(|e| e.reason.contains("version 3")));
+    }
+
+    #[test]
+    fn model_scale_and_anchor_are_bounded() {
+        let d = tmp();
+        std::fs::write(d.path().join("model.glb"), glb_bytes()).unwrap();
+        let mut pet = pet_with_model("model.glb");
+        pet.model.scale = 99.0;
+        pet.model.anchor = "sideways".into();
+        pet.model.y_offset = 9.0;
+        let errs = validate(&pet, d.path()).unwrap_err();
+        assert!(errs.iter().any(|e| e.field == "model.scale"));
+        assert!(errs.iter().any(|e| e.field == "model.anchor"));
+        assert!(errs.iter().any(|e| e.field == "model.y_offset"));
+    }
+
+    #[test]
+    fn a_json_gltf_is_accepted_by_header() {
+        let d = tmp();
+        std::fs::write(d.path().join("a.gltf"), br#"{"asset":{"version":"2.0"}}"#).unwrap();
+        assert!(validate(&pet_with_model("a.gltf"), d.path()).is_ok());
+    }
+
+    /// A structurally valid animated WebP, so clip validation can be tested without art.
+    fn animated_webp(w: u32, h: u32, frames: u32, ms: u32, loop_count: u16) -> Vec<u8> {
+        let mut chunks = Vec::new();
+        let mut vp8x = vec![0x02 | 0x10];
+        vp8x.extend_from_slice(&[0, 0, 0]);
+        vp8x.extend_from_slice(&(w - 1).to_le_bytes()[..3]);
+        vp8x.extend_from_slice(&(h - 1).to_le_bytes()[..3]);
+        chunks.extend_from_slice(b"VP8X");
+        chunks.extend_from_slice(&(vp8x.len() as u32).to_le_bytes());
+        chunks.extend_from_slice(&vp8x);
+        let mut anim = vec![0, 0, 0, 0];
+        anim.extend_from_slice(&loop_count.to_le_bytes());
+        chunks.extend_from_slice(b"ANIM");
+        chunks.extend_from_slice(&(anim.len() as u32).to_le_bytes());
+        chunks.extend_from_slice(&anim);
+        for _ in 0..frames {
+            let mut f = vec![0u8; 12];
+            f.extend_from_slice(&ms.to_le_bytes()[..3]);
+            f.push(0);
+            chunks.extend_from_slice(b"ANMF");
+            chunks.extend_from_slice(&(f.len() as u32).to_le_bytes());
+            chunks.extend_from_slice(&f);
+        }
+        let mut out = b"RIFF".to_vec();
+        out.extend_from_slice(&((chunks.len() + 4) as u32).to_le_bytes());
+        out.extend_from_slice(b"WEBP");
+        out.extend_from_slice(&chunks);
+        out
+    }
+
+    fn clip_pet() -> Pet {
+        let mut pet = Pet { name: "Mochi".into(), ..Pet::default() };
+        pet.clips.insert("idle".into(), "idle.webp".into());
+        pet.clips.insert("walk".into(), "walk.webp".into());
+        pet
+    }
+
+    fn write_clips(dir: &Path) {
+        std::fs::write(dir.join("idle.webp"), animated_webp(264, 280, 20, 58, 0)).unwrap();
+        std::fs::write(dir.join("walk.webp"), animated_webp(264, 280, 18, 58, 0)).unwrap();
+    }
+
+    #[test]
+    fn a_clip_pack_pet_needs_no_sprite() {
+        let d = tmp();
+        write_clips(d.path());
+        let pet = clip_pet();
+        assert!(validate(&pet, d.path()).is_ok(), "clips alone are enough art");
+    }
+
+    #[test]
+    fn a_clip_pack_needs_idle_but_not_walk() {
+        let d = tmp();
+        write_clips(d.path());
+
+        // `walk` is optional on purpose: a pack is assembled over days and across accounts,
+        // so requiring it on day one would make the intended workflow impossible.
+        let mut without_walk = clip_pet();
+        without_walk.clips.remove("walk");
+        assert!(validate(&without_walk, d.path()).is_ok(), "a stationary pet is a valid pet");
+
+        // `idle` is not optional: it is what plays when nothing else is happening.
+        let mut without_idle = clip_pet();
+        without_idle.clips.remove("idle");
+        let errs = validate(&without_idle, d.path()).unwrap_err();
+        assert!(errs.iter().any(|e| e.reason.contains("needs `idle`")), "{errs:?}");
+        assert!(
+            errs.iter().any(|e| e.reason.contains("--set-clip idle")),
+            "the error must say how to fix it: {errs:?}"
+        );
+    }
+
+    #[test]
+    fn an_unknown_state_is_named_and_the_valid_ones_are_listed() {
+        let d = tmp();
+        write_clips(d.path());
+        let mut pet = clip_pet();
+        pet.clips.insert("evil".into(), "idle.webp".into());
+        let errs = validate(&pet, d.path()).unwrap_err();
+        let e = errs.iter().find(|e| e.reason.contains("evil")).unwrap();
+        assert!(e.reason.contains("idle"), "should list valid states: {}", e.reason);
+    }
+
+    #[test]
+    fn clip_path_traversal_is_refused() {
+        let d = tmp();
+        write_clips(d.path());
+        let mut pet = clip_pet();
+        pet.clips.insert("water".into(), "../../../etc/passwd.webp".into());
+        let errs = validate(&pet, d.path()).unwrap_err();
+        assert!(errs.iter().any(|e| e.reason.contains("bare file name")), "{errs:?}");
+    }
+
+    #[test]
+    fn a_missing_clip_file_is_reported_by_state() {
+        let d = tmp();
+        write_clips(d.path());
+        let mut pet = clip_pet();
+        pet.clips.insert("water".into(), "water.webp".into());
+        let errs = validate(&pet, d.path()).unwrap_err();
+        assert!(errs.iter().any(|e| e.reason.contains("water: water.webp is missing")), "{errs:?}");
+    }
+
+    #[test]
+    fn a_still_image_cannot_stand_in_for_a_clip() {
+        let d = tmp();
+        write_clips(d.path());
+        // A still WebP (VP8X without the animation flag).
+        let mut still = animated_webp(264, 280, 0, 0, 0);
+        still[20] = 0x10; // clear the animation flag in VP8X
+        std::fs::write(d.path().join("water.webp"), &still).unwrap();
+        let mut pet = clip_pet();
+        pet.clips.insert("water".into(), "water.webp".into());
+        let errs = validate(&pet, d.path()).unwrap_err();
+        assert!(errs.iter().any(|e| e.reason.contains("is a still image")), "{errs:?}");
+    }
+
+    #[test]
+    fn a_walk_cycle_that_does_not_loop_is_refused() {
+        let d = tmp();
+        std::fs::write(d.path().join("idle.webp"), animated_webp(64, 64, 8, 50, 0)).unwrap();
+        std::fs::write(d.path().join("walk.webp"), animated_webp(64, 64, 8, 50, 3)).unwrap();
+        let errs = validate(&clip_pet(), d.path()).unwrap_err();
+        assert!(errs.iter().any(|e| e.reason.contains("does not loop")), "{errs:?}");
+    }
+
+    #[test]
+    fn a_clip_bomb_is_refused_by_header() {
+        let d = tmp();
+        std::fs::write(d.path().join("idle.webp"), animated_webp(64, 64, 8, 50, 0)).unwrap();
+        // 12000x12000 canvas: ~576 MB decoded, from a few kilobytes of file.
+        std::fs::write(d.path().join("walk.webp"), animated_webp(12000, 12000, 8, 50, 0)).unwrap();
+        let errs = validate(&clip_pet(), d.path()).unwrap_err();
+        assert!(errs.iter().any(|e| e.reason.contains("decompression bomb")), "{errs:?}");
+    }
+
+    #[test]
+    fn clips_and_model_are_mutually_exclusive() {
+        let d = tmp();
+        write_clips(d.path());
+        std::fs::write(d.path().join("model.glb"), glb_bytes()).unwrap();
+        let mut pet = clip_pet();
+        pet.model = Model {
+            file: "model.glb".into(),
+            scale: 1.0,
+            anchor: "bottom".into(),
+            y_offset: 0.0,
+            clips: Clips::default(),
+        };
+        let errs = validate(&pet, d.path()).unwrap_err();
+        assert!(errs.iter().any(|e| e.reason.contains("not both")), "{errs:?}");
+    }
+
+    #[test]
+    fn scaffold_produces_a_valid_pet() {
+        let d = tmp();
+        let pet = scaffold(d.path(), "Mochi", 32, "#c2331a", "#1f6b3a").unwrap();
+        assert_eq!(pet.name, "Mochi");
+        assert!(d.path().join("sprite.png").exists());
+        let loaded = load(d.path()).unwrap();
+        assert_eq!(loaded.frame_size, 32);
+    }
+
+    #[test]
+    fn scaffolded_sprite_has_the_documented_grid() {
+        let d = tmp();
+        scaffold(d.path(), "Mochi", 32, "#c2331a", "#1f6b3a").unwrap();
+        let (w, h) = png_size(&d.path().join("sprite.png")).unwrap();
+        assert_eq!(w, 32 * 4, "4 columns");
+        assert_eq!(h, 32 * 5, "5 rows");
+    }
+
+    #[test]
+    fn generated_png_is_a_real_png() {
+        let d = tmp();
+        scaffold(d.path(), "p", 16, "#123456", "#abcdef").unwrap();
+        let raw = std::fs::read(d.path().join("sprite.png")).unwrap();
+        assert_eq!(&raw[..8], &PNG_MAGIC);
+        assert!(raw.windows(4).any(|w| w == b"IHDR"));
+        assert!(raw.windows(4).any(|w| w == b"IEND"));
+        assert_eq!(png_size(&d.path().join("sprite.png")).unwrap().0, 64);
+    }
+
+    #[test]
+    fn generated_sprite_is_not_blank() {
+        let d = tmp();
+        scaffold(d.path(), "p", 32, "#c2331a", "#1f6b3a").unwrap();
+        let pet = load(d.path()).unwrap();
+        let px_count = (pet.frame_size * 4 * pet.frame_size * 5) as usize;
+        assert!(px_count > 0);
+        // The blob must actually draw pixels; a transparent sheet would pass every other check.
+        let s = generate(pet.frame_size, [0x8b, 0x5c, 0xf6], [0xf4, 0x72, 0xb6]);
+        let opaque = s.pixels.chunks_exact(4).filter(|p| p[3] > 0).count();
+        assert!(opaque > 200, "only {opaque} opaque pixels — did the pet vanish?");
+    }
+
+    #[test]
+    fn bidi_override_in_a_name_is_refused() {
+        // U+202E makes "Mochi" display as something else entirely. This is a real trick.
+        let d = tmp();
+        let mut pet = Pet { name: "Mo\u{202E}chi".into(), ..Default::default() };
+        pet.frame_size = 32;
+        std::fs::create_dir_all(d.path()).unwrap();
+        write_pet(d.path(), &pet);
+        let errs = validate(&pet, d.path()).unwrap_err();
+        assert!(
+            errs.iter().any(|e| e.reason.contains("text-direction")),
+            "bidi override must be caught: {errs:?}"
+        );
+    }
+
+    #[test]
+    fn newline_in_a_speech_line_is_refused() {
+        let d = tmp();
+        let mut pet = Pet::default();
+        pet.speech.water = vec!["water\nbreak: click here".into()];
+        write_pet(d.path(), &pet);
+        assert!(validate(&pet, d.path()).is_err());
+    }
+
+    #[test]
+    fn oversized_speech_is_refused() {
+        let d = tmp();
+        let mut pet = Pet::default();
+        pet.speech.water = vec!["x".repeat(MAX_SPEECH_LINE + 1)];
+        write_pet(d.path(), &pet);
+        assert!(validate(&pet, d.path()).is_err());
+    }
+
+    #[test]
+    fn bad_frame_size_is_refused() {
+        let d = tmp();
+        let pet = Pet { frame_size: 30, ..Default::default() };
+        write_pet(d.path(), &pet);
+        let errs = validate(&pet, d.path()).unwrap_err();
+        assert!(errs.iter().any(|e| e.field == "frame_size"), "{errs:?}");
+    }
+
+    #[test]
+    fn giant_frame_size_is_refused() {
+        let d = tmp();
+        let pet = Pet { frame_size: 1024, ..Default::default() };
+        write_pet(d.path(), &pet);
+        assert!(validate(&pet, d.path()).is_err());
+    }
+
+    #[test]
+    fn insane_fps_is_refused() {
+        let d = tmp();
+        let mut pet = Pet::default();
+        pet.fps.idle = 240;
+        write_pet(d.path(), &pet);
+        assert!(validate(&pet, d.path()).is_err());
+    }
+
+    #[test]
+    fn grid_mismatch_is_refused_with_a_useful_message() {
+        let d = tmp();
+        let pet = Pet { frame_size: 48, ..Default::default() };
+        // Deliberately write a 32px sprite against a 48px manifest.
+        std::fs::write(d.path().join("pet.json"), serde_json::to_string(&pet).unwrap()).unwrap();
+        std::fs::write(
+            d.path().join("sprite.png"),
+            generate(32, [1, 2, 3], [4, 5, 6]).encode_png(),
+        )
+        .unwrap();
+        let errs = validate(&pet, d.path()).unwrap_err();
+        assert!(errs.iter().any(|e| e.reason.contains("multiple of frame_size")), "{errs:?}");
+    }
+
+    #[test]
+    fn non_png_sprite_is_refused() {
+        let d = tmp();
+        let pet = Pet::default();
+        std::fs::write(d.path().join("pet.json"), serde_json::to_string(&pet).unwrap()).unwrap();
+        std::fs::write(d.path().join("sprite.png"), b"<svg>not a png</svg>").unwrap();
+        let errs = validate(&pet, d.path()).unwrap_err();
+        assert!(errs.iter().any(|e| e.reason.contains("not a PNG")), "{errs:?}");
+    }
+
+    #[test]
+    fn oversized_sprite_is_refused_before_decoding() {
+        let d = tmp();
+        let pet = Pet::default();
+        std::fs::write(d.path().join("pet.json"), serde_json::to_string(&pet).unwrap()).unwrap();
+        let big = vec![0u8; (MAX_SPRITE_BYTES + 1) as usize];
+        std::fs::write(d.path().join("sprite.png"), big).unwrap();
+        let errs = validate(&pet, d.path()).unwrap_err();
+        assert!(errs.iter().any(|e| e.reason.contains("limit is")), "{errs:?}");
+    }
+
+    #[test]
+    fn unsupported_version_is_refused_politely() {
+        let d = tmp();
+        let pet = Pet { version: 7, ..Default::default() };
+        write_pet(d.path(), &pet);
+        let errs = validate(&pet, d.path()).unwrap_err();
+        assert!(errs
+            .iter()
+            .any(|e| e.field == "version" && e.reason.contains("this build reads 1")));
+    }
+
+    #[test]
+    fn bad_palette_is_refused() {
+        let d = tmp();
+        let pet =
+            Pet { palette: vec!["rebeccapurple".into(), "#12345".into()], ..Default::default() };
+        write_pet(d.path(), &pet);
+        assert!(validate(&pet, d.path()).is_err());
+    }
+
+    #[test]
+    fn install_copies_every_file_the_manifest_names() {
+        // Regression: install used to copy exactly `pet.json` + `sprite.png`, so a pet with
+        // clips or a 3D model installed "successfully" and then failed to load its own art.
+        let d = tmp();
+        let src = d.path().join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        write_clips(&src);
+        std::fs::write(src.join("pet.json"), serde_json::to_string(&clip_pet()).unwrap()).unwrap();
+
+        let pets = d.path().join("pets");
+        let dest = install(&src, &pets).unwrap();
+        for f in ["pet.json", "idle.webp", "walk.webp"] {
+            assert!(dest.join(f).exists(), "{f} was not copied");
+        }
+        assert!(load(&dest).is_ok(), "the installed copy must validate");
+    }
+
+    #[test]
+    fn install_copies_a_model_file() {
+        let d = tmp();
+        let src = d.path().join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("model.glb"), glb_bytes()).unwrap();
+        std::fs::write(
+            src.join("pet.json"),
+            serde_json::to_string(&pet_with_model("model.glb")).unwrap(),
+        )
+        .unwrap();
+        let dest = install(&src, &d.path().join("pets")).unwrap();
+        assert!(dest.join("model.glb").exists());
+        assert!(load(&dest).is_ok());
+    }
+
+    #[test]
+    fn install_copies_and_refuses_to_clobber() {
+        let src = tmp();
+        let pets = tmp();
+        scaffold(src.path(), "Mochi", 32, "#c2331a", "#1f6b3a").unwrap();
+        let dest = install(src.path(), pets.path()).unwrap();
+        assert!(dest.join("pet.json").exists());
+        assert!(dest.join("sprite.png").exists());
+        assert!(install(src.path(), pets.path()).is_err(), "second install must refuse");
+    }
+
+    #[test]
+    fn installed_skips_broken_pets_without_failing() {
+        let pets = tmp();
+        scaffold(&pets.path().join("good"), "Good", 32, "#c2331a", "#1f6b3a").unwrap();
+        let broken = pets.path().join("broken");
+        std::fs::create_dir_all(&broken).unwrap();
+        std::fs::write(broken.join("pet.json"), "{ not json").unwrap();
+        let (good, bad) = installed(pets.path());
+        assert_eq!(good.len(), 1);
+        assert_eq!(bad.len(), 1);
+        assert_eq!(good[0].name, "Good");
+    }
+
+    #[test]
+    fn slug_is_safe() {
+        assert_eq!(slug("Mochi"), "mochi");
+        assert_eq!(slug("My Pet!! 2"), "my-pet-2");
+        assert_eq!(slug("../../etc/passwd"), "etc-passwd");
+        assert_eq!(slug("///"), "pet");
+    }
+
+    #[test]
+    fn default_pet_has_useful_speech_fallbacks() {
+        let pet = Pet::default();
+        assert!(pet.speech.for_kind("water").is_none(), "empty means use builtins");
+    }
 }
