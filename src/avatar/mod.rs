@@ -17,8 +17,10 @@
 
 pub mod audit;
 pub mod builtin;
+pub mod clips;
 
 pub use audit::{audit, Audit, Format, Severity};
+pub use clips::{sniff as sniff_clip, ClipInfo, Container};
 
 /// Where user avatars live.
 pub fn avatar_dir(data: &std::path::Path) -> std::path::PathBuf {
