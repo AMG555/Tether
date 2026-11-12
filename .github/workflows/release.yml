@@ -1,0 +1,105 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,   target: x86_64-unknown-linux-gnu,  archive: tar.gz }
+          - { os: ubuntu-latest,   target: aarch64-unknown-linux-gnu, archive: tar.gz, cross: true }
+          - { os: macos-latest,    target: aarch64-apple-darwin,      archive: tar.gz }
+          - { os: macos-latest,    target: x86_64-apple-darwin,       archive: tar.gz }
+          - { os: windows-latest,  target: x86_64-pc-windows-msvc,    archive: zip }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Flat, version-less names: scripts/install.sh and install.ps1 resolve exactly these,
+          # and VERSION selects the tag through the release URL rather than the filename.
+          case "${{ matrix.target }}" in
+            x86_64-unknown-linux-gnu)  ASSET=savepoint-linux-x86_64 ;;
+            aarch64-unknown-linux-gnu) ASSET=savepoint-linux-aarch64 ;;
+            aarch64-apple-darwin)      ASSET=savepoint-macos-aarch64 ;;
+            x86_64-apple-darwin)       ASSET=savepoint-macos-x86_64 ;;
+            x86_64-pc-windows-msvc)    ASSET=savepoint-windows-x86_64 ;;
+            *) echo "unmapped target"; exit 1 ;;
+          esac
+          BIN="target/${{ matrix.target }}/release/savepoint"
+          mkdir -p "dist/$ASSET"
+          if [ -f "$BIN.exe" ]; then BIN="$BIN.exe"; fi
+          cp "$BIN" "dist/$ASSET/"
+          cp README.md LICENSE docs/limitations.md "dist/$ASSET/"
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            (cd dist && 7z a "$ASSET.zip" "$ASSET" > /dev/null)
+            echo "ASSET=dist/$ASSET.zip" >> $GITHUB_ENV
+          else
+            (cd dist && tar czf "$ASSET.tar.gz" "$ASSET")
+            echo "ASSET=dist/$ASSET.tar.gz" >> $GITHUB_ENV
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*.*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      # The installer refuses to run without this file, so the release must always have one.
+      - name: Checksums
+        run: |
+          set -euo pipefail
+          cd artifacts
+          sha256sum *.tar.gz *.zip > checksums.txt
+          cat checksums.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.*
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            Linux / macOS:
+
+            ```sh
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.sh | sh
+            savepoint setup
+            ```
+
+            Windows (PowerShell):
+
+            ```powershell
+            irm https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.ps1 | iex
+            savepoint setup
+            ```
+
+            The installer checks the SHA-256 of the download against `checksums.txt` and refuses
+            to install on a mismatch. No root, no service manager, no network calls at runtime.
+            One binary, about 2 MB. Assets are named `savepoint-<platform>-<cpu>`, so the install
+            command above keeps working across releases.
