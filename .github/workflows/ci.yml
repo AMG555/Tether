@@ -36,10 +36,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          export SAVEPOINT_HOME="$RUNNER_TEMP/sp-ci"
-          rm -rf "$SAVEPOINT_HOME"
+          export TETHER_HOME="$RUNNER_TEMP/sp-ci"
+          rm -rf "$TETHER_HOME"
           cargo build --release
-          BIN=./target/release/savepoint
+          BIN=./target/release/tether
           [ -f "$BIN.exe" ] && BIN="$BIN.exe"
           "$BIN" init > /dev/null
           # Die without flushing, exactly like a crash.
@@ -75,7 +75,7 @@ jobs:
       - run: cargo build --release
       - name: Enforce the "ultra lightweight" claim
         run: |
-          SIZE=$(stat -c %s target/release/savepoint)
+          SIZE=$(stat -c %s target/release/tether)
           echo "release binary: $((SIZE/1024)) KiB"
           # 2.75 MiB budget: today it is ~2.0 MB, so this only trips on real bloat.
           if [ "$SIZE" -gt 2883584 ]; then

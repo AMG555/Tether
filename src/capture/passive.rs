@@ -2,7 +2,7 @@
 //!
 //! This is the default on Linux because Wayland (and modern macOS/Win11 hardening) treat
 //! global keylogging as malware — which it is, in the wrong hands. Rather than ask for
-//! root or defeat the compositor, Savepoint offers a smaller guarantee honestly:
+//! root or defeat the compositor, Tether offers a smaller guarantee honestly:
 //! **anything you copy is saved forever, encrypted.**
 //!
 //! Implementation notes:

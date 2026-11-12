@@ -16,20 +16,20 @@ esac
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 
-files=$(grep -rl 'USER/savepoint' --include='*.toml' --include='*.md' --include='*.sh' \
+files=$(grep -rl 'USER/tether' --include='*.toml' --include='*.md' --include='*.sh' \
         --include='*.ps1' --include='*.yml' . 2>/dev/null | grep -v '^./target/' | grep -v 'rename-owner')
 
 [ -n "$files" ] || { echo "nothing to change — already set?"; exit 0; }
 
 # BSD sed and GNU sed disagree about -i, so rewrite via a temp file.
 for f in $files; do
-  sed "s|USER/savepoint|$owner/savepoint|g" "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+  sed "s|USER/tether|$owner/tether|g" "$f" > "$f.tmp" && mv "$f.tmp" "$f"
   echo "  $f"
 done
 
 echo ""
 echo "Now:"
-echo "  grep -rn 'USER/savepoint' . --include='*.md' --include='*.sh' --include='*.ps1'   # expect nothing"
+echo "  grep -rn 'USER/tether' . --include='*.md' --include='*.sh' --include='*.ps1'   # expect nothing"
 echo "  cargo test && node --test gui/*.test.js && sh scripts/test-install.sh"
-echo "  git commit -am 'chore: point at $owner/savepoint'"
+echo "  git commit -am 'chore: point at $owner/tether'"
 echo "  git tag v0.1.0 && git push origin main --tags"

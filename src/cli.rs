@@ -24,17 +24,17 @@ pub const KEY_FILE: &str = "key.txt";
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "savepoint",
+    name = "tether",
     about = "Crash-proof, offline, encrypted typing recovery.",
-    long_about = "Savepoint keeps an encrypted, encrypted-at-rest copy of whatever you are \
+    long_about = "Tether keeps an encrypted, encrypted-at-rest copy of whatever you are \
 typing, so a crash, a force-quit or a dead battery never costs you a half-written prompt again.\n\
 Everything stays on this machine. No account, no network, no telemetry.",
     version,
-    after_help = "Examples:\n  savepoint init                  create the vault + show your recovery key\n  savepoint run                   start capturing in the foreground\n  savepoint recover               replay anything left in the crash buffer\n  savepoint list -n 10 --preview  see recent rescues\n  savepoint copy 3                put rescue 3 back on the clipboard"
+    after_help = "Examples:\n  tether init                  create the vault + show your recovery key\n  tether run                   start capturing in the foreground\n  tether recover               replay anything left in the crash buffer\n  tether list -n 10 --preview  see recent rescues\n  tether copy 3                put rescue 3 back on the clipboard"
 )]
 pub struct Cli {
     /// Override the data directory (default: per-OS user data dir).
-    #[arg(long, global = true, env = "SAVEPOINT_HOME")]
+    #[arg(long, global = true, env = "TETHER_HOME")]
     pub home: Option<PathBuf>,
 
     #[command(subcommand)]
@@ -48,6 +48,17 @@ pub enum Command {
         /// Print the recovery key to stdout (it is always written to the key file).
         #[arg(long)]
         show_key: bool,
+    },
+    /// Guided first-run setup: checks everything, fixes what it can, prints what is left.
+    ///
+    /// Run once after installing. Safe to run again at any time.
+    Setup {
+        /// Also install a login item so capture runs when a crash happens.
+        #[arg(long)]
+        autostart: bool,
+        /// Do not create the vault even if it is missing.
+        #[arg(long)]
+        check_only: bool,
     },
     /// Capture input in the foreground until Ctrl-C.
     Run {
@@ -123,11 +134,8 @@ pub enum Command {
     Doctor,
     /// One-screen health/status summary.
     Status,
-    /// Feed synthetic keystrokes into the capture path (demos and tests).
-    ///
-    /// This exists so the crash guarantee is *reproducible*: CI can type a sentence, SIGKILL
-    /// the process mid-stream, and assert the text comes back. It writes nothing to the
-    /// vault and never commits — only the crash ring sees these keystrokes.
+    /// The desktop companion: a pet that walks around, reminds you to drink water and
+    /// take breaks, and shows you what Tether recovered.
     Ask {
         /// Create a new pet from procedural art (no drawing needed).
         #[arg(long)]
@@ -141,6 +149,9 @@ pub enum Command {
         /// Accent colour for `--new`, as #rrggbb.
         #[arg(long, default_value = "#1f6b3a")]
         accent: String,
+        /// Open the offline Pet Studio authoring page.
+        #[arg(long)]
+        studio: bool,
         /// List installed pets (and anything broken, with the reason).
         #[arg(long)]
         list: bool,
@@ -150,6 +161,33 @@ pub enum Command {
         /// Simulate a working day and print every reminder, so you can tune the schedule.
         #[arg(long)]
         check: bool,
+        /// Audit a 3D avatar (.vrm/.glb/.gltf) before loading it.
+        #[arg(long, value_name = "FILE")]
+        audit: Option<PathBuf>,
+        /// List installed 3D avatars with their audit summary.
+        #[arg(long)]
+        avatars: bool,
+        /// Open the offline Character Studio: make a realistic clip-pack character.
+        #[arg(long)]
+        character_studio: bool,
+        /// Add or replace one animation clip on an installed pet, at any time.
+        ///
+        /// Clips are built over days and across accounts: `idle` and `walk` from one,
+        /// `water` and `remind` from another. This merges them into one pet safely.
+        #[arg(long, value_names = ["STATE", "FILE"], num_args = 2)]
+        set_clip: Option<Vec<String>>,
+        /// Remove one optional clip from an installed pet.
+        #[arg(long, value_name = "STATE")]
+        unset_clip: Option<String>,
+        /// Show every animation state a pet has, and which are missing.
+        #[arg(long)]
+        clips: bool,
+        /// Which installed pet to act on (defaults to the only one).
+        #[arg(long, value_name = "NAME")]
+        pet: Option<String>,
+        /// Use plain ASCII art instead of Unicode.
+        #[arg(long)]
+        ascii: bool,
     },
     /// Feed synthetic keystrokes into the capture path (demos and tests).
     ///
@@ -209,7 +247,7 @@ fn open_vault(home: &Option<PathBuf>) -> Result<Vault, Box<dyn std::error::Error
     let (key, created) = load_or_create_key(&dir)?;
     let vault = Vault::open(&dir, &key)?;
     if created {
-        eprintln!("savepoint: new vault created at {}", dir.display());
+        eprintln!("tether: new vault created at {}", dir.display());
     }
     Ok(vault)
 }
@@ -217,9 +255,8 @@ fn open_vault(home: &Option<PathBuf>) -> Result<Vault, Box<dyn std::error::Error
 pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     let home = cli.home.clone();
     match cli.command {
-
-
         Command::Init { show_key } => cmd_init(&home, show_key),
+        Command::Setup { autostart, check_only } => cmd_setup(&home, autostart, check_only),
         Command::Run { mode, flush_ms, ring_slots, probe_ms, quiet } => {
             cmd_run(&home, mode, flush_ms, ring_slots, probe_ms, quiet)
         }
@@ -236,26 +273,60 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         Command::Export { path, i_understand } => cmd_export(&home, &path, i_understand),
         Command::Doctor => cmd_doctor(&home),
         Command::Status => cmd_status(&home),
-        Command::Ask { new, frame_size, body, accent, list, install, check } => {
+        Command::Ask {
+            new,
+            frame_size,
+            body,
+            accent,
+            studio,
+            list,
+            install,
+            check,
+            audit,
+            avatars,
+            character_studio,
+            set_clip,
+            unset_clip,
+            clips,
+            pet,
+            ascii,
+        } => {
             let data = data_dir(&home);
             let action = if let Some(name) = new {
                 crate::companion::Action::New { name, frame_size, body, accent }
+            } else if studio {
+                crate::companion::Action::Studio
             } else if list {
                 crate::companion::Action::List
             } else if let Some(path) = install {
                 crate::companion::Action::Install { path }
             } else if check {
                 crate::companion::Action::Check
+            } else if let Some(path) = audit {
+                crate::companion::Action::Audit { path }
+            } else if avatars {
+                crate::companion::Action::Avatars
+            } else if character_studio {
+                crate::companion::Action::CharacterStudio
+            } else if let Some(pair) = set_clip {
+                crate::companion::Action::SetClip {
+                    pet: pet.clone(),
+                    state: pair[0].clone(),
+                    file: std::path::PathBuf::from(&pair[1]),
+                }
+            } else if let Some(state) = unset_clip {
+                crate::companion::Action::UnsetClip { pet: pet.clone(), state }
+            } else if clips {
+                crate::companion::Action::Clips { pet: pet.clone() }
             } else {
-                crate::companion::Action::Run { ascii: false }
+                crate::companion::Action::Run { ascii }
             };
             crate::companion::run(&data, action)
         }
         Command::Simulate { text, app, crash, ring_slots, quiet } => {
             cmd_simulate(&home, &text, &app, crash, ring_slots, quiet)
         }
-    
-}
+    }
 }
 
 fn cmd_init(home: &Option<PathBuf>, show_key: bool) -> Result<(), Box<dyn std::error::Error>> {
@@ -276,14 +347,14 @@ fn cmd_init(home: &Option<PathBuf>, show_key: bool) -> Result<(), Box<dyn std::e
     if vault.integrity_ok() {
         println!("db:      integrity ok");
     } else {
-        println!("db:      INTEGRITY CHECK FAILED — run `savepoint backup` before anything else");
+        println!("db:      INTEGRITY CHECK FAILED — run `tether backup` before anything else");
     }
     println!("\nRecovery key (store this somewhere safe; anyone with it can read your vault):");
     println!("  {}\n", key.to_hex());
     if show_key {
         // already printed; keeps the flag meaningful for scripts
     }
-    println!("Next: `savepoint run` to start capturing, or `savepoint doctor` first.");
+    println!("Next: `tether run` to start capturing, or `tether doctor` first.");
     Ok(())
 }
 
@@ -454,7 +525,7 @@ fn cmd_list(
         return Ok(());
     }
     if rows.is_empty() {
-        println!("no rescues yet. `savepoint run` starts capturing.");
+        println!("no rescues yet. `tether run` starts capturing.");
         return Ok(());
     }
     println!("{:>4}  {:<8} {:<16} {:>6}  PREVIEW", "ID", "AGE", "APP", "CHARS");
@@ -523,7 +594,7 @@ fn copy_to_clipboard(text: &str) -> Result<(), Box<dyn std::error::Error>> {
         Command::new(cmd).args(&args).stdin(Stdio::piped()).stdout(Stdio::null()).spawn().map_err(
             |e| {
                 format!(
-                    "{cmd} not available ({e}); the text is in `savepoint show {text_len}`",
+                    "{cmd} not available ({e}); the text is in `tether show {text_len}`",
                     text_len = text.chars().count()
                 )
             },
@@ -664,10 +735,91 @@ fn cmd_export(
     Ok(())
 }
 
+/// `tether setup` — the first five minutes, done properly.
+fn cmd_setup(
+    home: &Option<PathBuf>,
+    autostart: bool,
+    check_only: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use crate::setup::{checks, install_autostart, Level};
+
+    let dir = data_dir(home);
+    println!("tether setup\n");
+    println!("Nothing here talks to the network. Everything stays on this machine.\n");
+
+    let mut steps = checks(&dir);
+
+    let have_vault = dir.join("key.txt").exists();
+    if !have_vault && !check_only {
+        println!("[1/3] creating the vault");
+        cmd_init(home, true)?;
+        println!();
+        steps = checks(&dir);
+    } else if have_vault {
+        println!("[1/3] vault already exists at {}", dir.display());
+    } else {
+        println!("[1/3] no vault, and --check-only was given");
+    }
+
+    println!(
+        "
+[2/3] checks"
+    );
+    let mut blocking = 0;
+    for step in &steps {
+        println!("  {:<5} {:<12} {}", step.level.mark(), step.name, step.detail);
+        if let Some(fix) = &step.fix {
+            println!("  {:<18} fix: {fix}", "");
+            if step.level == Level::Fail {
+                blocking += 1;
+            }
+        }
+    }
+
+    if autostart {
+        println!(
+            "
+[3/3] start at login"
+        );
+        let exe = std::env::current_exe()?;
+        match install_autostart(&exe) {
+            Ok(path) => {
+                println!("  ok    wrote {}", path.display());
+                #[cfg(target_os = "linux")]
+                println!("        enable: systemctl --user daemon-reload && systemctl --user enable --now tether");
+                #[cfg(target_os = "macos")]
+                println!("        load:   launchctl load -w {}", path.display());
+                #[cfg(target_os = "windows")]
+                println!("        it will start next time you sign in");
+            }
+            Err(e) => println!("  warn  could not write a login item: {e}"),
+        }
+    } else {
+        println!(
+            "
+[3/3] start at login — skipped"
+        );
+        println!("  run `tether setup --autostart` so capture is already running when a crash");
+        println!("  happens. A recovery tool that starts after the crash recovers nothing.");
+    }
+
+    println!("\n{}", "-".repeat(66));
+    if blocking > 0 {
+        println!(
+            "{blocking} problem(s) must be fixed before this is safe. See the fix lines above."
+        );
+        std::process::exit(1);
+    }
+    println!("Ready. Next:");
+    println!("  tether run                 start capturing (or enable the login item above)");
+    println!("  tether doctor              re-check at any time");
+    println!("  tether ask --new Kai       make a companion");
+    Ok(())
+}
 
 fn cmd_doctor(home: &Option<PathBuf>) -> Result<(), Box<dyn std::error::Error>> {
     let dir = data_dir(home);
-    println!("savepoint doctor\n");
+    println!("tether doctor\n");
     let mut problems = 0;
 
     println!("[platform]");
@@ -693,7 +845,7 @@ fn cmd_doctor(home: &Option<PathBuf>) -> Result<(), Box<dyn std::error::Error>> 
             }
         }
         Err(_) => {
-            println!("  data dir: missing (run `savepoint init`)");
+            println!("  data dir: missing (run `tether init`)");
             problems += 1;
         }
     }
@@ -746,7 +898,7 @@ fn cmd_doctor(home: &Option<PathBuf>) -> Result<(), Box<dyn std::error::Error>> 
             println!("  ring.bin: header was corrupt — slots salvaged, recovery still works");
         }
         if !pending.is_empty() {
-            println!("  ^ there IS unsaved input waiting — run `savepoint recover`");
+            println!("  ^ there IS unsaved input waiting — run `tether recover`");
         }
     } else {
         println!("  ring.bin: not created yet");
@@ -788,7 +940,7 @@ fn cmd_doctor(home: &Option<PathBuf>) -> Result<(), Box<dyn std::error::Error>> 
         println!(
             "  note: Wayland/X11 do not allow global keyboard hooks. Clipboard-only capture is"
         );
-        println!("        the honest maximum here; `savepoint run` still protects every copy.");
+        println!("        the honest maximum here; `tether run` still protects every copy.");
     }
 
     println!("\n[privacy]");
@@ -824,7 +976,7 @@ fn cmd_status(home: &Option<PathBuf>) -> Result<(), Box<dyn std::error::Error>> 
             if ring.salvaged() { " (salvaged after a damaged header)" } else { "" }
         );
         if !pending.is_empty() {
-            println!("           ^ run `savepoint recover` to commit them");
+            println!("           ^ run `tether recover` to commit them");
         }
     }
     if rows.is_empty() {

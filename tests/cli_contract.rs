@@ -7,7 +7,7 @@
 use std::process::Command;
 
 fn bin() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_savepoint"))
+    Command::new(env!("CARGO_BIN_EXE_tether"))
 }
 
 #[test]

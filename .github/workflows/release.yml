@@ -37,14 +37,14 @@ jobs:
           # Flat, version-less names: scripts/install.sh and install.ps1 resolve exactly these,
           # and VERSION selects the tag through the release URL rather than the filename.
           case "${{ matrix.target }}" in
-            x86_64-unknown-linux-gnu)  ASSET=savepoint-linux-x86_64 ;;
-            aarch64-unknown-linux-gnu) ASSET=savepoint-linux-aarch64 ;;
-            aarch64-apple-darwin)      ASSET=savepoint-macos-aarch64 ;;
-            x86_64-apple-darwin)       ASSET=savepoint-macos-x86_64 ;;
-            x86_64-pc-windows-msvc)    ASSET=savepoint-windows-x86_64 ;;
+            x86_64-unknown-linux-gnu)  ASSET=tether-linux-x86_64 ;;
+            aarch64-unknown-linux-gnu) ASSET=tether-linux-aarch64 ;;
+            aarch64-apple-darwin)      ASSET=tether-macos-aarch64 ;;
+            x86_64-apple-darwin)       ASSET=tether-macos-x86_64 ;;
+            x86_64-pc-windows-msvc)    ASSET=tether-windows-x86_64 ;;
             *) echo "unmapped target"; exit 1 ;;
           esac
-          BIN="target/${{ matrix.target }}/release/savepoint"
+          BIN="target/${{ matrix.target }}/release/tether"
           mkdir -p "dist/$ASSET"
           if [ -f "$BIN.exe" ]; then BIN="$BIN.exe"; fi
           cp "$BIN" "dist/$ASSET/"
@@ -89,17 +89,17 @@ jobs:
 
             ```sh
             curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.sh | sh
-            savepoint setup
+            tether setup
             ```
 
             Windows (PowerShell):
 
             ```powershell
             irm https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.ps1 | iex
-            savepoint setup
+            tether setup
             ```
 
             The installer checks the SHA-256 of the download against `checksums.txt` and refuses
             to install on a mismatch. No root, no service manager, no network calls at runtime.
-            One binary, about 2 MB. Assets are named `savepoint-<platform>-<cpu>`, so the install
+            One binary, about 2 MB. Assets are named `tether-<platform>-<cpu>`, so the install
             command above keeps working across releases.

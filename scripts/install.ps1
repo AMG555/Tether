@@ -1,27 +1,27 @@
-# Savepoint installer for Windows — one command, no admin rights.
+# Tether installer for Windows — one command, no admin rights.
 #
-#   irm https://raw.githubusercontent.com/USER/savepoint/main/scripts/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/USER/tether/main/scripts/install.ps1 | iex
 #
-# Installs to %LOCALAPPDATA%\Savepoint\bin, verifies the SHA-256, and adds that folder to your
+# Installs to %LOCALAPPDATA%\Tether\bin, verifies the SHA-256, and adds that folder to your
 # user PATH (the current user only — no administrator prompt, no machine-wide change).
 
 $ErrorActionPreference = 'Stop'
-$Repo     = if ($env:SAVEPOINT_REPO)    { $env:SAVEPOINT_REPO }    else { 'USER/savepoint' }
-$BinDir   = if ($env:SAVEPOINT_BIN_DIR) { $env:SAVEPOINT_BIN_DIR } else { Join-Path $env:LOCALAPPDATA 'Savepoint\bin' }
-$Version  = if ($env:SAVEPOINT_VERSION) { $env:SAVEPOINT_VERSION } else { 'latest' }
+$Repo     = if ($env:TETHER_REPO)    { $env:TETHER_REPO }    else { 'USER/tether' }
+$BinDir   = if ($env:TETHER_BIN_DIR) { $env:TETHER_BIN_DIR } else { Join-Path $env:LOCALAPPDATA 'Tether\bin' }
+$Version  = if ($env:TETHER_VERSION) { $env:TETHER_VERSION } else { 'latest' }
 
-Write-Host "savepoint installer"
+Write-Host "tether installer"
 Write-Host "  platform  windows / $($env:PROCESSOR_ARCHITECTURE)"
 Write-Host "  target    $BinDir"
 
-$asset = 'savepoint-windows-x86_64.zip'
+$asset = 'tether-windows-x86_64.zip'
 $base  = if ($Version -eq 'latest') {
     "https://github.com/$Repo/releases/latest/download"
 } else {
     "https://github.com/$Repo/releases/download/$Version"
 }
 
-$tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("savepoint-" + [guid]::NewGuid())
+$tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("tether-" + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $tmp -Force | Out-Null
 
 try {
@@ -49,10 +49,10 @@ try {
     Expand-Archive -Path $zip -DestinationPath $tmp -Force
     New-Item -ItemType Directory -Path $BinDir -Force | Out-Null
 
-    $exe = Get-ChildItem -Path $tmp -Recurse -Filter 'savepoint.exe' | Select-Object -First 1
-    if (-not $exe) { throw 'the archive did not contain savepoint.exe' }
+    $exe = Get-ChildItem -Path $tmp -Recurse -Filter 'tether.exe' | Select-Object -First 1
+    if (-not $exe) { throw 'the archive did not contain tether.exe' }
 
-    $dest = Join-Path $BinDir 'savepoint.exe'
+    $dest = Join-Path $BinDir 'tether.exe'
     if (Test-Path $dest) { Write-Host "  upgrade   replacing the existing install" }
     Copy-Item $exe.FullName $dest -Force
 
@@ -67,7 +67,7 @@ try {
     }
     Write-Host ""
     Write-Host "next:"
-    Write-Host "  savepoint setup"
+    Write-Host "  tether setup"
 }
 finally {
     Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue

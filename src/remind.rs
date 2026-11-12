@@ -10,7 +10,7 @@
 //! - When you are away, the timer **pauses**. You are not nagged about a break you already
 //!   took, and the tool has not learned anything about how fast you type.
 //!
-//! The consequence worth stating: Savepoint can tell you `time for water`, and cannot tell
+//! The consequence worth stating: Tether can tell you `time for water`, and cannot tell
 //! you `you typed 4,000 words today`. That is a feature, and `remind::tests` asserts it: the
 //! engine's entire input surface is `(now, any_input_since_last_tick)`.
 //!

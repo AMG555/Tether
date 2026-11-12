@@ -12,7 +12,7 @@
 
 use std::time::Instant;
 
-use savepoint::{
+use tether::{
     crypto::SecretKey,
     engine::Engine,
     policy::Policy,

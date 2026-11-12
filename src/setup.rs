@@ -88,7 +88,7 @@ pub fn checks(data_dir: &Path) -> Vec<Step> {
         level: if what == "nothing yet" { Level::Fail } else { Level::Ok },
         detail: format!("{what} — {why}"),
         fix: if what == "nothing yet" {
-            Some("tell us your platform: https://github.com/USER/savepoint/issues".into())
+            Some("tell us your platform: https://github.com/USER/tether/issues".into())
         } else {
             None
         },
@@ -120,7 +120,7 @@ pub fn checks(data_dir: &Path) -> Vec<Step> {
         steps.push(Step::warn(
             "data dir",
             format!("{} does not exist yet", data_dir.display()),
-            "savepoint init",
+            "tether init",
         ));
     }
 
@@ -150,7 +150,7 @@ pub fn checks(data_dir: &Path) -> Vec<Step> {
             format!("copy {} somewhere separate (password manager, USB stick)", key.display()),
         ));
     } else {
-        steps.push(Step::warn("key file", "no vault yet", "savepoint init"));
+        steps.push(Step::warn("key file", "no vault yet", "tether init"));
     }
 
     // 4. Start at login: the whole point is that it is already running when the crash happens.
@@ -159,7 +159,7 @@ pub fn checks(data_dir: &Path) -> Vec<Step> {
     // 5. The companion is optional; say so rather than implying it is needed.
     steps.push(Step::ok(
         "companion",
-        "optional — `savepoint ask --new NAME` makes a pet, `savepoint ask --character-studio` "
+        "optional — `tether ask --new NAME` makes a pet, `tether ask --character-studio` "
             .to_string()
             + "authors a realistic one",
     ));
@@ -177,19 +177,19 @@ fn autostart_step() -> Step {
                 return Step::warn(
                     "start at login",
                     "cannot find your config directory",
-                    "savepoint setup --autostart",
+                    "tether setup --autostart",
                 )
             }
         },
     };
-    let unit = dir.join("systemd/user/savepoint.service");
+    let unit = dir.join("systemd/user/tether.service");
     if unit.exists() {
         Step::ok("start at login", unit.display().to_string())
     } else {
         Step::warn(
             "start at login",
-            "not installed — a crash only counts if Savepoint was already running",
-            "savepoint setup --autostart",
+            "not installed — a crash only counts if Tether was already running",
+            "tether setup --autostart",
         )
     }
 }
@@ -199,21 +199,21 @@ fn autostart_step() -> Step {
     match std::env::var_os("HOME") {
         Some(h) => {
             let plist =
-                std::path::PathBuf::from(h).join("Library/LaunchAgents/dev.savepoint.agent.plist");
+                std::path::PathBuf::from(h).join("Library/LaunchAgents/dev.tether.agent.plist");
             if plist.exists() {
                 Step::ok("start at login", plist.display().to_string())
             } else {
                 Step::warn(
                     "start at login",
-                    "not installed — a crash only counts if Savepoint was already running",
-                    "savepoint setup --autostart",
+                    "not installed — a crash only counts if Tether was already running",
+                    "tether setup --autostart",
                 )
             }
         }
         None => Step::warn(
             "start at login",
             "cannot find your home directory",
-            "savepoint setup --autostart",
+            "tether setup --autostart",
         ),
     }
 }
@@ -224,18 +224,18 @@ fn autostart_step() -> Step {
     match std::env::var_os("APPDATA") {
         Some(a) => {
             let lnk = std::path::PathBuf::from(a)
-                .join("Microsoft/Windows/Start Menu/Programs/Startup/savepoint.url");
+                .join("Microsoft/Windows/Start Menu/Programs/Startup/tether.url");
             if lnk.exists() {
                 Step::ok("start at login", "Startup folder entry present")
             } else {
                 Step::warn(
                     "start at login",
-                    "not installed — a crash only counts if Savepoint was already running",
-                    "savepoint setup --autostart",
+                    "not installed — a crash only counts if Tether was already running",
+                    "tether setup --autostart",
                 )
             }
         }
-        None => Step::warn("start at login", "cannot find %APPDATA%", "savepoint setup --autostart"),
+        None => Step::warn("start at login", "cannot find %APPDATA%", "tether setup --autostart"),
     }
 }
 
@@ -256,10 +256,10 @@ pub fn install_autostart(exe: &Path) -> Result<std::path::PathBuf, String> {
             .ok_or("cannot find your config directory")?
             .join("systemd/user");
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-        let path = dir.join("savepoint.service");
+        let path = dir.join("tether.service");
         let unit = format!(
             "[Unit]\n\
-             Description=Savepoint — crash-proof typing recovery\n\
+             Description=Tether — crash-proof typing recovery\n\
              After=graphical-session.target\n\n\
              [Service]\n\
              ExecStart={exe} run\n\
@@ -278,13 +278,13 @@ pub fn install_autostart(exe: &Path) -> Result<std::path::PathBuf, String> {
         let home = std::env::var_os("HOME").ok_or("cannot find your home directory")?;
         let dir = std::path::PathBuf::from(home).join("Library/LaunchAgents");
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-        let path = dir.join("dev.savepoint.agent.plist");
+        let path = dir.join("dev.tether.agent.plist");
         let plist = format!(
             r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>dev.savepoint.agent</string>
+  <key>Label</key><string>dev.tether.agent</string>
   <key>ProgramArguments</key>
   <array><string>{exe}</string><string>run</string></array>
   <key>RunAtLoad</key><true/>
@@ -305,7 +305,7 @@ pub fn install_autostart(exe: &Path) -> Result<std::path::PathBuf, String> {
         let dir =
             std::path::PathBuf::from(appdata).join("Microsoft/Windows/Start Menu/Programs/Startup");
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-        let path = dir.join("savepoint.url");
+        let path = dir.join("tether.url");
         // `run` in a console window is not ideal on Windows; point at the same command.
         std::fs::write(&path, format!("[InternetShortcut]\nURL=file:///{exe}\n"))
             .map_err(|e| e.to_string())?;
@@ -360,7 +360,7 @@ mod tests {
         let steps = checks(&missing);
         let dir = steps.iter().find(|s| s.name == "data dir").unwrap();
         assert_eq!(dir.level, Level::Warn);
-        assert_eq!(dir.fix.as_deref(), Some("savepoint init"));
+        assert_eq!(dir.fix.as_deref(), Some("tether init"));
     }
 
     #[test]
@@ -388,10 +388,10 @@ mod tests {
         #[cfg(target_os = "macos")]
         std::env::set_var("HOME", d.path());
 
-        match install_autostart(Path::new("/usr/local/bin/savepoint")) {
+        match install_autostart(Path::new("/usr/local/bin/tether")) {
             Ok(path) => {
                 let text = std::fs::read_to_string(&path).unwrap();
-                assert!(text.contains("savepoint"), "the unit must name the binary");
+                assert!(text.contains("tether"), "the unit must name the binary");
                 assert!(path.starts_with(d.path()) || path.exists());
             }
             Err(e) => panic!("autostart failed: {e}"),

@@ -8,11 +8,11 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
-use savepoint::crypto::SecretKey;
-use savepoint::engine::Engine;
-use savepoint::policy::Policy;
-use savepoint::ring::{Event, EV_BACKSPACE, EV_CHAR, EV_FOCUS, EV_PASTE};
-use savepoint::vault::Vault;
+use tether::crypto::SecretKey;
+use tether::engine::Engine;
+use tether::policy::Policy;
+use tether::ring::{Event, EV_BACKSPACE, EV_CHAR, EV_FOCUS, EV_PASTE};
+use tether::vault::Vault;
 
 fn engine(dir: &Path, slots: usize) -> Engine {
     let key = SecretKey::from_hex(&std::fs::read_to_string(dir.join("key.txt")).unwrap()).unwrap();
@@ -67,11 +67,11 @@ fn half_written_prompt_survives_an_ungraceful_death() {
 fn subprocess_sigkill_still_recovers() {
     let dir = tempfile::tempdir().unwrap();
     let home = dir.path().to_string_lossy().to_string();
-    let bin = env!("CARGO_BIN_EXE_savepoint");
+    let bin = env!("CARGO_BIN_EXE_tether");
 
     // `simulate --crash` types into the ring, then aborts the process (no flush).
     let out = Command::new(bin)
-        .env("SAVEPOINT_HOME", &home)
+        .env("TETHER_HOME", &home)
         .args([
             "simulate",
             "--text",
@@ -84,13 +84,13 @@ fn subprocess_sigkill_still_recovers() {
         .unwrap();
     assert!(!out.status.success(), "process was supposed to die");
 
-    let recovered = Command::new(bin).env("SAVEPOINT_HOME", &home).arg("recover").output().unwrap();
+    let recovered = Command::new(bin).env("TETHER_HOME", &home).arg("recover").output().unwrap();
     assert!(recovered.status.success());
     let stdout = String::from_utf8_lossy(&recovered.stdout);
     assert!(stdout.contains("recovered 1 rescue"), "{stdout}");
 
     let listed = Command::new(bin)
-        .env("SAVEPOINT_HOME", &home)
+        .env("TETHER_HOME", &home)
         .args(["list", "--preview", "80"])
         .output()
         .unwrap();
@@ -123,7 +123,7 @@ fn flushes_do_not_fork_a_draft() {
     e.flush().unwrap();
 
     let rows = e.list(10, 100).unwrap();
-    assert_eq!(rows.len(), 1, "one session, one savepoint: {:?}", rows.len());
+    assert_eq!(rows.len(), 1, "one session, one tether: {:?}", rows.len());
     assert_eq!(rows[0].preview.as_deref(), Some("first half second half"));
 }
 
@@ -256,7 +256,7 @@ fn wrong_key_never_destroys_the_vault() {
 
     let bad = SecretKey::random().unwrap();
     let res = Vault::open(dir.path(), &bad);
-    assert!(matches!(res, Err(savepoint::vault::VaultError::WrongKey)));
+    assert!(matches!(res, Err(tether::vault::VaultError::WrongKey)));
     // And the original still opens fine.
     assert_eq!(engine(dir.path(), 4096).vault().counts().unwrap().0, 1);
 }

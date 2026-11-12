@@ -6,17 +6,17 @@
 
 use std::path::Path;
 
-use savepoint::crypto::SecretKey;
-use savepoint::engine::Engine;
-use savepoint::policy::{Policy, Verdict};
-use savepoint::ring::{Event, EV_CHAR};
-use savepoint::vault::Vault;
+use tether::crypto::SecretKey;
+use tether::engine::Engine;
+use tether::policy::{Policy, Verdict};
+use tether::ring::{Event, EV_CHAR};
+use tether::vault::Vault;
 
 fn setup(dir: &Path) -> Engine {
     std::fs::create_dir_all(dir).unwrap();
     let key = SecretKey::random().unwrap();
     std::fs::write(dir.join("key.txt"), key.to_hex()).unwrap();
-    savepoint::vault::set_private(&dir.join("key.txt")).unwrap();
+    tether::vault::set_private(&dir.join("key.txt")).unwrap();
     let vault = Vault::open(dir, &key).unwrap();
     Engine::new(vault, 4096, Policy::default()).unwrap()
 }
@@ -129,7 +129,7 @@ fn card_numbers_masked_order_ids_kept() {
 /// Password fields are refused even when the app is otherwise allowed.
 #[test]
 fn password_field_refused_even_in_safari() {
-    let snap = savepoint::engine::FieldSnapshot {
+    let snap = tether::engine::FieldSnapshot {
         app: "Safari".into(),
         window_title: "Example Domain".into(),
         role: "AXTextField".into(),

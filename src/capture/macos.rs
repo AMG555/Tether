@@ -3,7 +3,7 @@
 //! macOS is the strictest of the three platforms, and correctly so:
 //! - A `CGEventTap` at `kCGSessionEventTap` needs **Input Monitoring** (`IOHIDRequestAccess`)
 //!   and, for keyboard events, **Accessibility** trust. Both are user-granted in System
-//!   Settings; Savepoint never asks for root and never installs a privileged helper.
+//!   Settings; Tether never asks for root and never installs a privileged helper.
 //! - If the tap cannot be created (permission denied), `run()` returns immediately and the
 //!   caller falls back to clipboard mode — it does not silently pretend to be capturing.
 //! - The `probe()` path uses `AXUIElementCopyAttributeValue` on the focused element, which
@@ -11,7 +11,7 @@
 //!   `AXSecureTextField` is recognised and always refused, belt-and-braces on top of Policy.
 //!
 //! Unsigned-helper note: CFMachPort callbacks must return the event or it is consumed for
-//! the whole system. We always return it — Savepoint must be invisible to the user's typing.
+//! the whole system. We always return it — Tether must be invisible to the user's typing.
 
 #![allow(non_snake_case, non_camel_case_types)]
 
@@ -110,7 +110,7 @@ impl Source for MacTap {
         if unsafe { AXIsProcessTrusted() } != 0 {
             "macOS CGEventTap + accessibility"
         } else {
-            "macOS CGEventTap (permission not granted — run `savepoint doctor`)"
+            "macOS CGEventTap (permission not granted — run `tether doctor`)"
         }
     }
 
@@ -164,7 +164,7 @@ impl Source for MacTap {
             );
             if tap.is_null() {
                 eprintln!(
-                    "savepoint: CGEventTap unavailable. Grant Accessibility + Input Monitoring \
+                    "tether: CGEventTap unavailable. Grant Accessibility + Input Monitoring \
                      to rescue in System Settings > Privacy & Security, then rerun. \
                      Falling back to clipboard-only capture."
                 );
@@ -291,7 +291,7 @@ pub fn frontmost_app() -> String {
     }
 }
 
-/// `savepoint doctor` calls this to report precise permission state.
+/// `tether doctor` calls this to report precise permission state.
 pub fn permission_status() -> (bool, bool) {
     let ax = unsafe { AXIsProcessTrusted() != 0 };
     // Input Monitoring has no reliable public query; a tap probe is the honest test.

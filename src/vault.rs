@@ -3,7 +3,7 @@
 //! Layout on disk (see docs/adr/0001-storage.md):
 //!
 //! ```text
-//! ~/.local/share/savepoint/   (or %LOCALAPPDATA%\dev.savepoint.savepoint, ~/Library/Application Support)
+//! ~/.local/share/tether/   (or %LOCALAPPDATA%\dev.tether.tether, ~/Library/Application Support)
 //!   vault.db        SQLite, WAL mode.  Rows: sealed blobs + blind index + counters.
 //!   ring.bin        the crash ring (see ring.rs). Encrypted, 0600.
 //!   salt.bin        16 random bytes, HKDF salt. Not secret.

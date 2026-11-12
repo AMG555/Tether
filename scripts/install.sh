@@ -1,27 +1,27 @@
 #!/bin/sh
-# Savepoint installer — one command, no dependencies, no root.
+# Tether installer — one command, no dependencies, no root.
 #
-#   curl -fsSL https://raw.githubusercontent.com/USER/savepoint/main/scripts/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/USER/tether/main/scripts/install.sh | sh
 #
 # What it does, in order, and nothing else:
 #   1. Works out your OS and CPU.
 #   2. Downloads the matching binary from the latest GitHub release.
 #   3. Verifies its SHA-256 against the published checksum.
-#   4. Installs to ~/.local/bin (or $SAVEPOINT_BIN_DIR) and tells you if that is not on PATH.
+#   4. Installs to ~/.local/bin (or $TETHER_BIN_DIR) and tells you if that is not on PATH.
 #
-# Overrides, all optional: SAVEPOINT_VERSION, SAVEPOINT_BIN_DIR, SAVEPOINT_REPO, SAVEPOINT_BASE_URL.
+# Overrides, all optional: TETHER_VERSION, TETHER_BIN_DIR, TETHER_REPO, TETHER_BASE_URL.
 #
 # It does not use sudo, does not touch /usr/local, does not write a shell profile without
 # asking, and does not phone home. Re-running it upgrades in place.
 
 set -eu
 
-REPO="${SAVEPOINT_REPO:-USER/savepoint}"
-BIN_DIR="${SAVEPOINT_BIN_DIR:-$HOME/.local/bin}"
-VERSION="${SAVEPOINT_VERSION:-latest}"
+REPO="${TETHER_REPO:-USER/tether}"
+BIN_DIR="${TETHER_BIN_DIR:-$HOME/.local/bin}"
+VERSION="${TETHER_VERSION:-latest}"
 
 say()  { printf '%s\n' "$*"; }
-fail() { printf '\nsavepoint installer: %s\n' "$*" >&2; exit 1; }
+fail() { printf '\ntether installer: %s\n' "$*" >&2; exit 1; }
 
 # ---------------------------------------------------------------- 1. platform
 os=$(uname -s 2>/dev/null || echo unknown)
@@ -39,8 +39,8 @@ case "$arch" in
   *) fail "unsupported CPU: $arch" ;;
 esac
 
-asset="savepoint-$platform-$cpu.tar.gz"
-say "savepoint installer"
+asset="tether-$platform-$cpu.tar.gz"
+say "tether installer"
 say "  platform  $platform / $cpu"
 say "  target    $BIN_DIR"
 
@@ -48,11 +48,11 @@ say "  target    $BIN_DIR"
 command -v curl >/dev/null 2>&1 || fail "curl is required"
 command -v tar  >/dev/null 2>&1 || fail "tar is required"
 
-tmp=$(mktemp -d 2>/dev/null || mktemp -d -t savepoint)
+tmp=$(mktemp -d 2>/dev/null || mktemp -d -t tether)
 trap 'rm -rf "$tmp"' EXIT INT TERM
 
-if [ -n "${SAVEPOINT_BASE_URL:-}" ]; then
-  base=$SAVEPOINT_BASE_URL          # mirrors, air-gapped installs, and the test suite
+if [ -n "${TETHER_BASE_URL:-}" ]; then
+  base=$TETHER_BASE_URL          # mirrors, air-gapped installs, and the test suite
 elif [ "$VERSION" = "latest" ]; then
   base="https://github.com/$REPO/releases/latest/download"
 else
@@ -99,29 +99,29 @@ fi
 mkdir -p "$BIN_DIR"
 tar -xzf "$tmp/$asset" -C "$tmp"
 # Accept either a bare binary or a folder containing one.
-src="$tmp/savepoint"
-[ -f "$src" ] || src=$(find "$tmp" -maxdepth 2 -type f -name savepoint | head -n1)
-[ -n "${src:-}" ] && [ -f "$src" ] || fail "the archive did not contain a savepoint binary"
+src="$tmp/tether"
+[ -f "$src" ] || src=$(find "$tmp" -maxdepth 2 -type f -name tether | head -n1)
+[ -n "${src:-}" ] && [ -f "$src" ] || fail "the archive did not contain a tether binary"
 
-if [ -f "$BIN_DIR/savepoint" ]; then
+if [ -f "$BIN_DIR/tether" ]; then
   say "  upgrade   replacing the existing install"
 fi
-mv "$src" "$BIN_DIR/savepoint"
-chmod +x "$BIN_DIR/savepoint"
+mv "$src" "$BIN_DIR/tether"
+chmod +x "$BIN_DIR/tether"
 
 say ""
-say "installed: $BIN_DIR/savepoint"
-if ! "$BIN_DIR/savepoint" --version >/dev/null 2>&1; then
+say "installed: $BIN_DIR/tether"
+if ! "$BIN_DIR/tether" --version >/dev/null 2>&1; then
   fail "the binary will not run on this machine. Please open an issue with your platform details."
 fi
-say "version:   $("$BIN_DIR/savepoint" --version)"
+say "version:   $("$BIN_DIR/tether" --version)"
 
 # ---------------------------------------------------------------- 5. PATH
 case ":$PATH:" in
   *":$BIN_DIR:"*)
     say ""
     say "next:"
-    say "  savepoint setup"
+    say "  tether setup"
     ;;
   *)
     say ""
@@ -138,6 +138,6 @@ case ":$PATH:" in
       *)    say "  your shell's startup file" ;;
     esac
     say ""
-    say "Then run:  $BIN_DIR/savepoint setup"
+    say "Then run:  $BIN_DIR/tether setup"
     ;;
 esac

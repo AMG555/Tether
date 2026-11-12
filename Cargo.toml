@@ -1,20 +1,20 @@
 [package]
-name = "savepoint"
+name = "tether"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
 description = "Crash-proof, offline, encrypted typing recovery. Never lose half-written text again."
 license = "MIT"
-repository = "https://github.com/USER/savepoint"
+repository = "https://github.com/USER/tether"
 keywords = ["crash-recovery", "privacy", "encryption", "keyboard", "autosave"]
 categories = ["command-line-utilities"]
 
 [[bin]]
-name = "savepoint"
+name = "tether"
 path = "src/main.rs"
 
 [lib]
-name = "savepoint"
+name = "tether"
 path = "src/lib.rs"
 
 [dependencies]

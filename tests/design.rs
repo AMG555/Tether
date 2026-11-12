@@ -118,5 +118,5 @@ fn the_screenshot_capture_script_exists_and_covers_the_shipped_pages() {
         );
     }
     // It must drive the real binary, not a mock.
-    assert!(script.contains("target") && script.contains("savepoint"), "capture must use the binary");
+    assert!(script.contains("target") && script.contains("tether"), "capture must use the binary");
 }

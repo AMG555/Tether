@@ -4,7 +4,7 @@
 //! keystroke", and UIA polling is lossy by construction — it sees field contents on a
 //! timer, so a fast typist's last few words are always at risk. A `WH_KEYBOARD_LL` hook is
 //! synchronous and lossless, needs no elevation, and dies with the process (so nothing is
-//! left behind if Savepoint is killed).
+//! left behind if Tether is killed).
 //!
 //! Character fidelity: raw virtual-key codes are not text (`VK_OEM_1` is `;` or `ö`
 //! depending on layout). We therefore resolve every keypress through `ToUnicodeEx` with
@@ -138,7 +138,7 @@ impl Source for WindowsHook {
                 0,
             );
             if hook.is_null() {
-                eprintln!("savepoint: could not install keyboard hook (is another hook blocking it?)");
+                eprintln!("tether: could not install keyboard hook (is another hook blocking it?)");
                 *TX.lock().unwrap() = None;
                 drop(tx_placeholder());
                 let _ = consumer.join();
@@ -203,7 +203,7 @@ unsafe extern "system" fn hook_proc(code: i32, w_param: WPARAM, l_param: LPARAM)
     CallNextHookEx(std::ptr::null_mut(), code, w_param, l_param)
 }
 
-/// Turns a keypress into a Savepoint event. Returns `None` for keys that produce no text
+/// Turns a keypress into a Tether event. Returns `None` for keys that produce no text
 /// (modifiers, shortcuts, escape) so the ring is not polluted with noise.
 unsafe fn translate(info: &KbdLlHookStruct) -> Option<Event> {
     let vk = info.vk_code as usize;

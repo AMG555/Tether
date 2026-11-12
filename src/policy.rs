@@ -1,4 +1,4 @@
-//! Policy: what Savepoint refuses to remember.
+//! Policy: what Tether refuses to remember.
 //!
 //! The privacy answer chosen for v1 is **strict**: secrets are never *stored*, as opposed
 //! to stored-then-hidden. That distinction is the whole design. Redaction happens in

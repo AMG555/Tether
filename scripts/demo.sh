@@ -13,8 +13,8 @@ BIN="${SAVEPOINT_BIN:-./target/release/rescue}"
 [ -x "$BIN" ] || cargo build --release --quiet
 BIN="${SAVEPOINT_BIN:-./target/release/rescue}"
 
-export SAVEPOINT_HOME="$(mktemp -d)"
-trap 'rm -rf "$SAVEPOINT_HOME"' EXIT
+export TETHER_HOME="$(mktemp -d)"
+trap 'rm -rf "$TETHER_HOME"' EXIT
 
 hr() { printf '\n\033[1;36m── %s\033[0m\n' "$*"; }
 prompt="refactor the auth middleware so tokens rotate, and keep the tests green"
@@ -36,7 +36,7 @@ hr "5. read it back"
 
 hr "6. proof it is encrypted at rest"
 echo "grepping every file in the vault for the word 'middleware':"
-if grep -rl "middleware" "$SAVEPOINT_HOME" 2>/dev/null; then
+if grep -rl "middleware" "$TETHER_HOME" 2>/dev/null; then
   echo "LEAK"; else echo "  not found — plaintext never touched the disk"; fi
 
 echo

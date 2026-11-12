@@ -45,7 +45,7 @@
 Every "don't lose my typing" tool has to answer one question: how often do you pay for durability?
 
 - **Per keystroke, with fsync** — correct, and unusable. An fsync is 1–10 ms; at 8 keys/second you'd spend 8% of a core and hammer the disk for text the user hasn't finished writing.
-- **Per keystroke, without fsync** — what Savepoint does in the ring. One `write(2)` into a page-cache-backed, pre-allocated file: ~4 µs. Survives process death (the kernel still has the page), loses only to power loss within the flush window.
+- **Per keystroke, without fsync** — what Tether does in the ring. One `write(2)` into a page-cache-backed, pre-allocated file: ~4 µs. Survives process death (the kernel still has the page), loses only to power loss within the flush window.
 - **Per second, with WAL commit** — what the vault does. ~1.3 ms, off the input thread entirely.
 
 Neither layer alone is sufficient, and that's the point:
@@ -58,7 +58,7 @@ So the ring is the crash net for the last ~100 keystrokes, the session (RAM) is 
 ## Storage layout
 
 ```
-~/.local/share/savepoint/                                %LOCALAPPDATA%\dev.savepoint.savepoint\       ~/Library/Application Support/dev.savepoint.savepoint/
+~/.local/share/tether/                                %LOCALAPPDATA%\dev.tether.tether\       ~/Library/Application Support/dev.tether.tether/
 ├── vault.db     SQLite, WAL mode, mode 0600
 ├── ring.bin     64-byte header + N×512-byte encrypted slots, mode 0600
 ├── salt.bin     16 random bytes (HKDF salt), mode 0600

@@ -21,7 +21,7 @@ redistribution in an MIT repo. And a renderer is a large dependency that must be
 
 ## Decision
 
-1. **Savepoint is the runtime, not the art vendor.** It loads user-supplied avatars in the two
+1. **Tether is the runtime, not the art vendor.** It loads user-supplied avatars in the two
    formats the ecosystem already produces: **VRM** (glTF + standard humanoid bones + expressions)
    for humans, **glTF/GLB** for everything else. VRoid Studio exports VRM for free, offline.
 2. **Vendor three.js r187** (824 KB minified, MIT) into `gui/vendor/`, built from npm with
@@ -70,7 +70,7 @@ redistribution in an MIT repo. And a renderer is a large dependency that must be
 
 ## Notes for the next person
 
-The vendored bundle is built with `--format=iife --global-name=SavepointCompanion` for the
+The vendored bundle is built with `--format=iife --global-name=TetherCompanion` for the
 single-file preview and `--format=esm` for module loading. An inline `<script type="module">`
 cannot contain `export` statements, so the ESM bundle silently delivers nothing to a preview page
 — that cost an afternoon, and it is why `gui/vendor/README.md` states the flag explicitly.

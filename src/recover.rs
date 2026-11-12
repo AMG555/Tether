@@ -1,6 +1,6 @@
 //! Reconstructing a draft from a stream of buffered events.
 //!
-//! The interesting part of Savepoint is *not* storing keystrokes — it is turning a pile of
+//! The interesting part of Tether is *not* storing keystrokes — it is turning a pile of
 //! `Char`/`Backspace`/`Paste` events back into the text the user was looking at, across a
 //! crash, after the ring wrapped, and with edits that happened mid-string.
 //!

@@ -16,13 +16,13 @@ your mind about the name.
 Check nothing is left:
 
 ```sh
-grep -rn 'USER/savepoint' . --include='*.md' --include='*.sh' --include='*.ps1'
+grep -rn 'USER/tether' . --include='*.md' --include='*.sh' --include='*.ps1'
 ```
 
 Then push the repository. It is already a git repository with history:
 
 ```sh
-git remote add origin git@github.com:your-github-username/savepoint.git
+git remote add origin git@github.com:your-github-username/tether.git
 git push -u origin main
 ```
 
@@ -49,16 +49,16 @@ git push origin v0.1.0
 ```
 
 `.github/workflows/release.yml` then builds five targets — Linux x86_64 and aarch64, macOS Intel
-and Apple Silicon, Windows x86_64 — names the assets `savepoint-<platform>-<cpu>`, generates
+and Apple Silicon, Windows x86_64 — names the assets `tether-<platform>-<cpu>`, generates
 `checksums.txt`, and publishes. Watch the Actions tab.
 
 **Verify the release before you tell anyone about it:**
 
 ```sh
 # from a machine that is not the build one
-curl -fsSL https://raw.githubusercontent.com/your-github-username/savepoint/main/scripts/install.sh | sh
-savepoint setup
-savepoint version
+curl -fsSL https://raw.githubusercontent.com/your-github-username/tether/main/scripts/install.sh | sh
+tether setup
+tether version
 ```
 
 Confirm `checksum  ok` appears, and that the asset list has a `checksums.txt`.
@@ -80,7 +80,7 @@ hides it.
 
 These are not blockers, but they are the questions you will be asked:
 
-- **Linux is clipboard-only.** Say it first. `savepoint setup` already does, and the platform table in
+- **Linux is clipboard-only.** Say it first. `tether setup` already does, and the platform table in
   the README does. Anyone who expected system-wide keystrokes on Wayland should find out from the
   README, not from a bug report.
 - **The key sits next to the vault.** That is a deliberate trade — a passphrase prompt breaks
@@ -90,7 +90,7 @@ These are not blockers, but they are the questions you will be asked:
   onboarding get judged on how gracefully this is handled.
 - **There is no image generator.** The studio writes prompts and validates clips; the art is
   yours. Being clear about this up front prevents "where do I download characters" issues.
-- **`savepoint ask` on Linux is a terminal companion today.** The native window is the next build
+- **`tether ask` on Linux is a terminal companion today.** The native window is the next build
   target; the engine, format and validation are done. Say "today" and mean it.
 
 ## 6. After publishing — the first three issues you will get
@@ -98,9 +98,9 @@ These are not blockers, but they are the questions you will be asked:
 Worth writing the answers now, while the reasoning is fresh:
 
 1. *"Why not just use a system clipboard manager?"* Because those are per-app, unencrypted,
-   usually unlimited, and they do not survive a reboot. Savepoint is bounded, encrypted, and has a
+   usually unlimited, and they do not survive a reboot. Tether is bounded, encrypted, and has a
    retention policy.
-2. *"Can I sync the vault between machines?"* Not the vault itself — `savepoint backup` produces an
+2. *"Can I sync the vault between machines?"* Not the vault itself — `tether backup` produces an
    encrypted archive that is safe to copy, but it is a copy, not a merge. A merge is a design
    problem, not an implementation one.
 3. *"Can you add X11 keystroke capture on Linux?"* Yes, and the `Source` trait is ~80 lines.

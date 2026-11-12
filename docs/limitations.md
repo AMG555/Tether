@@ -1,12 +1,12 @@
 # Limitations
 
-A recovery tool that oversells itself is dangerous, because you stop making your own backups. Here is exactly where Savepoint stops helping.
+A recovery tool that oversells itself is dangerous, because you stop making your own backups. Here is exactly where Tether stops helping.
 
 ## Security boundaries
 
-**Root / admin / debugger on a live machine wins.** Savepoint protects data *at rest* and against *crashes*. If an attacker can read your process memory (`ptrace`, a kernel module, an admin-level memory dump), they can read your text before it is ever encrypted. There is no defence against a live privileged attacker in userland, and claiming otherwise would be a lie.
+**Root / admin / debugger on a live machine wins.** Tether protects data *at rest* and against *crashes*. If an attacker can read your process memory (`ptrace`, a kernel module, an admin-level memory dump), they can read your text before it is ever encrypted. There is no defence against a live privileged attacker in userland, and claiming otherwise would be a lie.
 
-**Physical access to an unlocked session wins.** Anyone who can run `savepoint list` as you can read your rescues. There is no passphrase prompt in v1 (see below).
+**Physical access to an unlocked session wins.** Anyone who can run `tether list` as you can read your rescues. There is no passphrase prompt in v1 (see below).
 
 **The master key sits next to the vault.** `key.txt` is mode 0600 in the data directory, not in an OS keychain. This is a deliberate tradeoff: a passphrase prompt would block unattended capture at login, which is the whole point. Consequences:
 - Anyone who gets *both* the vault and the key file gets everything. Back them up separately.
@@ -23,7 +23,7 @@ A recovery tool that oversells itself is dangerous, because you stop making your
 
 `probe()` fixes this exactly, because it reads the field's real contents and caret via the accessibility API. It is enabled by default on macOS (`AXUIElement`) and wired for Windows (`UIA`) — but probe mode is a poll, so a fast typist's last few characters can be missing from a snapshot. Keystroke capture and probe mode are complementary: keystrokes give you *nothing lost*, probe gives you *exactly right*.
 
-**Linux has no keystroke capture.** Wayland forbids global hooks by design and X11 global hooks are indistinguishable from malware. Savepoint uses the clipboard instead: a smaller, honest guarantee. A `Source` implementation using `evdev` (needs `input` group) or `XTEST` is possible and welcome.
+**Linux has no keystroke capture.** Wayland forbids global hooks by design and X11 global hooks are indistinguishable from malware. Tether uses the clipboard instead: a smaller, honest guarantee. A `Source` implementation using `evdev` (needs `input` group) or `XTEST` is possible and welcome.
 
 **Multi-line and rich-text fields.** Newlines are captured. Rich text is captured as plain text — formatting is not preserved, which is the right tradeoff for recovery.
 
@@ -44,13 +44,13 @@ A recovery tool that oversells itself is dangerous, because you stop making your
 ## Explicitly out of scope
 
 - Capturing audio, screen, or clipboard *images*.
-- Working around OS permission models. If your OS says no, Savepoint says no.
+- Working around OS permission models. If your OS says no, Tether says no.
 - Cloud sync, accounts, team features, analytics.
 - Any form of remote access. There is no network code in the binary, and a test enforces that.
 
 ## Desktop companion
 
-- **Linux has no native pet window yet.** `savepoint ask` runs a terminal companion with the same
+- **Linux has no native pet window yet.** `tether ask` runs a terminal companion with the same
   reminder engine and ASCII art. The native window is `gui/`, next build target.
 - **Quiet hours on Windows use UTC** in the terminal companion, because reading real local time
   without a dependency is only portable through `date +%z` on Unix. The GUI reads local time
@@ -68,7 +68,7 @@ A recovery tool that oversells itself is dangerous, because you stop making your
 **A procedural character is not photoreal, and never will be.** The built-in human, cat, dog and
 blob are stylised figures assembled from primitives with a shared skeleton. They read as
 intentional characters, not as realism. If you want realism, install a VRM made in VRoid Studio
-or a GLB made in Blender — Savepoint is the runtime for those, and `savepoint ask --check` audits
+or a GLB made in Blender — Tether is the runtime for those, and `tether ask --check` audits
 them before use.
 
 **WebGL is required, and is not always available.** Remote desktops, some VMs and locked-down

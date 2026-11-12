@@ -8,7 +8,7 @@
 //! | Linux Wayland | passive: clipboard watch | none | clipboard-level |
 //!
 //! Wayland deliberately forbids global keyboard hooks — that is a *good* security property
-//! and Savepoint does not try to defeat it. On those systems Savepoint degrades to watching
+//! and Tether does not try to defeat it. On those systems Tether degrades to watching
 //! the clipboard, which still rescues the most common disaster (you copied the half-prompt,
 //! then crashed; or you never copied and the terminal buffer is gone).
 //!
@@ -65,7 +65,7 @@ pub fn default_source() -> Box<dyn crate::engine::Source> {
     Box::new(passive::ClipboardWatch::detect())
 }
 
-/// Force a mode, for `savepoint run --mode clipboard` and for tests.
+/// Force a mode, for `tether run --mode clipboard` and for tests.
 pub fn source_for(mode: Mode) -> Box<dyn crate::engine::Source> {
     match mode {
         Mode::Keystrokes => {

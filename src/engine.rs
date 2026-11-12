@@ -62,7 +62,7 @@ pub struct FieldSnapshot {
 /// Platform capture backend. Implementations must be cheap, non-blocking, and must never
 /// panic on malformed OS data.
 pub trait Source: Send {
-    /// Human-readable backend name for `savepoint doctor`.
+    /// Human-readable backend name for `tether doctor`.
     fn name(&self) -> &'static str;
     /// Polls the focused text field. `None` when the platform cannot tell us, when no
     /// text field is focused, or when accessibility permission is missing.
@@ -497,7 +497,7 @@ impl Engine {
                         let msg = e.to_string();
                         if last_err.as_deref() != Some(msg.as_str()) {
                             eprintln!(
-                                "savepoint: commit failed, text is still in the crash buffer: {msg}"
+                                "tether: commit failed, text is still in the crash buffer: {msg}"
                             );
                             last_err = Some(msg);
                         }
@@ -506,7 +506,7 @@ impl Engine {
             }
         }
         if let Err(e) = self.flush() {
-            eprintln!("savepoint: final commit failed: {e}");
+            eprintln!("tether: final commit failed: {e}");
         }
     }
 }

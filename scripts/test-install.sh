@@ -10,11 +10,11 @@ set -eu
 
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(dirname "$here")
-bin=${SAVEPOINT_TEST_BIN:-$repo/target/release/savepoint}
+bin=${TETHER_TEST_BIN:-$repo/target/release/tether}
 [ -x "$bin" ] || { echo "build first: cargo build --release"; exit 1; }
 
 work=$(mktemp -d)
-port=${SAVEPOINT_TEST_PORT:-8761}
+port=${TETHER_TEST_PORT:-8761}
 cleanup() {
   [ -n "${srv:-}" ] && kill "$srv" 2>/dev/null || true
   rm -rf "$work"
@@ -27,9 +27,9 @@ bad()  { failed=$((failed + 1)); printf '  FAIL  %s\n' "$1"; }
 
 # --- a stand-in release ------------------------------------------------------
 mkdir -p "$work/rel/pkg" "$work/home/.local/bin"
-cp "$bin" "$work/rel/pkg/savepoint"
-asset=savepoint-linux-x86_64.tar.gz
-( cd "$work/rel" && tar czf "$asset" -C pkg savepoint && sha256sum "$asset" > checksums.txt )
+cp "$bin" "$work/rel/pkg/tether"
+asset=tether-linux-x86_64.tar.gz
+( cd "$work/rel" && tar czf "$asset" -C pkg tether && sha256sum "$asset" > checksums.txt )
 
 ( cd "$work/rel" && exec python3 -m http.server "$port" >/dev/null 2>&1 ) &
 srv=$!
@@ -41,8 +41,8 @@ while [ $i -lt 50 ]; do
 done
 
 export HOME="$work/home"
-export SAVEPOINT_BASE_URL="http://127.0.0.1:$port"
-unset SAVEPOINT_BIN_DIR SAVEPOINT_VERSION || true
+export TETHER_BASE_URL="http://127.0.0.1:$port"
+unset TETHER_BIN_DIR TETHER_VERSION || true
 
 echo "installer tests"
 
@@ -52,7 +52,7 @@ if sh "$here/install.sh" >"$work/1.log" 2>&1; then
 else
   bad "a good release failed to install"; sed 's/^/        /' "$work/1.log"
 fi
-if [ -x "$HOME/.local/bin/savepoint" ] && "$HOME/.local/bin/savepoint" --version >/dev/null 2>&1; then
+if [ -x "$HOME/.local/bin/tether" ] && "$HOME/.local/bin/tether" --version >/dev/null 2>&1; then
   ok "the installed binary runs"
 else
   bad "the installed binary is missing or does not run"
@@ -62,13 +62,13 @@ grep -q 'checksum  ok' "$work/1.log" && ok "it verifies the checksum" || bad "no
 # --- 2. tampering ------------------------------------------------------------
 printf '0000000000000000000000000000000000000000000000000000000000000000  %s\n' "$asset" \
   > "$work/rel/checksums.txt"
-rm -f "$HOME/.local/bin/savepoint"
+rm -f "$HOME/.local/bin/tether"
 if sh "$here/install.sh" >"$work/2.log" 2>&1; then
   bad "a tampered tarball installed anyway"
 else
   ok "a tampered tarball is refused"
 fi
-[ -f "$HOME/.local/bin/savepoint" ] && bad "a failed install left a binary behind" \
+[ -f "$HOME/.local/bin/tether" ] && bad "a failed install left a binary behind" \
   || ok "a failed install leaves nothing behind"
 grep -qi 'mismatch' "$work/2.log" && ok "it says why, and names both hashes" \
   || bad "the refusal did not mention a mismatch"

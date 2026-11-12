@@ -1,4 +1,4 @@
-# Pet format (`savepoint ask` / `.sppet`)
+# Pet format (`tether ask` / `.sppet`)
 
 A pet is **two files in a folder**:
 
@@ -89,7 +89,7 @@ refuses, with a specific message, any pet that:
 Three paths, in order of effort:
 
 ```bash
-savepoint ask --new my-pet --frame-size 32 --palette "#8b5cf6,#f472b6"
+tether ask --new my-pet --frame-size 32 --palette "#8b5cf6,#f472b6"
 ```
 
 generates a valid starter pet (procedural sprite: a bouncing blob with eyes) that already
@@ -97,10 +97,10 @@ animates, so you can open `sprite.png` in any editor and paint over it. This is 
 to a customisable pet: you're editing six squares, not learning a rig.
 
 ```bash
-savepoint ask --studio        # local, offline authoring page: click cells, pick colours,
+tether ask --studio        # local, offline authoring page: click cells, pick colours,
                               # export sprite.png + pet.json in one click
-savepoint ask --list          # what's installed
-savepoint ask --install ./friend-pet   # validate, check, copy into the pets dir
+tether ask --list          # what's installed
+tether ask --install ./friend-pet   # validate, check, copy into the pets dir
 ```
 
 An AI-generated sheet works too: ask for "a 4×5 spritesheet, 64×64 px frames, flat background",
@@ -150,7 +150,7 @@ always has.
 | Nothing yet | no `model` | The built-in procedural character |
 
 `.vrm` is glTF with a standard humanoid bone set and expression data. That standard is what lets
-Savepoint animate *your* character's head, eyes and gait without shipping your character.
+Tether animate *your* character's head, eyes and gait without shipping your character.
 
 ### The rules (enforced before the file is opened)
 
@@ -173,11 +173,11 @@ its header and JSON — never its geometry or pixels — and reports:
   before a decoder sees it.
 - **Draco / meshopt compression** → informational: decoded locally, no network involved.
 
-Run `savepoint ask --check <file>` to see the report for any avatar before installing it.
+Run `tether ask --check <file>` to see the report for any avatar before installing it.
 
 ### Built-in characters are parameters, not art
 
-`savepoint ask --new Kai --species human` writes a manifest, not a mesh. The renderer builds the
+`tether ask --new Kai --species human` writes a manifest, not a mesh. The renderer builds the
 body from a normalized skeleton — every part a fraction of one height value — so a built-in
 character is a few hundred bytes and infinitely adjustable:
 
@@ -251,7 +251,7 @@ for APNG — and computes the decode cost **without decoding anything**:
 
 ### Making one
 
-`savepoint ask --character-studio` opens an offline authoring page:
+`tether ask --character-studio` opens an offline authoring page:
 
 1. **Make the art.** It writes the image prompt and a matching animation prompt for every state —
    the prompts are the part that decides whether the character looks good.

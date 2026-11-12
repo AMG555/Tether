@@ -27,7 +27,7 @@ privilege than necessary.
   Clipboard capture rescues the most common disaster (copy the half-prompt, then crash) and is
   the honest maximum.
 - **macOS prompts, and that's fine.** Both permissions are user-granted in System Settings and
-  visible in the menu bar's privacy indicators. `savepoint doctor` reports precise state instead
+  visible in the menu bar's privacy indicators. `tether doctor` reports precise state instead
   of failing silently.
 - **Windows needs nothing**, which makes it the smoothest install.
 

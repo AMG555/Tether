@@ -1,6 +1,6 @@
 //! Avatar file audit — the security half of "users can bring their own 3D model".
 //!
-//! An avatar is the riskiest thing a person will ever load into Savepoint. VRM/glTF files are
+//! An avatar is the riskiest thing a person will ever load into Tether. VRM/glTF files are
 //! ZIPs full of JSON, images and binary buffers; they come from model shops, Discord servers and
 //! strangers. Some of what they can carry is not a *code* risk at all — it is a privacy risk:
 //!
@@ -11,7 +11,7 @@
 //!   is shared.
 //! - **`asset.extras.title`/`author`** are set by whatever exported the file.
 //!
-//! So before Savepoint loads anything, `audit()` opens the container and *reports*:
+//! So before Tether loads anything, `audit()` opens the container and *reports*:
 //! external network references (an avatar that phones home is a tracker), embedded images and
 //! their real dimensions, human-looking metadata, and any glTF extension that would need a
 //! remote fetch to render. Nothing is blocked silently; the user is told what is inside and
@@ -55,7 +55,7 @@ pub enum Severity {
     Info,
     /// Worth telling the user about before they trust the file.
     Warn,
-    /// Savepoint will not open this without an explicit override.
+    /// Tether will not open this without an explicit override.
     Block,
 }
 
@@ -193,7 +193,7 @@ pub fn audit(path: &Path) -> std::io::Result<Audit> {
         a.format = Some(Format::Unknown);
         a.findings.push(Finding {
             severity: Severity::Block,
-            what: "not a glTF/GLB/VRM file — Savepoint only loads 3D avatars in glTF format".into(),
+            what: "not a glTF/GLB/VRM file — Tether only loads 3D avatars in glTF format".into(),
         });
     }
 
@@ -359,7 +359,7 @@ fn analyze_json(
             severity: Severity::Block,
             what: format!(
                 "{} external file reference(s): this avatar is not self-contained and would \
-                 have to fetch {} to render. Savepoint never loads remote assets.",
+                 have to fetch {} to render. Tether never loads remote assets.",
                 a.external_refs.len(),
                 a.external_refs.first().cloned().unwrap_or_default()
             ),

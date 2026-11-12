@@ -11,7 +11,7 @@
 //!
 //! Why not ship "realistic" models in the repo? A convincing human avatar is 5–80 MB of rigged
 //! mesh, textures and clothing, usually under a licence that forbids redistribution, and it
-//! freezes a design that artists should own. So Savepoint is an excellent *runtime* for
+//! freezes a design that artists should own. So Tether is an excellent *runtime* for
 //! user-supplied VRM/glTF avatars — the format VRoid Studio and most 3D character stores already
 //! export — and provides procedural stand-ins that look intentional rather than realistic.
 

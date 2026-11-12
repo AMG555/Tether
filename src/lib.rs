@@ -1,4 +1,4 @@
-//! Savepoint — crash-proof, offline, encrypted rescues for everything you type.
+//! Tether — crash-proof, offline, encrypted rescues for everything you type.
 //!
 //! Library so the CLI, the tests and any future tray UI share one implementation.
 //! Module map (deep modules, small interfaces — see docs/architecture.md):
@@ -13,7 +13,7 @@
 //! - [`config`]  — user settings, clamped and never fatal.
 //! - [`remind`]  — break/water schedule. Behaviour-blind by construction: it can only ever
 //!   be told *whether* input happened, never what it was.
-//! - [`companion`] — `savepoint ask`: scaffold, install, simulate, and a terminal pet.
+//! - [`companion`] — `tether ask`: scaffold, install, simulate, and a terminal pet.
 //! - [`avatar`]  — 3D humans/animals: untrusted-file audit + procedural rigged bodies.
 //! - [`pet`]     — desktop companion manifests: validation (untrusted content) + procedural art.
 //! - [`cli`]     — argument parsing and human-facing output.
@@ -35,10 +35,10 @@ pub mod setup;
 pub mod vault;
 
 /// The one-line answer to "where is my stuff and is it safe?".
-pub const TAGLINE: &str = "Savepoint — nothing you type is ever lost again.";
+pub const TAGLINE: &str = "Tether — nothing you type is ever lost again.";
 
 pub fn default_data_dir() -> std::path::PathBuf {
-    directories::ProjectDirs::from("dev", "savepoint", "savepoint")
+    directories::ProjectDirs::from("dev", "tether", "tether")
         .map(|d| d.data_dir().to_path_buf())
-        .unwrap_or_else(|| std::path::PathBuf::from(".savepoint"))
+        .unwrap_or_else(|| std::path::PathBuf::from(".tether"))
 }

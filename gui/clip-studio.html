@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Character Studio — Savepoint</title>
+<title>Character Studio — Tether</title>
 <link rel="stylesheet" href="theme.css">
 <style>
   /* Page-local layout only. All visual language comes from theme.css. */
@@ -69,7 +69,7 @@
         clips. Runs offline. No account, no upload, no network request from this page.</p>
     </div>
     <div class="stamp">
-      Savepoint · companion tooling<br>
+      Tether · companion tooling<br>
       clip pack format v1<br>
       offline
     </div>
@@ -280,7 +280,7 @@
       <div class="gutter">04.2</div>
       <div class="body">
         <h2>pet.json</h2>
-        <p class="note">Save beside your clips. Bare file names only — Savepoint refuses paths.</p>
+        <p class="note">Save beside your clips. Bare file names only — Tether refuses paths.</p>
         <pre class="code" id="json"></pre>
         <div class="row" style="margin-top:calc(var(--u)*3)"><button data-copy="json">Copy pet.json</button></div>
       </div>
@@ -289,10 +289,10 @@
       <div class="gutter">04.3</div>
       <div class="body">
         <h2>Validate and install</h2>
-        <p class="note">Savepoint reads each clip's header before it decodes anything. It will
+        <p class="note">Tether reads each clip's header before it decodes anything. It will
           refuse a decompression bomb, a path traversal, a still image where an animation is
           needed, and a walk cycle that does not loop — and it names the state that is wrong.</p>
-        <pre class="code" id="installCmd">savepoint ask --install ./my-companion</pre>
+        <pre class="code" id="installCmd">tether ask --install ./my-companion</pre>
         <div class="row" style="margin-top:calc(var(--u)*3)"><button data-copy="installCmd">Copy command</button></div>
       </div>
     </div>
@@ -306,7 +306,7 @@
   </section>
 
   <footer>
-    <span>Savepoint · character studio</span>
+    <span>Tether · character studio</span>
     <span>offline · no network requests · no uploads</span>
   </footer>
 </div>

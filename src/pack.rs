@@ -164,7 +164,7 @@ pub fn remove_clip(pet_dir: &Path, state: &str) -> Result<Changed, String> {
     // and someone rebuilding their whole set should not have to fight the tool for it.
     if state == "idle" {
         return Err("idle is required — a pack without it cannot load. Replace it instead \
-             (savepoint ask --set-clip idle FILE). To change how the pet looks at rest, that is \
+             (tether ask --set-clip idle FILE). To change how the pet looks at rest, that is \
              the clip to overwrite."
             .to_string());
     }
@@ -238,7 +238,7 @@ pub fn resolve_pet(data: &Path, name: Option<&str>) -> Result<PathBuf, String> {
         .collect();
     found.sort();
     match found.len() {
-        0 => Err("no pets installed yet — `savepoint ask --new NAME` makes one".into()),
+        0 => Err("no pets installed yet — `tether ask --new NAME` makes one".into()),
         1 => Ok(found.remove(0)),
         _ => Err(format!(
             "{} pets installed — say which one: {}",

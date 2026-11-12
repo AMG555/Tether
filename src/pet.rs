@@ -177,7 +177,7 @@ pub struct Pet {
 impl Default for Pet {
     fn default() -> Self {
         Self {
-            name: "savepoint".into(),
+            name: "tether".into(),
             author: "you".into(),
             version: 1,
             frame_size: 32,
@@ -456,12 +456,12 @@ fn validate_clips(pet: &Pet, dir: &Path, errs: &mut Vec<Invalid>) {
     }
     // Only `idle` is required. A pack is assembled over days and across accounts, so requiring
     // `walk` on day one would make the intended workflow impossible. A pet with no walk cycle
-    // stands still, which is a valid pet; `savepoint ask --clips` shows what is still missing.
+    // stands still, which is a valid pet; `tether ask --clips` shows what is still missing.
     if !pet.clips.contains_key("idle") {
         errs.push(Invalid {
             field: "clips",
             reason: "a clip pack needs `idle` — it is what the pet plays at rest. \
-                     Add it with: savepoint ask --set-clip idle FILE"
+                     Add it with: tether ask --set-clip idle FILE"
                 .into(),
         });
     }
@@ -942,7 +942,7 @@ pub fn encode_rgba_png(width: u32, height: u32, rgba: &[u8]) -> Vec<u8> {
     png
 }
 
-/// Writes a complete, valid pet folder. Used by `savepoint ask --new`.
+/// Writes a complete, valid pet folder. Used by `tether ask --new`.
 pub fn scaffold(
     dir: &Path,
     name: &str,

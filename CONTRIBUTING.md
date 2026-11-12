@@ -15,7 +15,7 @@ Both are enforced by tests in `tests/crash_recovery.rs` and `tests/privacy.rs`. 
 ## Getting set up
 
 ```bash
-git clone https://github.com/USER/savepoint && cd savepoint
+git clone https://github.com/USER/tether && cd tether
 cargo test                 # 132 tests, no external services
 cargo clippy --all-targets -- -D warnings
 cargo fmt
@@ -68,7 +68,7 @@ needs. If a backend cannot capture keystrokes, say so; do not silently degrade.
 
 - [ ] `cargo test` passes, and new behaviour has a test that fails without the change
 - [ ] `cargo clippy --all-targets -- -D warnings` is clean
-- [ ] If capture changed: a crash test still passes (`savepoint simulate --crash` then `recover`)
+- [ ] If capture changed: a crash test still passes (`tether simulate --crash` then `recover`)
 - [ ] If storage changed: `tests/privacy.rs` still passes (no plaintext on disk)
 - [ ] If a decision was non-obvious: a short ADR in `docs/adr/`
 - [ ] README numbers updated if performance moved materially
