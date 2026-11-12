@@ -1,3 +1,14 @@
 /target
 **/*.rs.bk
+*.db
+*.db-wal
+*.db-shm
+key.txt
+salt.bin
+ring.bin
 .DS_Store
+
+# Scratch output from headless visual checks
+/gui/shot-*.png
+/gui/clip-shot-*.png
+/gui/studio-*.png
