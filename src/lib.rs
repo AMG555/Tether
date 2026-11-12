@@ -31,6 +31,7 @@ pub mod policy;
 pub mod recover;
 pub mod remind;
 pub mod ring;
+pub mod setup;
 pub mod vault;
 
 /// The one-line answer to "where is my stuff and is it safe?".
