@@ -488,6 +488,7 @@ impl Engine {
     /// their rescues are not reaching the vault.
     pub fn run_commit_loop(&self, stop: &AtomicBool, interval: Duration) {
         let mut last_err: Option<String> = None;
+        let mut last_prune = Instant::now();
         while !stop.load(Ordering::Relaxed) {
             std::thread::sleep(Duration::from_millis(50));
             if self.should_flush(interval) {
@@ -503,6 +504,10 @@ impl Engine {
                         }
                     }
                 }
+            }
+            if last_prune.elapsed() >= Duration::from_secs(3600) {
+                let _ = self.vault().prune_older_than(14);
+                last_prune = Instant::now();
             }
         }
         if let Err(e) = self.flush() {

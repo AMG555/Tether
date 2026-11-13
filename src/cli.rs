@@ -115,12 +115,14 @@ pub enum Command {
         #[arg(long)]
         yes: bool,
     },
-    /// Apply retention: keep the newest N rescues, drop old revisions.
+    /// Apply retention: keep the newest N rescues, drop old revisions, and purge drafts older than max-days.
     Prune {
         #[arg(long, default_value_t = 500)]
         keep: usize,
-        #[arg(long, default_value_t = 30)]
+        #[arg(long, default_value_t = 14)]
         revision_days: i64,
+        #[arg(long, default_value_t = 14)]
+        max_days: i64,
     },
     /// Encrypted backup copy of the vault (safe to sync to a USB stick).
     Backup { path: PathBuf },
@@ -268,7 +270,9 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         Command::Revisions { id } => cmd_revisions(&home, id),
         Command::Delete { id } => cmd_delete(&home, id),
         Command::Purge { yes } => cmd_purge(&home, yes),
-        Command::Prune { keep, revision_days } => cmd_prune(&home, keep, revision_days),
+        Command::Prune { keep, revision_days, max_days } => {
+            cmd_prune(&home, keep, revision_days, max_days)
+        }
         Command::Backup { path } => cmd_backup(&home, &path),
         Command::Export { path, i_understand } => cmd_export(&home, &path, i_understand),
         Command::Doctor => cmd_doctor(&home),
@@ -360,6 +364,7 @@ fn cmd_init(home: &Option<PathBuf>, show_key: bool) -> Result<(), Box<dyn std::e
 
 fn cmd_recover(home: &Option<PathBuf>) -> Result<(), Box<dyn std::error::Error>> {
     let vault = open_vault(home)?;
+    let _ = vault.prune_older_than(14);
     let ring_path = vault.ring_path();
     if !ring_path.exists() {
         println!("crash buffer is empty — nothing to recover.");
@@ -406,6 +411,8 @@ fn cmd_run(
     // Recovery FIRST: replaying the ring after new input would interleave old text into a
     // new draft and corrupt both.
     let recovered = engine.recover().unwrap_or(0);
+    // Automatic retention: purge rescues older than 14 days (2 weeks).
+    let _ = engine.vault().prune_older_than(14);
 
     let source_mode = match mode {
         ModeArg::Auto => {
@@ -505,6 +512,7 @@ fn cmd_list(
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let vault = open_vault(home)?;
+    let _ = vault.prune_older_than(14);
     let rows = vault.list(limit, preview)?;
     if json {
         let out: Vec<_> = rows
@@ -670,10 +678,13 @@ fn cmd_prune(
     home: &Option<PathBuf>,
     keep: usize,
     revision_days: i64,
+    max_days: i64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let vault = open_vault(home)?;
+    let old = vault.prune_older_than(max_days)?;
     let n = vault.prune(keep, revision_days)?;
-    println!("pruned {n} row(s): keeping the newest {keep} rescues and revisions from the last {revision_days} days.");
+    let total = old + n;
+    println!("pruned {total} row(s): purged rescues older than {max_days} days (max 2 weeks), keeping newest {keep} rescues and revisions from the last {revision_days} days.");
     Ok(())
 }
 

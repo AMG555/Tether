@@ -37,7 +37,7 @@ A recovery tool that oversells itself is dangerous, because you stop making your
 - **No sync.** By design. `backup` produces a directory you can put on a USB stick or in an encrypted cloud folder; the key stays separate.
 - **No passphrase.** See above.
 - **Search is linear.** `search` decrypts candidate rows in-process. At 500 rescues this is ~10 ms; at 50,000 it would be slow. A blind-index token search (HMAC of stemmed words) is the upgrade path, but it leaks a little more metadata, so it's a deliberate non-feature for now.
-- **Retention is manual.** `prune` exists but nothing runs it automatically. Wire it into cron / Task Scheduler if you care.
+- **Retention is bounded (14 days max).** Drafts and revisions older than 14 days (2 weeks) are automatically pruned on startup, on list/recover, and hourly during capture. Manual retention tuning is also available via `tether prune --max-days <N>`.
 - **Drafts are per (app, session), not per field.** Two text fields in the same app during one continuous typing session share a draft. Probe mode narrows this to (app, window title).
 - **No undo of `purge`.** It vacuums the database and removes the ring. That is the point.
 

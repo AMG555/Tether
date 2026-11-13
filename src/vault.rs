@@ -446,6 +446,20 @@ impl Vault {
         Ok(removed_revs + removed_drafts)
     }
 
+    /// Hard retention cutoff: drop drafts and revisions older than `days` (default 14 days / 2 weeks).
+    pub fn prune_older_than(&self, days: i64) -> Result<usize, VaultError> {
+        let cutoff = now() - days * 86_400;
+        let removed_revs =
+            self.conn.execute("DELETE FROM revisions WHERE updated_at < ?1", params![cutoff])?;
+        let removed_drafts =
+            self.conn.execute("DELETE FROM drafts WHERE updated_at < ?1", params![cutoff])?;
+        if removed_revs + removed_drafts > 0 {
+            let _ = self.checkpoint();
+            let _ = self.conn.execute_batch("VACUUM");
+        }
+        Ok(removed_revs + removed_drafts)
+    }
+
     pub fn delete(&self, id: i64) -> Result<(), VaultError> {
         let n = self.conn.execute("DELETE FROM drafts WHERE id = ?1", params![id])?;
         if n == 0 {
@@ -726,6 +740,31 @@ mod tests {
         let rows = v.list(100, 10).unwrap();
         assert_eq!(rows.len(), 3);
         assert_eq!(rows[0].preview.as_deref(), Some("draft 9"));
+    }
+
+    #[test]
+    fn prune_older_than_purges_expired_drafts_and_revisions() {
+        let (_d, v) = vault();
+        let current = now() as u32;
+        let mut old_d = draft("A", "old text", 1);
+        old_d.started_ts = current.saturating_sub(15 * 86_400);
+        old_d.updated_ts = current.saturating_sub(15 * 86_400);
+        v.save_draft(&old_d).unwrap();
+
+        let mut fresh_d = draft("B", "fresh text", 2);
+        fresh_d.started_ts = current.saturating_sub(3 * 86_400);
+        fresh_d.updated_ts = current.saturating_sub(3 * 86_400);
+        v.save_draft(&fresh_d).unwrap();
+
+        assert_eq!(v.counts().unwrap().0, 2);
+
+        let purged = v.prune_older_than(14).unwrap();
+        assert_eq!(purged, 1);
+
+        let remaining = v.list(10, 50).unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].app.as_deref(), Some("B"));
+        assert_eq!(remaining[0].preview.as_deref(), Some("fresh text"));
     }
 
     #[test]

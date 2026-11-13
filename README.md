@@ -393,7 +393,7 @@ tether copy <id>                put it back on the clipboard
 tether search <query>           decrypt-and-search, in-process only
 tether revisions <id>           earlier versions of a draft
 tether delete <id>              delete + vacuum (bytes really go)
-tether prune --keep 500         retention policy
+tether prune [--keep 500] [--max-days 14]   retention policy (auto-purged after 14 days)
 tether backup <dir>             encrypted backup, safe to sync
 tether doctor | status
 tether simulate --text ... --crash          reproduce a crash deterministically
