@@ -20,3 +20,4 @@ ring.bin
 # Companion clip assets — large binary files managed outside git
 # Users download companions on demand; store with Git LFS or a release bundle if needed
 /assets/companions/
+/dist/

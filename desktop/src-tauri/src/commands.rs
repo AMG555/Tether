@@ -448,23 +448,150 @@ pub fn delete_custom_companion(id: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn install_catalog_companion(id: String) -> Result<CompanionItem, String> {
-    let dir = tether::default_data_dir().join("companions").join(&id);
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let clean_id = id.trim().to_lowercase();
+    if clean_id.is_empty()
+        || clean_id.contains('/')
+        || clean_id.contains('\\')
+        || clean_id.contains("..")
+    {
+        return Err("invalid companion identifier".into());
+    }
 
-    let manifest = CompanionItem {
-        id: id.clone(),
-        name: id.clone(),
-        description: format!("Downloaded {id} companion pack"),
+    let dest = tether::default_data_dir().join("companions").join(&clean_id);
+    std::fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
+
+    // 1. If local repository assets exist, copy directly (fast local dev / offline cache)
+    let local_asset_dir = std::path::PathBuf::from("assets/companions").join(&clean_id);
+    let mut installed_from_local = false;
+    if local_asset_dir.is_dir() {
+        if let Ok(entries) = std::fs::read_dir(&local_asset_dir) {
+            for entry in entries.flatten() {
+                let p = entry.path();
+                if p.is_file() {
+                    if let Some(file_name) = p.file_name() {
+                        let _ = std::fs::copy(&p, dest.join(file_name));
+                    }
+                }
+            }
+            installed_from_local = true;
+        }
+    }
+
+    // 2. If not local, download from GitHub Releases asset storage and extract
+    if !installed_from_local {
+        let zip_url = format!(
+            "https://github.com/AMG555/Tether/releases/download/v0.1.0/companion-{clean_id}.zip"
+        );
+        let temp_zip = std::env::temp_dir().join(format!("companion-{clean_id}.zip"));
+
+        // Download via curl or powershell
+        #[cfg(target_os = "windows")]
+        {
+            let status = std::process::Command::new("curl.exe")
+                .args(["-fSL", &zip_url, "-o", temp_zip.to_str().unwrap_or_default()])
+                .status();
+            let downloaded = match status {
+                Ok(s) if s.success() => true,
+                _ => {
+                    let ps_script = format!(
+                        "Invoke-WebRequest -Uri '{}' -OutFile '{}'",
+                        zip_url,
+                        temp_zip.display()
+                    );
+                    std::process::Command::new("powershell.exe")
+                        .args(["-NoProfile", "-Command", &ps_script])
+                        .status()
+                        .map(|s| s.success())
+                        .unwrap_or(false)
+                }
+            };
+            if !downloaded {
+                return Err(format!("failed to download {clean_id} from GitHub Releases"));
+            }
+
+            let extract_status = std::process::Command::new("tar.exe")
+                .args([
+                    "-xf",
+                    temp_zip.to_str().unwrap_or_default(),
+                    "-C",
+                    dest.to_str().unwrap_or_default(),
+                ])
+                .status();
+            let extracted = match extract_status {
+                Ok(s) if s.success() => true,
+                _ => {
+                    let ps_extract = format!(
+                        "Expand-Archive -Path '{}' -DestinationPath '{}' -Force",
+                        temp_zip.display(),
+                        dest.display()
+                    );
+                    std::process::Command::new("powershell.exe")
+                        .args(["-NoProfile", "-Command", &ps_extract])
+                        .status()
+                        .map(|s| s.success())
+                        .unwrap_or(false)
+                }
+            };
+            let _ = std::fs::remove_file(&temp_zip);
+            if !extracted {
+                return Err(format!("failed to extract companion {clean_id}"));
+            }
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            let status = std::process::Command::new("curl")
+                .args(["-fSL", &zip_url, "-o", temp_zip.to_str().unwrap_or_default()])
+                .status();
+            if !status.map(|s| s.success()).unwrap_or(false) {
+                return Err(format!("failed to download {clean_id} from GitHub Releases"));
+            }
+            let extract = std::process::Command::new("tar")
+                .args([
+                    "-xf",
+                    temp_zip.to_str().unwrap_or_default(),
+                    "-C",
+                    dest.to_str().unwrap_or_default(),
+                ])
+                .status();
+            let _ = std::fs::remove_file(&temp_zip);
+            if !extract.map(|s| s.success()).unwrap_or(false) {
+                return Err(format!("failed to extract companion {clean_id}"));
+            }
+        }
+    }
+
+    // 3. Ensure manifest.json exists
+    let manifest_path = dest.join("manifest.json");
+    if manifest_path.exists() {
+        if let Ok(c) = std::fs::read_to_string(&manifest_path) {
+            if let Ok(mut item) = serde_json::from_str::<CompanionItem>(&c) {
+                item.is_installed = true;
+                return Ok(item);
+            }
+        }
+    }
+
+    let name_cap =
+        clean_id.chars().next().map(|c| c.to_uppercase().to_string()).unwrap_or_default()
+            + if clean_id.len() > 1 { &clean_id[1..] } else { "" };
+    let item = CompanionItem {
+        id: clean_id.clone(),
+        name: name_cap,
+        description: format!("Downloaded {clean_id} companion pack"),
         tags: vec!["downloaded".to_string(), "catalog".to_string()],
         is_custom: false,
         is_installed: true,
-        avatar_type: "procedural".to_string(),
+        avatar_type: "clips".to_string(),
         actions: vec![
             "idle".to_string(),
             "walk".to_string(),
             "wave".to_string(),
             "water".to_string(),
+            "stretch".to_string(),
             "happy".to_string(),
+            "sad".to_string(),
+            "eyes".to_string(),
         ],
         colors: Some(CompanionColors {
             body: "#2563eb".to_string(),
@@ -472,9 +599,9 @@ pub fn install_catalog_companion(id: String) -> Result<CompanionItem, String> {
             eyes: "#14120f".to_string(),
         }),
     };
-    let json = serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?;
-    std::fs::write(dir.join("manifest.json"), json).map_err(|e| e.to_string())?;
-    Ok(manifest)
+    let json = serde_json::to_string_pretty(&item).map_err(|e| e.to_string())?;
+    let _ = std::fs::write(&manifest_path, json);
+    Ok(item)
 }
 
 #[cfg(test)]
@@ -514,5 +641,12 @@ mod tests {
         assert!(companions.len() >= 4);
         assert!(companions.iter().any(|c| c.id == "grace"));
         assert!(companions.iter().any(|c| c.id == "rory"));
+    }
+
+    #[test]
+    fn install_catalog_companion_sanitizes_id() {
+        assert!(install_catalog_companion("..".into()).is_err());
+        assert!(install_catalog_companion("".into()).is_err());
+        assert!(install_catalog_companion("foo/bar".into()).is_err());
     }
 }
