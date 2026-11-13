@@ -10,7 +10,3 @@ deny = [
   { name = "isahc" }, { name = "curl" }, { name = "openssl" }, { name = "native-tls" },
 ]
 multiple-versions = "warn"
-
-[advisories]
-vulnerability = "deny"
-unmaintained = "none"
