@@ -88,3 +88,53 @@ test('the clip player maths still load and export the documented names', async (
     assert.equal(typeof m[name], 'function', `clip-player-math exports ${name}`);
   }
 });
+
+test('companions catalog: exports documented symbols', async () => {
+  const m = await import('./companions.js');
+  for (const name of ['COMPANIONS', 'COMPANION_STATES', 'COMPANION_BASE_URL', 'clipUrl', 'stillUrl', 'thumbnailUrl']) {
+    assert.ok(name in m, `companions.js must export ${name}`);
+  }
+});
+
+test('companions catalog: no sheru in the main list', async () => {
+  const { COMPANIONS } = await import('./companions.js');
+  const ids = COMPANIONS.map((c) => c.id);
+  assert.ok(!ids.includes('sheru'), 'sheru ships separately — must not appear in the catalog');
+});
+
+test('companions catalog: every entry has required fields with correct types', async () => {
+  const { COMPANIONS } = await import('./companions.js');
+  assert.ok(COMPANIONS.length > 0, 'catalog must not be empty');
+  for (const c of COMPANIONS) {
+    assert.equal(typeof c.id, 'string', `${c.id ?? '?'}: id must be a string`);
+    assert.equal(typeof c.name, 'string', `${c.id}: name must be a string`);
+    assert.equal(typeof c.description, 'string', `${c.id}: description must be a string`);
+    assert.ok(Array.isArray(c.tags), `${c.id}: tags must be an array`);
+    assert.ok(c.id.length > 0, `${c.id}: id must not be empty`);
+    assert.ok(c.name.length > 0, `${c.id}: name must not be empty`);
+    assert.ok(c.description.length > 0, `${c.id}: description must not be empty`);
+    assert.ok(c.tags.length > 0, `${c.id}: tags must have at least one entry`);
+    // slugs are lowercase hyphenated only
+    assert.match(c.id, /^[a-z][a-z0-9-]*$/, `${c.id}: id must be lowercase-hyphenated`);
+  }
+});
+
+test('companions catalog: no duplicate ids', async () => {
+  const { COMPANIONS } = await import('./companions.js');
+  const ids = COMPANIONS.map((c) => c.id);
+  const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
+  assert.deepEqual(dupes, [], `duplicate companion ids: ${dupes}`);
+});
+
+test('companions catalog: url helpers return correct paths', async () => {
+  const { clipUrl, stillUrl, thumbnailUrl, COMPANION_BASE_URL } = await import('./companions.js');
+  const base = COMPANION_BASE_URL;
+  assert.equal(clipUrl('amma', 'idle'), `${base}/amma/idle.webp`);
+  assert.equal(stillUrl('amma', 'walk'), `${base}/amma/walk.still.webp`);
+  assert.equal(thumbnailUrl('mittu'), `${base}/mittu/idle.still.webp`);
+});
+
+test('companions catalog: 32 companions (all except sheru)', async () => {
+  const { COMPANIONS } = await import('./companions.js');
+  assert.equal(COMPANIONS.length, 32, `expected 32 companions, got ${COMPANIONS.length}`);
+});

@@ -1,9 +1,9 @@
 /**
  * Clip player: realistic 2D characters that are not 3D.
  *
- * The reference implementation of this idea (Reminder Companion) renders its characters as
- * **animated WebP with an alpha channel** — full-frame AI-generated art, animated by an
- * image-to-video model. 264×280, 17 fps, 18 frames for a walk, 200 for a resting animation.
+ * Tether companions are **animated WebP with an alpha channel** — full-frame AI-generated art,
+ * animated by an image-to-video model. 264×280, 17 fps, 18 frames for a walk, 200 for a resting
+ * animation.
  *
  * That beats a procedural 3D rig on quality per byte by a wide margin, and it costs the runtime
  * almost nothing: the browser already decodes animated WebP, so "the player" is an `<img>`. No
