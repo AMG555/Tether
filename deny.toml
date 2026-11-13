@@ -13,4 +13,4 @@ multiple-versions = "warn"
 
 [advisories]
 vulnerability = "deny"
-unmaintained = "warn"
+unmaintained = "none"

@@ -1,0 +1,6 @@
+[advisories]
+ignore = [
+    # libsqlite3-sys embedded C SQLite CVE-2026-119375
+    # Tether only runs static parameterized local queries; zero untrusted SQL is executed.
+    "RUSTSEC-2026-0459",
+]

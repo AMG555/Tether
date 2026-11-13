@@ -240,6 +240,9 @@ unsafe extern "C" fn tap_callback(
 
 unsafe fn ax_attr(el: AXUIElementRef, name: &str) -> Option<AXUIElementRef> {
     let attr = cfstr(name);
+    if attr.is_null() {
+        return None;
+    }
     let mut out: CFTypeRef = std::ptr::null();
     let err = AXUIElementCopyAttributeValue(el, attr, &mut out);
     CFRelease(attr as CFTypeRef);
@@ -258,7 +261,10 @@ unsafe fn ax_string(el: AXUIElementRef, name: &str) -> Option<String> {
 }
 
 unsafe fn cfstr(s: &str) -> CFStringRef {
-    let c = std::ffi::CString::new(s).ok()?;
+    let c = match std::ffi::CString::new(s) {
+        Ok(c) => c,
+        Err(_) => return std::ptr::null(),
+    };
     CFStringCreateWithCString(std::ptr::null(), c.as_ptr(), CF_STRING_ENCODING_UTF8)
 }
 
