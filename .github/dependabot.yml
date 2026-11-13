@@ -4,15 +4,28 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps)"
+    ignore:
+      - dependency-name: "rusqlite"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "aes-gcm"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "getrandom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "sha2"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "hkdf"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "directories"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "cargo"
     directory: "/desktop/src-tauri"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps-desktop)"
 
@@ -20,6 +33,6 @@ updates:
     directory: "/desktop"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(npm)"
