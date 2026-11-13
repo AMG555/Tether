@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Tether — Desktop</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script type="module" src="./main.js"></script>
+  </head>
+  <body>
+    <div class="window">
+      <header class="masthead">
+        <div class="brand-lockup">
+          <span class="brand-mark" aria-hidden="true">T</span>
+          <span class="brand-name">Tether</span>
+        </div>
+        <p class="window-label">Desktop / local</p>
+      </header>
+
+      <main id="main-content">
+        <section class="opening" aria-labelledby="page-title">
+          <p class="eyebrow">Personal workspace / desktop shell</p>
+          <h1 id="page-title">Your Tether desktop shell</h1>
+          <p class="lede">
+            This first screen confirms the local app is running. Saved-text recovery and pet
+            customization are not connected to this shell yet.
+          </p>
+        </section>
+
+        <section class="information" aria-labelledby="connection-title">
+          <div class="section-heading">
+            <p class="section-index" aria-hidden="true">01</p>
+            <div>
+              <h2 id="connection-title">Local app connection</h2>
+              <p id="app-status" class="status" data-state="loading" role="status"
+                 aria-live="polite" aria-atomic="true">Connecting to the local app bridge…</p>
+            </div>
+          </div>
+          <dl class="metadata">
+            <div>
+              <dt>Application</dt>
+              <dd id="app-name">—</dd>
+            </div>
+            <div>
+              <dt>Version</dt>
+              <dd id="app-version">—</dd>
+            </div>
+            <div>
+              <dt>Platform</dt>
+              <dd id="app-platform">—</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="information" aria-labelledby="next-title">
+          <div class="section-heading">
+            <p class="section-index" aria-hidden="true">02</p>
+            <div>
+              <h2 id="next-title">Not in this shell yet</h2>
+              <p class="section-note">These screens are separate upcoming capabilities.</p>
+            </div>
+          </div>
+          <ul class="capability-list">
+            <li>
+              <span class="capability-name">Saved text</span>
+              <span class="capability-status">Recovery view not available</span>
+            </li>
+            <li>
+              <span class="capability-name">Pet setup</span>
+              <span class="capability-status">Customization not available</span>
+            </li>
+          </ul>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>Local desktop shell</span>
+        <span>No account or remote UI</span>
+      </footer>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Tether",
+  "version": "0.1.0",
+  "identifier": "app.tether.desktop",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "security": {
+      "csp": "default-src 'self' asset: http://asset.localhost; connect-src ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'",
+      "capabilities": ["main"]
+    },
+    "windows": [
+      {
+        "label": "main",
+        "title": "Tether",
+        "width": 900,
+        "height": 640,
+        "minWidth": 600,
+        "minHeight": 480,
+        "resizable": true
+      }
+    ]
+  },
+  "bundle": {
+    "active": false,
+    "icon": ["icons/icon.ico"]
+  }
+}

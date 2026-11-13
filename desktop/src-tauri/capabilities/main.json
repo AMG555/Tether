@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Local Tether main window with no plugin permissions",
+  "windows": ["main"],
+  "permissions": ["allow-get-app-info"]
+}
