@@ -50,11 +50,27 @@ jobs:
           cp "$BIN" "dist/$ASSET/"
           cp README.md LICENSE docs/limitations.md "dist/$ASSET/"
           if [ "${{ matrix.archive }}" = "zip" ]; then
+            cp "$BIN" "dist/$ASSET.exe"
             (cd dist && 7z a "$ASSET.zip" "$ASSET" > /dev/null)
             echo "ASSET=dist/$ASSET.zip" >> $GITHUB_ENV
           else
             (cd dist && tar czf "$ASSET.tar.gz" "$ASSET")
             echo "ASSET=dist/$ASSET.tar.gz" >> $GITHUB_ENV
+          fi
+
+      - name: Package Windows Desktop App
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --manifest-path desktop/src-tauri/Cargo.toml --release
+          DESK_BIN="desktop/src-tauri/target/release/tether-desktop.exe"
+          if [ -f "$DESK_BIN" ]; then
+            cp "$DESK_BIN" "dist/tether-desktop-windows-x86_64.exe"
+            mkdir -p "dist/tether-desktop-windows-x86_64"
+            cp "$DESK_BIN" "dist/tether-desktop-windows-x86_64/"
+            cp README.md LICENSE docs/limitations.md "dist/tether-desktop-windows-x86_64/"
+            (cd dist && 7z a "tether-desktop-windows-x86_64.zip" "tether-desktop-windows-x86_64" > /dev/null)
           fi
 
       - uses: actions/upload-artifact@v4
@@ -76,7 +92,7 @@ jobs:
         run: |
           set -euo pipefail
           cd artifacts
-          sha256sum *.tar.gz *.zip > checksums.txt
+          sha256sum *.tar.gz *.zip *.exe > checksums.txt 2>/dev/null || sha256sum *.tar.gz *.zip > checksums.txt
           cat checksums.txt
       - uses: softprops/action-gh-release@v2
         with:

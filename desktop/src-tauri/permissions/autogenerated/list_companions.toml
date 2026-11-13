@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-companions"
+description = "Enables the list_companions command without any pre-configured scope."
+commands.allow = ["list_companions"]
+
+[[permission]]
+identifier = "deny-list-companions"
+description = "Denies the list_companions command without any pre-configured scope."
+commands.deny = ["list_companions"]

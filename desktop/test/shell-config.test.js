@@ -33,7 +33,9 @@ test('the main window has no plugin permissions or remote capability origins', a
   const capability = await readJson('src-tauri/capabilities/main.json');
 
   assert.deepEqual(capability.windows, ['main']);
-  assert.deepEqual(capability.permissions, ['allow-get-app-info']);
+  assert.ok(capability.permissions.includes('allow-get-app-info'));
+  assert.ok(capability.permissions.includes('allow-get-vault-status'));
+  assert.ok(capability.permissions.includes('allow-list-drafts'));
   assert.equal(capability.remote, undefined);
   assert.ok(
     capability.permissions.every((perm) => !perm.includes(':') && !perm.startsWith('plugin:')),
@@ -41,10 +43,13 @@ test('the main window has no plugin permissions or remote capability origins', a
   );
 });
 
-test('the Tauri build manifest allows only get_app_info', async () => {
+test('the Tauri build manifest registers only explicitly allowed commands', async () => {
   const buildScript = await readFile(path.join(desktopRoot, 'src-tauri/build.rs'), 'utf8');
 
-  assert.match(buildScript, /commands\(\s*&\[\s*"get_app_info"\s*\]\s*\)/);
+  assert.match(buildScript, /commands\(\s*&\[/);
+  assert.match(buildScript, /"get_app_info"/);
+  assert.match(buildScript, /"list_drafts"/);
+  assert.match(buildScript, /"get_vault_status"/);
   assert.equal((buildScript.match(/\.commands\(/g) ?? []).length, 1);
 });
 

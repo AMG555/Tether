@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-revisions"
+description = "Enables the get_revisions command without any pre-configured scope."
+commands.allow = ["get_revisions"]
+
+[[permission]]
+identifier = "deny-get-revisions"
+description = "Denies the get_revisions command without any pre-configured scope."
+commands.deny = ["get_revisions"]

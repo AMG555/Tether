@@ -1,7 +1,21 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Local Tether main window with no plugin permissions",
+  "description": "Local Tether main window with least-privilege commands",
   "windows": ["main"],
-  "permissions": ["allow-get-app-info"]
+  "permissions": [
+    "allow-get-app-info",
+    "allow-get-vault-status",
+    "allow-list-drafts",
+    "allow-get-draft",
+    "allow-get-revisions",
+    "allow-delete-draft",
+    "allow-prune-vault",
+    "allow-get-autostart-status",
+    "allow-set-autostart",
+    "allow-list-companions",
+    "allow-save-custom-companion",
+    "allow-delete-custom-companion",
+    "allow-install-catalog-companion"
+  ]
 }

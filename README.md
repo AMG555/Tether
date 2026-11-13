@@ -19,9 +19,9 @@ keystrokes; Linux is clipboard-only. Capture filters reduce risk, but they canno
 sensitive field. Review [privacy](#privacy-the-part-that-matters), [security policy](SECURITY.md), and
 [known limitations](docs/limitations.md) before enabling it.
 
-An optional companion offers built-in characters and custom sprite or animated clip packs. Its CLI
-workflows are available now; the separate native desktop shell is still a development preview, not
-a finished recovery app.
+An optional companion offers built-in characters, custom sprite/animated clip packs, and a full
+visual desktop application. Access saved typing drafts, inspect revisions, create custom companions,
+or manage auto-startup directly from the native desktop GUI or the terminal CLI.
 
 <br>
 
@@ -100,20 +100,27 @@ If anything blocking is left, it exits non-zero and says what to do. `tether set
 installs a systemd user unit, a LaunchAgent, or a Windows startup item — because **a recovery tool
 that starts after the crash recovers nothing.**
 
-## Desktop shell (development)
+## Desktop Application & GUI
 
-The native Tauri desktop shell is under development. From a source checkout, install Node.js 22+,
-Rust 1.90+, and the target platform's Tauri build prerequisites, then run:
+Tether includes a dedicated native desktop application (powered by Tauri 2 and the OS webview) for users who prefer a graphical interface over the terminal:
+
+- **Saved-Text Recovery**: Search, view, copy, and inspect revisions of all typing drafts with 14-day auto-purge countdowns.
+- **Companion Roster & Effects Catalog**: Pick from built-in companions (Grace, Rory, Finn, Spike) or download from the 32-character catalog on demand (CapCut effects style, keeping app size under 4 MB).
+- **Character Studio**: Live action preview stage (Idle, Walk, Wave, Water, Stretch, Celebrate, Rest) and full character customizer (colors, traits, proportions, models).
+- **System Settings**: 1-click toggle for startup at login, retention configuration, and cryptographic diagnostics.
+
+To run the desktop application from source:
 
 ```sh
 npm --prefix desktop install
 npm --prefix desktop run tauri:dev
 ```
 
-This opens a native app window; it is not an installer. The current shell is a development preview:
-its native window opens and connects to the local metadata bridge via zero-network Tauri IPC. Saved-text recovery
-and pet customization are upcoming capabilities; use the existing CLI workflows while those
-desktop capabilities are built and verified.
+To build a release desktop executable (`~3.6 MB`):
+
+```sh
+cargo build --manifest-path desktop/src-tauri/Cargo.toml --release
+```
 
 ## The first five minutes
 
