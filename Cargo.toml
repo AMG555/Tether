@@ -29,7 +29,7 @@ hkdf = "0.12"
 sha2 = "0.10"
 zeroize = { version = "1", features = ["derive"] }
 getrandom = "0.2"
-directories = "5"
+directories = "6"
 # CLI
 # `default-features = false` drops clap's colour + suggestion + error-context stack. Measured:
 # 74 KB (3.6%) saved with std+help+usage only. `--help` must keep working, so `help` and `usage`
