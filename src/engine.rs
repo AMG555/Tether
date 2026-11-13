@@ -70,7 +70,7 @@ pub trait Source: Send {
         None
     }
     /// Runs the capture loop until `stop` is set, delivering events to `sink`.
-    fn run(&mut self, sink: &dyn Fn(Event), stop: &AtomicBool);
+    fn run(&mut self, sink: Arc<dyn Fn(Event) + Send + Sync>, stop: &AtomicBool);
 }
 
 /// The text being typed right now. Lives in RAM only; never written in plaintext.

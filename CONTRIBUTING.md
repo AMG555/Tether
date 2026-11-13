@@ -15,10 +15,10 @@ Both are enforced by tests in `tests/crash_recovery.rs` and `tests/privacy.rs`. 
 ## Getting set up
 
 ```bash
-git clone https://github.com/USER/tether && cd tether
-cargo test                 # 132 tests, no external services
+git clone https://github.com/AMG555/Tether.git && cd Tether
+cargo test                 # no external services
 cargo clippy --all-targets -- -D warnings
-cargo fmt
+cargo fmt --check
 ```
 
 Linux is the only platform where the whole thing builds without extra permissions, which is
@@ -29,9 +29,9 @@ why CI runs all three.
 | Area | Why it matters | Where to start |
 |---|---|---|
 | **Linux keystroke backend** | Wayland can't, but X11 (`XRecord`/`XInput2`) and `evdev` can, with the user's consent | implement `engine::Source`; `capture/passive.rs` is the smallest example |
-| **Windows clipboard events** | Keystrokes are captured, but `Ctrl+V` text isn't yet | `AddClipboardFormatListener` needs a message-only window; `capture/windows.rs` |
+| **Windows clipboard events** | Pasted text is not captured on Windows yet | `AddClipboardFormatListener` needs a message-only window; `capture/windows.rs` |
 | **OS keychain for the master key** | removes `key.txt` from the threat model; format-compatible | `crypto::SecretKey` load path, `vault::open` |
-| **Native pet window** | the companion is a rendering job now: engine, format, validation and studio are done | `gui/`, driven by `remind::ReminderEngine` + `pet::Pet` |
+| **Native pet window** | the Tauri shell is a development preview; the pet and recovery UI are not integrated yet | `desktop/` and `gui/`, driven by `remind::ReminderEngine` + `pet::Pet` |
 | **Tray/menu-bar UI** | the biggest usability gap; `Engine` is already thread-safe | `engine::Runtime::start` / `shutdown` |
 | **Blind-index search** | `search` currently decrypts every row | `vault::search`, ADR 0003 for the metadata tradeoff |
 
@@ -40,11 +40,16 @@ why CI runs all three.
 Implement three things:
 
 ```rust
+use std::sync::{
+    atomic::AtomicBool,
+    Arc,
+};
+
 pub struct MyBackend;
 impl Source for MyBackend {
     fn name(&self) -> &'static str { "my-backend" }
     fn probe(&mut self) -> Option<FieldSnapshot> { None }   // optional, high fidelity
-    fn run(&mut self, sink: &dyn Fn(Event), stop: &AtomicBool) { ... }
+    fn run(&mut self, sink: Arc<dyn Fn(Event) + Send + Sync>, stop: &AtomicBool) { ... }
 }
 ```
 
@@ -59,8 +64,7 @@ needs. If a backend cannot capture keystrokes, say so; do not silently degrade.
   decision, the tail re-seeding), the comment should say what breaks without it.
 - Prefer a deep module: small interface, all the messiness inside (`mattpocock/skills`
   vocabulary — module, interface, implementation, seam, depth, leverage, locality).
-- No new dependency without justifying it in the PR. `Cargo.toml` currently has five direct
-  deps and CI fails if a network-capable one appears.
+- Avoid new runtime dependencies; justify them in the PR. CI rejects network-capable dependencies.
 - Public items get doc comments. Private ones get them when the code would otherwise puzzle
   a reviewer.
 

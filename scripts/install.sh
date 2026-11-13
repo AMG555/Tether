@@ -1,7 +1,7 @@
 #!/bin/sh
 # Tether installer — one command, no dependencies, no root.
 #
-#   curl -fsSL https://raw.githubusercontent.com/USER/tether/main/scripts/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/AMG555/Tether/main/scripts/install.sh | sh
 #
 # What it does, in order, and nothing else:
 #   1. Works out your OS and CPU.
@@ -16,7 +16,7 @@
 
 set -eu
 
-REPO="${TETHER_REPO:-USER/tether}"
+REPO="${TETHER_REPO:-AMG555/Tether}"
 BIN_DIR="${TETHER_BIN_DIR:-$HOME/.local/bin}"
 VERSION="${TETHER_VERSION:-latest}"
 

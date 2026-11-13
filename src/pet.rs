@@ -712,9 +712,9 @@ impl Sprite {
             self.pixels[i..i + 4].copy_from_slice(&rgba);
             return;
         }
-        for c in 0..3 {
+        for (c, source) in rgba[..3].iter().enumerate() {
             let dst = self.pixels[i + c] as f32;
-            self.pixels[i + c] = (rgba[c] as f32 * a + dst * (1.0 - a)).round() as u8;
+            self.pixels[i + c] = (*source as f32 * a + dst * (1.0 - a)).round() as u8;
         }
         self.pixels[i + 3] = 255;
     }

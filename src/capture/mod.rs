@@ -16,6 +16,7 @@
 //! hostile OS input, and drop anything `Policy` rejects before it reaches the ring.
 
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 use crate::ring::Event;
 
@@ -94,7 +95,7 @@ impl crate::engine::Source for NullSource {
     fn name(&self) -> &'static str {
         "null"
     }
-    fn run(&mut self, _sink: &dyn Fn(Event), stop: &AtomicBool) {
+    fn run(&mut self, _sink: Arc<dyn Fn(Event) + Send + Sync>, stop: &AtomicBool) {
         while !stop.load(std::sync::atomic::Ordering::Relaxed) {
             std::thread::sleep(std::time::Duration::from_millis(100));
         }

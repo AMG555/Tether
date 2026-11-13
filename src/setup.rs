@@ -49,6 +49,7 @@ impl Step {
     fn warn(name: &'static str, detail: impl Into<String>, fix: impl Into<String>) -> Self {
         Self { name, level: Level::Warn, detail: detail.into(), fix: Some(fix.into()) }
     }
+    #[cfg(unix)]
     fn fail(name: &'static str, detail: impl Into<String>, fix: impl Into<String>) -> Self {
         Self { name, level: Level::Fail, detail: detail.into(), fix: Some(fix.into()) }
     }
@@ -88,7 +89,7 @@ pub fn checks(data_dir: &Path) -> Vec<Step> {
         level: if what == "nothing yet" { Level::Fail } else { Level::Ok },
         detail: format!("{what} — {why}"),
         fix: if what == "nothing yet" {
-            Some("tell us your platform: https://github.com/USER/tether/issues".into())
+            Some("tell us your platform: https://github.com/AMG555/Tether/issues".into())
         } else {
             None
         },

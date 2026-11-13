@@ -1,117 +1,84 @@
-# Publishing this on GitHub
+# GitHub publishing checklist
 
-Everything in this repo is ready to be public except one thing: your username. Ten minutes,
-start to finish.
+The repository URL and public metadata are configured for `AMG555/Tether`. Before sharing the
+project, confirm that the repository contains the intended source and that every public install
+instruction works. Do not announce a download until a verified release exists.
 
-## 1. Claim the name and the identity
+## 1. Publish the source
+
+This project folder may not contain Git history. Check before using Git commands:
 
 ```sh
-sh scripts/rename-owner.sh your-github-username
+git status --short --branch
+git remote -v
 ```
 
-That rewrites the `USER` placeholder in `Cargo.toml`, `README.md`, `CONTRIBUTING.md`,
-`scripts/install.sh` and `scripts/install.ps1`. It is idempotent, so run it again if you change
-your mind about the name.
-
-Check nothing is left:
+If there is no Git repository, initialize it only after reviewing the exact files to publish:
 
 ```sh
-grep -rn 'USER/tether' . --include='*.md' --include='*.sh' --include='*.ps1'
-```
-
-Then push the repository. It is already a git repository with history:
-
-```sh
-git remote add origin git@github.com:your-github-username/tether.git
+git init -b main
+git add --all
+git diff --cached --check
+git diff --cached
+git commit -m "chore: publish Tether source"
+git remote add origin https://github.com/AMG555/Tether.git
 git push -u origin main
 ```
 
-## 2. Fill in the repo page
+Exclude build outputs, `node_modules`, local vaults, recovery keys, and captured text. The existing
+`.gitignore` excludes the main generated and sensitive paths. Before sharing the link, verify the
+GitHub page shows the README, MIT license, screenshots, and working links. The repository
+description and topics are configured for unsaved-text recovery; the companion and pet
+customization are secondary.
 
-GitHub shows the description and topics before anyone reads a word of the README.
+## 2. Verify the source build and supported behavior
 
-- **Description:** `Crash-proof, offline, encrypted typing recovery. One 2 MB binary, zero network calls — plus a desktop companion you author yourself.`
-- **Website:** leave empty until there is one.
-- **Topics:** `rust` `privacy` `encryption` `crash-recovery` `keystroke` `desktop-companion` `offline` `single-binary` `sqlite` `aes-gcm`
-- **Social preview:** upload `shots/companion.png`. It is the image that explains the product
-  fastest.
+Run the checks on the relevant native platforms; do not infer Windows or macOS capture support
+from a Linux build:
 
-Under Settings → General, turn on **Discussions** if you want somewhere for "how do I make a
-character" questions that is not the issue tracker.
+```sh
+cargo +1.75 test --all-targets
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+node --test gui/*.test.js
+npm --prefix desktop test
+npm --prefix desktop run check:a11y
+npm --prefix desktop run check:architecture
+sh scripts/test-install.sh
+```
 
-## 3. Cut the first release
+Be explicit about current limits: Linux capture is clipboard-only; Windows does not capture paste
+contents; macOS requires Accessibility and Input Monitoring permissions. The desktop Tauri shell
+is a development preview and does not yet provide recovery or pet customization.
 
-The install one-liner resolves `releases/latest`, so it does nothing until a release exists.
+## 3. Set the repository preview
+
+- Keep the description and topics focused on local text recovery; avoid implying a finished GUI.
+- Use `shots/terminal.png` as the social preview so the primary recovery workflow is clear.
+- Add a project website only when a maintained public site exists.
+- Enable Discussions only if someone is available to moderate them.
+
+## 4. Publish and verify the first release
+
+The installers resolve the latest GitHub release and require both a matching binary and
+`checksums.txt`. After the source is pushed and release checks pass, create a version tag:
 
 ```sh
 git tag -a v0.1.0 -m "v0.1.0 — first public release"
 git push origin v0.1.0
 ```
 
-`.github/workflows/release.yml` then builds five targets — Linux x86_64 and aarch64, macOS Intel
-and Apple Silicon, Windows x86_64 — names the assets `tether-<platform>-<cpu>`, generates
-`checksums.txt`, and publishes. Watch the Actions tab.
+The release workflow builds Linux x86_64 and aarch64, macOS Intel and Apple Silicon, and Windows
+x86_64. Confirm all five artifacts and `checksums.txt` exist, then test the platform installer from
+a clean machine. Verify the installed binary's version and run `tether setup` before announcing it.
 
-**Verify the release before you tell anyone about it:**
+## 5. Keep the public claims accurate
 
-```sh
-# from a machine that is not the build one
-curl -fsSL https://raw.githubusercontent.com/your-github-username/tether/main/scripts/install.sh | sh
-tether setup
-tether version
-```
-
-Confirm `checksum  ok` appears, and that the asset list has a `checksums.txt`.
-
-## 4. Before the first public link
-
-```sh
-cargo test                      # 211
-node --test gui/*.test.js       # 55
-cargo clippy --all-targets -- -D warnings
-sh scripts/test-install.sh      # the installer refuses bad checksums
-python3 shots/capture.py        # regenerate screenshots from the real binary
-```
-
-If `capture.py` reports console errors, a page is broken — do not ship with a screenshot that
-hides it.
-
-## 5. Things worth knowing before people use it
-
-These are not blockers, but they are the questions you will be asked:
-
-- **Linux is clipboard-only.** Say it first. `tether setup` already does, and the platform table in
-  the README does. Anyone who expected system-wide keystrokes on Wayland should find out from the
-  README, not from a bug report.
-- **The key sits next to the vault.** That is a deliberate trade — a passphrase prompt breaks
-  foreground capture — and both `init` and `setup` say so loudly. Expect this to be the most
-  discussed design decision in the repo. `docs/adr/0003-encryption.md` has the reasoning.
-- **macOS needs two permissions.** Input Monitoring plus Accessibility. Screen recordings of
-  onboarding get judged on how gracefully this is handled.
-- **There is no image generator.** The studio writes prompts and validates clips; the art is
-  yours. Being clear about this up front prevents "where do I download characters" issues.
-- **`tether ask` on Linux is a terminal companion today.** The native window is the next build
-  target; the engine, format and validation are done. Say "today" and mean it.
-
-## 6. After publishing — the first three issues you will get
-
-Worth writing the answers now, while the reasoning is fresh:
-
-1. *"Why not just use a system clipboard manager?"* Because those are per-app, unencrypted,
-   usually unlimited, and they do not survive a reboot. Tether is bounded, encrypted, and has a
-   retention policy.
-2. *"Can I sync the vault between machines?"* Not the vault itself — `tether backup` produces an
-   encrypted archive that is safe to copy, but it is a copy, not a merge. A merge is a design
-   problem, not an implementation one.
-3. *"Can you add X11 keystroke capture on Linux?"* Yes, and the `Source` trait is ~80 lines.
-   Someone will send the PR; review it for the same crash-safety properties as the ring.
-
-## What is deliberately not in this repo
-
-- **No binaries checked in.** Releases are built by CI, so a download is always traceable to a
-  commit.
-- **No `gui/preview.html`.** It is an early 3D experiment that does not follow the design system;
-  `tests/design.rs` covers the ship set only. Delete it or re-skin it before making it
-  discoverable — a page in the repo is a page someone will find.
-- **No telemetry, no analytics, no issue templates that ask for your logs.** A privacy tool that
-  asks for logs on first contact has already lost the argument.
+- Capture runs only when started or when the user has separately configured autostart. Secret
+  filters are not infallible; link to [`docs/limitations.md`](limitations.md).
+- The vault is encrypted locally and there is no network code in the CLI. This does not protect
+  against a privileged attacker reading process memory, or someone using an unlocked account.
+- Linux is clipboard-only and Windows paste contents are not captured.
+- Companion customization works through the CLI; the native desktop shell remains incomplete.
+- Do not imply that Tether generates character art. Character Studio creates prompts and validates
+  local clip files; art generation happens outside the app.

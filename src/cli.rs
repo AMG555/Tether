@@ -482,7 +482,8 @@ fn cmd_run(
     install_sigint(Arc::clone(&stop));
 
     let engine_for_sink = Arc::clone(&engine);
-    source.run(&move |ev| engine_for_sink.ingest(ev), &stop);
+    let sink = Arc::new(move |ev| engine_for_sink.ingest(ev));
+    source.run(sink, &stop);
     stop.store(true, Ordering::Relaxed);
     std::thread::sleep(Duration::from_millis(flush_ms + 100));
     let _ = engine.flush();
@@ -828,11 +829,11 @@ fn cmd_doctor(home: &Option<PathBuf>) -> Result<(), Box<dyn std::error::Error>> 
     println!("\n[storage]");
     println!("  data dir: {}", dir.display());
     match std::fs::metadata(&dir) {
-        Ok(m) => {
+        Ok(_m) => {
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
-                let mode = m.permissions().mode() & 0o777;
+                let mode = _m.permissions().mode() & 0o777;
                 let ok = mode & 0o077 == 0;
                 println!(
                     "  dir mode: {:o} {}",

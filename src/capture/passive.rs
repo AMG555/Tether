@@ -85,7 +85,7 @@ impl Source for ClipboardWatch {
         }
     }
 
-    fn run(&mut self, sink: &dyn Fn(Event), stop: &AtomicBool) {
+    fn run(&mut self, sink: std::sync::Arc<dyn Fn(Event) + Send + Sync>, stop: &AtomicBool) {
         let Some(mut cmd) = self.command() else {
             // Stay alive but idle so the rest of the app (list/get) keeps working.
             while !stop.load(Ordering::Relaxed) {

@@ -26,15 +26,14 @@ use std::sync::Mutex;
 use crate::engine::Source;
 use crate::ring::{Event, EV_BACKSPACE, EV_CHAR, EV_PASTE};
 
-type HINSTANCE = *mut c_void;
-type HWND = *mut c_void;
-type HHOOK = *mut c_void;
-type HANDLE = *mut c_void;
-type HKL = *mut c_void;
-type LONG_PTR = isize;
-type LRESULT = isize;
-type WPARAM = usize;
-type LPARAM = isize;
+type Hinstance = *mut c_void;
+type Hwnd = *mut c_void;
+type Hhook = *mut c_void;
+type Handle = *mut c_void;
+type Hkl = *mut c_void;
+type Lresult = isize;
+type Wparam = usize;
+type Lparam = isize;
 
 const WH_KEYBOARD_LL: i32 = 13;
 const WM_KEYDOWN: usize = 0x0100;
@@ -61,10 +60,10 @@ struct KbdLlHookStruct {
 
 #[repr(C)]
 struct Msg {
-    hwnd: HWND,
+    hwnd: Hwnd,
     message: u32,
-    w_param: WPARAM,
-    l_param: LPARAM,
+    w_param: Wparam,
+    l_param: Lparam,
     time: u32,
     pt_x: i32,
     pt_y: i32,
@@ -75,20 +74,19 @@ struct Msg {
 extern "system" {
     fn SetWindowsHookExW(
         id_hook: i32,
-        lpfn: Option<unsafe extern "system" fn(i32, WPARAM, LPARAM) -> LRESULT>,
-        hmod: HINSTANCE,
+        lpfn: Option<unsafe extern "system" fn(i32, Wparam, Lparam) -> Lresult>,
+        hmod: Hinstance,
         thread_id: u32,
-    ) -> HHOOK;
-    fn CallNextHookEx(hhk: HHOOK, n_code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT;
-    fn UnhookWindowsHookEx(hhk: HHOOK) -> i32;
-    fn GetMessageW(msg: *mut Msg, hwnd: HWND, min: u32, max: u32) -> i32;
+    ) -> Hhook;
+    fn CallNextHookEx(hhk: Hhook, n_code: i32, w_param: Wparam, l_param: Lparam) -> Lresult;
+    fn UnhookWindowsHookEx(hhk: Hhook) -> i32;
     fn TranslateMessage(msg: *const Msg) -> i32;
-    fn DispatchMessageW(msg: *const Msg) -> LRESULT;
-    fn GetForegroundWindow() -> HWND;
-    fn GetWindowThreadProcessId(hwnd: HWND, pid: *mut u32) -> u32;
+    fn DispatchMessageW(msg: *const Msg) -> Lresult;
+    fn GetForegroundWindow() -> Hwnd;
+    fn GetWindowThreadProcessId(hwnd: Hwnd, pid: *mut u32) -> u32;
     fn GetKeyboardState(state: *mut u8) -> i32;
-    fn GetKeyboardLayout(thread_id: u32) -> HKL;
-    fn MapVirtualKeyExW(code: u32, map_type: u32, layout: HKL) -> u32;
+    fn GetKeyboardLayout(thread_id: u32) -> Hkl;
+    fn MapVirtualKeyExW(code: u32, map_type: u32, layout: Hkl) -> u32;
     fn ToUnicodeEx(
         vk: u32,
         scan: u32,
@@ -96,16 +94,16 @@ extern "system" {
         buf: *mut u16,
         cch: i32,
         flags: u32,
-        layout: HKL,
+        layout: Hkl,
     ) -> i32;
 }
 
 #[link(name = "kernel32")]
 extern "system" {
-    fn OpenProcess(access: u32, inherit: i32, pid: u32) -> HANDLE;
-    fn QueryFullProcessImageNameW(proc_: HANDLE, flags: u32, buf: *mut u16, size: *mut u32) -> i32;
-    fn CloseHandle(h: HANDLE) -> i32;
-    fn GetModuleHandleW(name: *const u16) -> HINSTANCE;
+    fn OpenProcess(access: u32, inherit: i32, pid: u32) -> Handle;
+    fn QueryFullProcessImageNameW(proc_: Handle, flags: u32, buf: *mut u16, size: *mut u32) -> i32;
+    fn CloseHandle(h: Handle) -> i32;
+    fn GetModuleHandleW(name: *const u16) -> Hinstance;
 }
 
 static TX: Mutex<Option<Sender<Event>>> = Mutex::new(None);
@@ -118,7 +116,7 @@ impl Source for WindowsHook {
         "windows low-level keyboard hook"
     }
 
-    fn run(&mut self, sink: &dyn Fn(Event), stop: &AtomicBool) {
+    fn run(&mut self, sink: std::sync::Arc<dyn Fn(Event) + Send + Sync>, stop: &AtomicBool) {
         let (tx, rx) = channel::<Event>();
         *TX.lock().unwrap() = Some(tx);
         *CACHE.lock().unwrap() = Some(HashMap::new());
@@ -140,7 +138,6 @@ impl Source for WindowsHook {
             if hook.is_null() {
                 eprintln!("tether: could not install keyboard hook (is another hook blocking it?)");
                 *TX.lock().unwrap() = None;
-                drop(tx_placeholder());
                 let _ = consumer.join();
                 return;
             }
@@ -162,14 +159,11 @@ impl Source for WindowsHook {
     }
 }
 
-fn tx_placeholder() {}
-
-/// `PeekMessageW` is declared separately to keep the timeout loop readable.
+// `PeekMessageW` is declared separately to keep the timeout loop readable.
 #[link(name = "user32")]
 extern "system" {
     #[link_name = "PeekMessageW"]
-    fn PeekMessageW(msg: *mut Msg, hwnd: HWND, min: u32, max: u32, remove: u32) -> i32;
-    fn Sleep(ms: u32);
+    fn PeekMessageW(msg: *mut Msg, hwnd: Hwnd, min: u32, max: u32, remove: u32) -> i32;
 }
 
 #[link(name = "kernel32")]
@@ -189,7 +183,7 @@ fn pea_message(msg: &mut Msg) -> i32 {
     r
 }
 
-unsafe extern "system" fn hook_proc(code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
+unsafe extern "system" fn hook_proc(code: i32, w_param: Wparam, l_param: Lparam) -> Lresult {
     if code >= 0 && (w_param == WM_KEYDOWN || w_param == WM_SYSKEYDOWN) {
         let info = &*(l_param as *const KbdLlHookStruct);
         if let Some(ev) = translate(info) {

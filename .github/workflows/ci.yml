@@ -31,6 +31,10 @@ jobs:
       - name: Tests
         run: cargo test --all-targets
 
+      - name: Windows installer refuses unverifiable downloads
+        if: runner.os == 'Windows'
+        run: ./scripts/test-install.ps1
+
       # The crash guarantee is the product. Prove it on every OS, every commit.
       - name: Crash survivability (real SIGKILL / abort, no flush)
         shell: bash

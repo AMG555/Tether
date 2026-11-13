@@ -1,12 +1,12 @@
 # Tether installer for Windows — one command, no admin rights.
 #
-#   irm https://raw.githubusercontent.com/USER/tether/main/scripts/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/AMG555/Tether/main/scripts/install.ps1 | iex
 #
 # Installs to %LOCALAPPDATA%\Tether\bin, verifies the SHA-256, and adds that folder to your
 # user PATH (the current user only — no administrator prompt, no machine-wide change).
 
 $ErrorActionPreference = 'Stop'
-$Repo     = if ($env:TETHER_REPO)    { $env:TETHER_REPO }    else { 'USER/tether' }
+$Repo     = if ($env:TETHER_REPO)    { $env:TETHER_REPO }    else { 'AMG555/Tether' }
 $BinDir   = if ($env:TETHER_BIN_DIR) { $env:TETHER_BIN_DIR } else { Join-Path $env:LOCALAPPDATA 'Tether\bin' }
 $Version  = if ($env:TETHER_VERSION) { $env:TETHER_VERSION } else { 'latest' }
 
@@ -15,7 +15,9 @@ Write-Host "  platform  windows / $($env:PROCESSOR_ARCHITECTURE)"
 Write-Host "  target    $BinDir"
 
 $asset = 'tether-windows-x86_64.zip'
-$base  = if ($Version -eq 'latest') {
+$base  = if ($env:TETHER_BASE_URL) {
+    $env:TETHER_BASE_URL.TrimEnd('/')
+} elseif ($Version -eq 'latest') {
     "https://github.com/$Repo/releases/latest/download"
 } else {
     "https://github.com/$Repo/releases/download/$Version"
@@ -31,20 +33,21 @@ try {
 
     # Verify before extracting anything.
     $sumUrl = "$base/checksums.txt"
-    try {
-        $checksums = (Invoke-WebRequest -Uri $sumUrl -UseBasicParsing).Content
-        $line = ($checksums -split "`n" | Where-Object { $_ -match [regex]::Escape($asset) } | Select-Object -First 1)
-        if ($line) {
-            $want = ($line -split '\s+')[1]
-            $got  = (Get-FileHash -Algorithm SHA256 -Path $zip).Hash.ToLower()
-            if ($want.ToLower() -ne $got) {
-                throw "checksum mismatch: expected $want, got $got. Refusing to install."
-            }
-            Write-Host "  checksum  ok"
-        }
-    } catch [System.Net.WebException] {
-        Write-Host "  warning   no checksums.txt in this release; cannot verify the download"
+    $checksums = (Invoke-WebRequest -Uri $sumUrl -UseBasicParsing).Content
+    $checksumPattern = "^\s*([0-9a-fA-F]{64})\s+\*?$([regex]::Escape($asset))\s*$"
+    $line = $checksums -split "\r?\n" |
+        Where-Object { $_ -match $checksumPattern } |
+        Select-Object -First 1
+    if (-not $line) {
+        throw "checksums.txt has no valid SHA-256 entry for $asset. Refusing to install."
     }
+
+    $want = [regex]::Match($line, $checksumPattern).Groups[1].Value.ToLowerInvariant()
+    $got  = (Get-FileHash -Algorithm SHA256 -Path $zip).Hash.ToLowerInvariant()
+    if ($want -ne $got) {
+        throw "checksum mismatch: expected $want, got $got. Refusing to install."
+    }
+    Write-Host "  checksum  ok"
 
     Expand-Archive -Path $zip -DestinationPath $tmp -Force
     New-Item -ItemType Directory -Path $BinDir -Force | Out-Null

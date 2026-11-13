@@ -1,4 +1,8 @@
 /target
+desktop/node_modules/
+desktop/dist/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
 **/*.rs.bk
 *.db
 *.db-wal
@@ -12,3 +16,7 @@ ring.bin
 /gui/shot-*.png
 /gui/clip-shot-*.png
 /gui/studio-*.png
+
+# Companion clip assets — large binary files managed outside git
+# Users download companions on demand; store with Git LFS or a release bundle if needed
+/assets/companions/

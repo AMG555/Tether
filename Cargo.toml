@@ -5,7 +5,7 @@ edition = "2021"
 rust-version = "1.75"
 description = "Crash-proof, offline, encrypted typing recovery. Never lose half-written text again."
 license = "MIT"
-repository = "https://github.com/USER/tether"
+repository = "https://github.com/AMG555/Tether"
 keywords = ["crash-recovery", "privacy", "encryption", "keyboard", "autosave"]
 categories = ["command-line-utilities"]
 
@@ -19,7 +19,7 @@ path = "src/lib.rs"
 
 [dependencies]
 # Storage. Bundled SQLite => no system deps, single static binary, mature crash semantics (WAL).
-rusqlite = { version = "0.32", features = ["bundled", "blob"] }
+rusqlite = { version = "0.31", features = ["bundled", "blob"] }
 # Serialization of drafts/metadata (never the plaintext secrets themselves).
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

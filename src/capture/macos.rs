@@ -144,7 +144,7 @@ impl Source for MacTap {
         }
     }
 
-    fn run(&mut self, sink: &dyn Fn(Event), stop: &AtomicBool) {
+    fn run(&mut self, sink: std::sync::Arc<dyn Fn(Event) + Send + Sync>, stop: &AtomicBool) {
         let (tx, rx) = channel::<Event>();
         *TX.lock().unwrap() = Some(tx);
         let consumer = std::thread::spawn(move || {

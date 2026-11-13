@@ -2,13 +2,17 @@
 
 # Tether
 
-**You were 40 words into a prompt. The app crashed. It's gone.**
+**Recover unsaved text after an app crash, force-quit, or restart.**
 
-Tether keeps an encrypted copy of everything you type, in every app, and hands it back after a
-crash, a force-quit, or a dead battery.
+Tether is a local command-line recovery tool. While capture is running, it records supported text
+input and stores recoverable drafts in an encrypted local vault. Windows and macOS capture
+keystrokes; Linux is clipboard-only. Capture filters reduce risk, but they cannot recognize every
+sensitive field. Review [privacy](#privacy-the-part-that-matters) and
+[known limitations](docs/limitations.md) before enabling it.
 
-It also gives you a small companion that lives on your desktop — not as decoration, but as the
-place recovered text actually comes back to. You author the character yourself.
+An optional companion offers built-in characters and custom sprite or animated clip packs. Its CLI
+workflows are available now; the separate native desktop shell is still a development preview, not
+a finished recovery app.
 
 <br>
 
@@ -26,19 +30,34 @@ place recovered text actually comes back to. You author the character yourself.
 
 ## Install
 
-One command. No root, no daemon manager, no account.
+The one-command installers require a tagged GitHub release with platform binaries and checksums.
+If the [Releases page](https://github.com/AMG555/Tether/releases) has no release yet, build from
+source once the repository files are available:
+
+```sh
+git clone https://github.com/AMG555/Tether.git
+cd Tether
+cargo build --release
+```
+
+Rust 1.75+ is required. SQLite is compiled in; the CLI has no runtime dependencies.
+Run `./target/release/tether setup` on Linux/macOS or
+`.\target\release\tether.exe setup` in PowerShell to create the local vault.
+
+<details>
+<summary>Install from a release (after one is published)</summary>
 
 **Linux / macOS**
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/USER/tether/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/AMG555/Tether/main/scripts/install.sh | sh
 tether setup
 ```
 
 **Windows** (PowerShell)
 
 ```powershell
-irm https://raw.githubusercontent.com/USER/tether/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/AMG555/Tether/main/scripts/install.ps1 | iex
 tether setup
 ```
 
@@ -47,9 +66,10 @@ The installer downloads the build for your platform, **verifies its SHA-256 agai
 `%LOCALAPPDATA%\Tether\bin`), never to `/usr/local`, and tells you exactly what to add to your
 `PATH` if you need to. Re-running it upgrades in place.
 
-Then `tether setup` walks you through the rest — it creates the vault, checks every file
-permission, states what capture you actually get on your OS, and prints the fix beside anything
-that is wrong:
+</details>
+
+After installing, run `tether setup` once. It creates the vault, checks file permissions, states
+what capture is available on your OS, and prints a fix beside anything that is wrong:
 
 ```
 $ tether setup
@@ -71,16 +91,20 @@ If anything blocking is left, it exits non-zero and says what to do. `tether set
 installs a systemd user unit, a LaunchAgent, or a Windows startup item — because **a recovery tool
 that starts after the crash recovers nothing.**
 
-<details>
-<summary>Build from source instead</summary>
+## Desktop shell (development)
+
+The native Tauri desktop shell is under development. From a source checkout, install Node.js 22+,
+Rust 1.90+, and the target platform's Tauri build prerequisites, then run:
 
 ```sh
-git clone https://github.com/USER/tether && cd tether
-cargo build --release        # → target/release/tether, 1.99 MB, no runtime deps
+npm --prefix desktop install
+npm --prefix desktop run tauri:dev
 ```
 
-Needs Rust 1.75+. SQLite is compiled in; there is nothing else to install.
-</details>
+This opens a native app window; it is not an installer. The current shell is a development preview:
+its Windows window opens, but its local metadata bridge is not yet initializing. Saved-text recovery
+and pet customization are also not in the shell yet; use the existing CLI workflows while those
+desktop capabilities are built and verified.
 
 ## The first five minutes
 
@@ -151,14 +175,15 @@ last committed version.
 
 | Platform | Keystrokes | Clipboard | What you must grant |
 |---|---|---|---|
-| **Windows 10/11** | ✅ `WH_KEYBOARD_LL` hook, layout-correct via `ToUnicodeEx` | ✅ | nothing — no elevation |
-| **macOS 13+** | ✅ `CGEventTap` + Accessibility probe | ✅ | Accessibility **and** Input Monitoring |
+| **Windows 10/11** | ✅ `WH_KEYBOARD_LL` hook, layout-correct via `ToUnicodeEx` | ❌ paste contents are not captured | nothing — no elevation |
+| **macOS 13+** | ✅ `CGEventTap` + Accessibility probe | not independently monitored | Accessibility **and** Input Monitoring |
 | **Linux X11** | ⚠️ clipboard only | ✅ `xclip` | nothing |
 | **Linux Wayland** | ⚠️ clipboard only | ✅ `wl-clipboard` | nothing |
 
 **Why Linux is clipboard-only:** Wayland deliberately forbids global keyboard hooks, and X11
 global hooks are indistinguishable from malware. Rather than ask for root or fight the compositor,
-Tether degrades to the smaller honest guarantee: *anything you copy is saved forever, encrypted.*
+Tether degrades to the smaller honest guarantee: eligible clipboard text can be recovered from
+the encrypted vault. Windows paste contents are not captured either.
 `tether setup` says this on screen rather than letting you discover it later. If you want keystroke
 capture on X11, the `Source` trait is ~80 lines and a backend is very welcome.
 
@@ -299,9 +324,10 @@ Tether can tell you *"time for water"*. It cannot tell you *"you typed 4,000 wor
 This is a keystroke recorder. Get the ethics wrong and it is spyware. Three rules, enforced in code
 and tested against the bytes on disk:
 
-**1. Secrets are never stored.** Redaction runs *before* the ring write, so a password is never in
-RAM longer than the keystroke, never on disk, never in the WAL, never in a backup. There is nothing
-to leak later.
+**1. Filters block recognized secret surfaces and patterns.** They run before data is written to
+the crash ring or vault. They are defense in depth, not a guarantee: some password fields and
+terminal prompts cannot be identified, and behavior varies by app and platform. Do not rely on
+Tether to recognize every secret; see [known limitations](docs/limitations.md).
 
 - **Blocked apps, always:** 1Password, Bitwarden, KeePassXC, LastPass, Dashlane, Enpass, Keeper,
   NordPass, Proton Pass, Keychain/SecurityAgent, Windows Credential Manager, BitLocker, VeraCrypt,
@@ -310,13 +336,13 @@ to leak later.
   "private key"…
 - **Masked in *any* app** (`█`): card numbers that pass the Luhn checksum, PEM private keys, JWTs,
   AWS keys, GitHub/Slack/OpenAI/SendGrid tokens.
-- **Password fields** are refused by role, belt-and-braces.
+- Accessibility APIs can identify some password fields, but coverage is not universal.
 
-**2. Nothing is readable at rest.** AES-256-GCM, keys derived per purpose via HKDF. What an
+**2. Draft text is encrypted at rest.** AES-256-GCM, keys derived per purpose via HKDF. What an
 attacker with your disk learns: how many drafts, roughly when, how many characters. **Not** the
 text. **Not** the app names. **Not** the window titles. Every file in the data directory is mode
-`0600` and the directory is `0700` — including the crash ring, which is ciphertext but has no
-reason to be world-readable.
+`0600` and the directory is `0700` on Unix-like systems. On Windows, the data directory inherits
+your user-profile ACL; see [known limitations](docs/limitations.md).
 
 **3. Nothing leaves the machine.** There is no network code in this binary, and a test fails the
 build if a network-capable dependency is ever added
@@ -430,11 +456,11 @@ Six deep modules, one seam each. Full notes in [docs/architecture.md](docs/archi
 ## Development
 
 ```sh
-cargo test                        # 211 tests
-node --test gui/*.test.js         # 55 tests
+cargo test
+node --test gui/*.test.js
 cargo clippy --all-targets -- -D warnings
 cargo fmt --check
-sh scripts/test-install.sh        # 9 assertions against a local release
+sh scripts/test-install.sh
 ```
 
 Windows and macOS backends are `#[cfg]`-gated, so Linux CI stays green; build them on their own
@@ -442,11 +468,10 @@ platforms. Screenshots in `shots/` are captured headless from the shipping pages
 binary — see `shots/capture.py`. If you change a page, re-run it; a green test suite and an
 invisible window have coexisted here before.
 
-## Publishing this
+## Publishing
 
-If you are the one putting this on GitHub: [docs/publishing.md](docs/publishing.md) is the
-checklist — `sh scripts/rename-owner.sh your-username`, tag `v0.1.0`, verify the install line on a
-clean machine.
+See the [GitHub publishing checklist](docs/publishing.md) for the initial source push, repository
+setup, and first release steps.
 
 ## License
 

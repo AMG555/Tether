@@ -433,7 +433,7 @@ fn analyze_json(
 
 /// Reads at most `n` bytes at `offset`, reusing one file handle. Used for image headers.
 fn read_range(path: &Path, offset: u64, n: usize) -> Option<Vec<u8>> {
-    use std::io::{Read, Seek, SeekFrom};
+    use std::io::{Seek, SeekFrom};
     let mut f = std::fs::File::open(path).ok()?;
     f.seek(SeekFrom::Start(offset)).ok()?;
     let mut buf = vec![0u8; n];

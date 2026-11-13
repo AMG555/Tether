@@ -5,6 +5,7 @@
 //! comes back. A recovery tool that is only tested by graceful shutdown is not tested.
 
 use std::path::Path;
+#[cfg(unix)]
 use std::process::Command;
 use std::time::Duration;
 
