@@ -28,7 +28,7 @@
 //! the committed text. A crash then replays "the tail I last saw, plus whatever came after",
 //! and `stitch()` puts the two halves back together. Both paths are covered by tests.
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -211,6 +211,7 @@ pub struct Engine {
     /// Set when the ring wrote past its capacity: the next draft is flagged truncated.
     wrapped: AtomicBool,
     last_flush: Mutex<Instant>,
+    retention_days: AtomicI64,
 }
 
 impl Engine {
@@ -226,7 +227,16 @@ impl Engine {
             stats: Stats::default(),
             wrapped: AtomicBool::new(false),
             last_flush: Mutex::new(Instant::now()),
+            retention_days: AtomicI64::new(14),
         })
+    }
+
+    pub fn retention_days(&self) -> i64 {
+        self.retention_days.load(Ordering::Relaxed)
+    }
+
+    pub fn set_retention_days(&self, days: i64) {
+        self.retention_days.store(days.clamp(1, 365), Ordering::Relaxed);
     }
 
     pub fn vault(&self) -> std::sync::MutexGuard<'_, Vault> {
@@ -506,7 +516,8 @@ impl Engine {
                 }
             }
             if last_prune.elapsed() >= Duration::from_secs(3600) {
-                let _ = self.vault().prune_older_than(14);
+                let retention = self.retention_days();
+                let _ = self.vault().prune_older_than(retention);
                 last_prune = Instant::now();
             }
         }

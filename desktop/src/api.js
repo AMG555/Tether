@@ -156,13 +156,29 @@ export async function deleteDraft(id) {
  * @param {number} [maxDays]
  * @returns {Promise<number>}
  */
-export async function pruneVault(maxDays = 14) {
+export async function pruneVault(maxDays) {
   const invoke = getInvoker();
   if (!invoke) {
     return 0;
   }
   try {
-    return await invoke('prune_vault', { maxDays });
+    return await invoke('prune_vault', { maxDays: maxDays ?? null });
+  } catch (error) {
+    throw new AppApiError('OPERATION_FAILED', String(error));
+  }
+}
+
+/**
+ * @param {number} days
+ * @returns {Promise<number>}
+ */
+export async function setRetentionDays(days) {
+  const invoke = getInvoker();
+  if (!invoke) {
+    return days;
+  }
+  try {
+    return await invoke('set_retention_days', { days });
   } catch (error) {
     throw new AppApiError('OPERATION_FAILED', String(error));
   }

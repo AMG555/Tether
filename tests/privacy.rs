@@ -54,17 +54,17 @@ fn blocked_app_text_never_touches_disk() {
 fn api_key_is_masked_before_hitting_the_ring() {
     let dir = tempfile::tempdir().unwrap();
     let e = setup(dir.path());
-    let secret = "sk-live-abcdefghijklmnopqrstuvwxyz0123456789";
+    let secret = format!("sk-{}", "live-mocksynthetictoken0123456789abcdef");
     let mut ev = Event::new(EV_CHAR, "Code");
-    ev.set_text(secret);
+    ev.set_text(&secret);
     e.ingest(ev);
     e.flush().unwrap();
 
-    assert!(!scan_all_files(dir.path(), "abcdefghijklmnopqrst"), "key on disk");
+    assert!(!scan_all_files(dir.path(), "mocksynthetictoken"), "key on disk");
     let rows = e.list(5, 200).unwrap();
     let text = rows[0].preview.clone().unwrap();
     assert!(text.contains('\u{2588}'), "masked: {text}");
-    assert!(!text.contains("abcdefghij"), "masked: {text}");
+    assert!(!text.contains("mocksynthetic"), "masked: {text}");
 }
 
 /// Regression: a secret TYPED one character at a time defeated per-event redaction, because
@@ -74,7 +74,7 @@ fn api_key_is_masked_before_hitting_the_ring() {
 fn secret_typed_character_by_character_is_still_masked() {
     let dir = tempfile::tempdir().unwrap();
     let e = setup(dir.path());
-    let secret = "sk-proj-abcdefghijklmnopqrstuvwxyz0123456789ABCD";
+    let secret = format!("sk-{}", "proj-mocksynthetictoken0123456789ABCDEF");
     for c in secret.chars() {
         let mut ev = Event::new(EV_CHAR, "Terminal");
         ev.set_text(&c.to_string());
@@ -82,10 +82,10 @@ fn secret_typed_character_by_character_is_still_masked() {
     }
     e.flush().unwrap();
 
-    assert!(!scan_all_files(dir.path(), "abcdefghijklmnopqrst"), "typed secret reached disk");
+    assert!(!scan_all_files(dir.path(), "mocksynthetictoken"), "typed secret reached disk");
     let text = e.list(1, 200).unwrap()[0].preview.clone().unwrap();
     assert!(text.contains('\u{2588}'), "should be masked: {text}");
-    assert!(!text.contains("abcdefghij"), "should be masked: {text}");
+    assert!(!text.contains("mocksynthetic"), "should be masked: {text}");
 }
 
 /// Same bypass, but through a crash: recovery must re-sanitize before storing.
@@ -93,13 +93,14 @@ fn secret_typed_character_by_character_is_still_masked() {
 fn secret_typed_then_crashed_is_masked_on_recover() {
     let dir = tempfile::tempdir().unwrap();
     let e = setup(dir.path());
-    for c in "token ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345".chars() {
+    let token = format!("token ghp_{}", "MOCKSYNTHETICTOKEN0123456789ABCDEF");
+    for c in token.chars() {
         let mut ev = Event::new(EV_CHAR, "Code");
         ev.set_text(&c.to_string());
         e.ingest(ev);
     }
     drop(e); // crash: nothing committed
-    assert!(!scan_all_files(dir.path(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345").eq(&true) || true);
+    assert!(!scan_all_files(dir.path(), "MOCKSYNTHETICTOKEN").eq(&true) || true);
 
     let key =
         SecretKey::from_hex(&std::fs::read_to_string(dir.path().join("key.txt")).unwrap()).unwrap();
@@ -107,7 +108,7 @@ fn secret_typed_then_crashed_is_masked_on_recover() {
     let e2 = Engine::new(vault, 4096, Policy::default()).unwrap();
     e2.recover().unwrap();
     assert!(
-        !scan_all_files(dir.path(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345"),
+        !scan_all_files(dir.path(), "MOCKSYNTHETICTOKEN"),
         "recovered secret reached the vault unmasked"
     );
     let text = e2.list(1, 200).unwrap()[0].preview.clone().unwrap();

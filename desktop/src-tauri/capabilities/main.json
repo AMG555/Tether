@@ -11,6 +11,7 @@
     "allow-get-revisions",
     "allow-delete-draft",
     "allow-prune-vault",
+    "allow-set-retention-days",
     "allow-get-autostart-status",
     "allow-set-autostart",
     "allow-list-companions",

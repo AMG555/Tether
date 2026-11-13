@@ -11,6 +11,7 @@ pub fn run() -> Result<(), tauri::Error> {
             commands::get_revisions,
             commands::delete_draft,
             commands::prune_vault,
+            commands::set_retention_days,
             commands::get_autostart_status,
             commands::set_autostart,
             commands::list_companions,

@@ -29,6 +29,8 @@ pub struct Config {
     pub flush_ms: u64,
     /// Crash ring size in keystrokes.
     pub ring_slots: usize,
+    /// Retention window for rescued texts and revisions, days. Defaults to 14 (2 weeks).
+    pub retention_days: i64,
 }
 
 impl Default for Config {
@@ -41,6 +43,7 @@ impl Default for Config {
             pet_bounds: (0.05, 0.95),
             flush_ms: 1000,
             ring_slots: 4096,
+            retention_days: 14,
         }
     }
 }
@@ -63,6 +66,7 @@ impl Config {
                     // Clamp the dangerous knobs rather than trusting them.
                     cfg.flush_ms = cfg.flush_ms.clamp(200, 60_000);
                     cfg.ring_slots = cfg.ring_slots.clamp(64, 65536);
+                    cfg.retention_days = cfg.retention_days.clamp(1, 365);
                     let (lo, hi) = cfg.pet_bounds;
                     cfg.pet_bounds = (lo.clamp(0.0, 1.0), hi.clamp(0.0, 1.0));
                     (cfg, None)
@@ -123,13 +127,14 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         std::fs::write(
             d.path().join(CONFIG_FILE),
-            r#"{"flush_ms": 1, "ring_slots": 999999999, "pet_bounds": [-5.0, 9.0]}"#,
+            r#"{"flush_ms": 1, "ring_slots": 999999999, "pet_bounds": [-5.0, 9.0], "retention_days": 0}"#,
         )
         .unwrap();
         let (cfg, _) = Config::load_or_default(d.path());
         assert_eq!(cfg.flush_ms, 200, "a 1ms flush would hammer the disk");
         assert_eq!(cfg.ring_slots, 65536);
         assert_eq!(cfg.pet_bounds, (0.0, 1.0));
+        assert_eq!(cfg.retention_days, 1, "clamped to minimum 1 day");
     }
 
     #[test]

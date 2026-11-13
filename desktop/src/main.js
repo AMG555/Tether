@@ -7,6 +7,7 @@ import {
   getRevisions,
   deleteDraft,
   pruneVault,
+  setRetentionDays,
   getAutostart,
   setAutostart,
   listCompanions,
@@ -121,6 +122,11 @@ async function setupRecoveryView() {
 
   async function loadAndRenderDrafts(query = null) {
     try {
+      const status = await getVaultStatus();
+      const badgeText = document.getElementById('retention-badge-text');
+      if (badgeText && status?.retentionDays) {
+        badgeText.textContent = `${status.retentionDays}-day auto-purge active`;
+      }
       allDrafts = await listDrafts(query);
       renderDraftList(allDrafts);
       if (allDrafts.length > 0 && !currentDraft) {
@@ -657,6 +663,7 @@ function setupStudioView() {
 // -----------------------------------------------------------------------------
 async function setupSettingsView() {
   const autostartCheck = document.getElementById('setting-autostart');
+  const retentionSelect = document.getElementById('setting-retention-days');
   const pruneBtn = document.getElementById('prune-vault-btn');
   const vaultPathEl = document.getElementById('meta-vault-path');
   const encEl = document.getElementById('meta-encryption');
@@ -668,8 +675,27 @@ async function setupSettingsView() {
     const vaultStatus = await getVaultStatus();
     if (vaultPathEl) vaultPathEl.textContent = vaultStatus.vaultPath;
     if (encEl) encEl.textContent = vaultStatus.encryption;
+    if (retentionSelect && vaultStatus.retentionDays) {
+      retentionSelect.value = String(vaultStatus.retentionDays);
+    }
   } catch {
     // Non-fatal
+  }
+
+  if (retentionSelect) {
+    retentionSelect.addEventListener('change', async () => {
+      const days = parseInt(retentionSelect.value, 10);
+      try {
+        const savedDays = await setRetentionDays(days);
+        retentionSelect.value = String(savedDays);
+        const badgeText = document.getElementById('retention-badge-text');
+        if (badgeText) badgeText.textContent = `${savedDays}-day auto-purge active`;
+        await loadAndRenderDrafts();
+        alert(`Retention policy updated to ${savedDays} days. Expired drafts pruned.`);
+      } catch (err) {
+        alert(`Failed to update retention: ${err.message}`);
+      }
+    });
   }
 
   if (autostartCheck) {
@@ -688,8 +714,10 @@ async function setupSettingsView() {
       pruneBtn.disabled = true;
       pruneBtn.textContent = 'Pruning…';
       try {
-        const count = await pruneVault(14);
-        alert(`Prune complete: removed ${count} expired drafts and vacuumed SQLite database.`);
+        const days = parseInt(retentionSelect?.value || '14', 10);
+        const count = await pruneVault(days);
+        await loadAndRenderDrafts();
+        alert(`Prune complete: removed ${count} expired drafts older than ${days} days and reclaimed space.`);
       } catch (err) {
         alert(`Prune failed: ${err.message}`);
       } finally {

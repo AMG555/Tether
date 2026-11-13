@@ -609,10 +609,14 @@ main {
   background: #11141a;
   border-radius: var(--radius);
   margin-bottom: 12px;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 canvas#studio-canvas {
   display: block;
+  max-width: 100%;
+  height: auto;
 }
 
 .action-buttons-strip {
@@ -830,4 +834,143 @@ canvas#studio-canvas {
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   border: 0;
+}
+
+/* Responsive Layout Breakpoints */
+@media (max-width: 920px) {
+  .master-detail-grid {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .draft-list-pane {
+    border-right: none;
+    border-bottom: 1px solid var(--rule);
+    max-height: 280px;
+  }
+
+  .drafts-list {
+    max-height: 230px;
+  }
+
+  .studio-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .view-masthead {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .masthead {
+    padding: 12px 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .nav-tabs {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab-btn {
+    white-space: nowrap;
+    padding: 6px 10px;
+  }
+
+  .screen {
+    padding: 16px;
+  }
+
+  .active-pet-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .companions-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+  }
+
+  .metadata-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .path-text {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .form-row-3 {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .setting-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .setting-item .select-narrow,
+  .setting-item .btn {
+    width: 100%;
+  }
+
+  .detail-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .detail-actions {
+    width: 100%;
+  }
+
+  .detail-actions .btn {
+    flex: 1;
+  }
+
+  .detail-meta-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .meta-item-label {
+    margin-left: 0;
+  }
+
+  .footer {
+    flex-direction: column;
+    gap: 6px;
+    text-align: center;
+    padding: 12px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .brand-lockup {
+    gap: 8px;
+  }
+
+  .brand-name {
+    font-size: 16px;
+  }
+
+  #page-title {
+    font-size: 20px;
+  }
+
+  .metadata-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .companions-grid {
+    grid-template-columns: 1fr;
+  }
 }

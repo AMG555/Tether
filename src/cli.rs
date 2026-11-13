@@ -14,6 +14,7 @@ use std::time::Duration;
 use clap::{Parser, Subcommand};
 
 use crate::capture::{self, Mode};
+use crate::config::Config;
 use crate::crypto::SecretKey;
 use crate::engine::{Engine, FieldSnapshot};
 use crate::policy::Policy;
@@ -363,8 +364,9 @@ fn cmd_init(home: &Option<PathBuf>, show_key: bool) -> Result<(), Box<dyn std::e
 }
 
 fn cmd_recover(home: &Option<PathBuf>) -> Result<(), Box<dyn std::error::Error>> {
+    let (cfg, _) = Config::load_or_default(&data_dir(home));
     let vault = open_vault(home)?;
-    let _ = vault.prune_older_than(14);
+    let _ = vault.prune_older_than(cfg.retention_days);
     let ring_path = vault.ring_path();
     if !ring_path.exists() {
         println!("crash buffer is empty — nothing to recover.");
@@ -405,14 +407,16 @@ fn cmd_run(
     probe_ms: u64,
     quiet: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let (cfg, _) = Config::load_or_default(&data_dir(home));
     let vault = open_vault(home)?;
     let engine = Engine::new(vault, ring_slots, Policy::default())?;
+    engine.set_retention_days(cfg.retention_days);
 
     // Recovery FIRST: replaying the ring after new input would interleave old text into a
     // new draft and corrupt both.
     let recovered = engine.recover().unwrap_or(0);
-    // Automatic retention: purge rescues older than 14 days (2 weeks).
-    let _ = engine.vault().prune_older_than(14);
+    // Automatic retention: purge rescues older than the configured retention policy.
+    let _ = engine.vault().prune_older_than(cfg.retention_days);
 
     let source_mode = match mode {
         ModeArg::Auto => {
@@ -511,8 +515,9 @@ fn cmd_list(
     preview: usize,
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let (cfg, _) = Config::load_or_default(&data_dir(home));
     let vault = open_vault(home)?;
-    let _ = vault.prune_older_than(14);
+    let _ = vault.prune_older_than(cfg.retention_days);
     let rows = vault.list(limit, preview)?;
     if json {
         let out: Vec<_> = rows
