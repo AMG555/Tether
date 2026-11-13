@@ -1,0 +1,6 @@
+- [x] Confirm that `savepoint/` is the active project and that `hist/`, `itest/`, archives, and duplicate assets are stale
+- [x] Fix the thread-safe callback contract used by the capture engine and platform sources
+- [x] Run the Rust test suite and confirm all checks pass
+- [x] Build the release binary and confirm it compiles
+- [x] Clean up unused/stale files outside the active project
+- [x] Record project conventions in `.github/copilot-instructions.md`
