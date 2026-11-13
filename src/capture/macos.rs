@@ -13,7 +13,7 @@
 //! Unsigned-helper note: CFMachPort callbacks must return the event or it is consumed for
 //! the whole system. We always return it — Tether must be invisible to the user's typing.
 
-#![allow(non_snake_case, non_camel_case_types)]
+#![allow(non_snake_case, non_camel_case_types, dead_code)]
 
 use std::ffi::{c_void, CStr};
 use std::sync::atomic::{AtomicBool, Ordering};

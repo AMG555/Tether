@@ -15,7 +15,7 @@
 //! read the process name (cached per pid), build an `Event`, and push it on a channel.
 //! All policy, redaction, disk I/O and encryption happen on other threads.
 
-#![allow(non_snake_case, non_camel_case_types)]
+#![allow(non_snake_case, non_camel_case_types, dead_code)]
 
 use std::collections::HashMap;
 use std::ffi::c_void;
