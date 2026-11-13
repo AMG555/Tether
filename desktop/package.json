@@ -1,8 +1,26 @@
 {
   "name": "tether-desktop",
   "version": "0.1.0",
+  "description": "Ultra-lightweight local desktop companion and crash recovery shell for Tether",
   "private": true,
   "type": "module",
+  "author": "AMG <amg@tether.dev>",
+  "license": "MIT",
+  "homepage": "https://github.com/AMG555/Tether#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AMG555/Tether.git"
+  },
+  "keywords": [
+    "tether",
+    "crash-recovery",
+    "offline",
+    "zero-telemetry",
+    "tauri",
+    "desktop-app",
+    "privacy-first",
+    "local-first"
+  ],
   "engines": {
     "node": ">=22"
   },

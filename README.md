@@ -2,12 +2,21 @@
 
 # Tether
 
-**Recover unsaved text after an app crash, force-quit, or restart.**
+<p align="center">
+  <a href="https://github.com/AMG555/Tether/actions/workflows/ci.yml"><img src="https://github.com/AMG555/Tether/actions/workflows/ci.yml/badge.svg" alt="CI Status"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="https://blog.rust-lang.org/2023/12/28/Rust-1.75.0.html"><img src="https://img.shields.io/badge/rustc-1.75%2B-orange.svg" alt="Rust 1.75+"></a>
+  <a href="#weight-measured"><img src="https://img.shields.io/badge/binary-1.99--2.58_MB-success.svg" alt="Binary Size"></a>
+  <a href="#privacy-the-part-that-matters"><img src="https://img.shields.io/badge/network-zero-brightgreen.svg" alt="Zero Network"></a>
+  <a href="SECURITY.md"><img src="https://img.shields.io/badge/encryption-AES--256--GCM-blueviolet.svg" alt="AES-256-GCM"></a>
+</p>
 
-Tether is a local command-line recovery tool. While capture is running, it records supported text
-input and stores recoverable drafts in an encrypted local vault. Windows and macOS capture
+**100% offline crash recovery and typing autosave. Recover unsaved text after an app crash, freeze, force-quit, or OS restart.**
+
+Tether is a privacy-first, ultra-lightweight local crash recovery tool. While capture is running, it records supported text
+input into a sub-millisecond append-only ring buffer and commits encrypted drafts into an AES-256-GCM SQLite vault with zero network dependencies. It acts as an ethical, non-tracking recovery safeguard—never sending data anywhere, never capturing password fields, and masking payment and token secrets in place. Windows and macOS capture
 keystrokes; Linux is clipboard-only. Capture filters reduce risk, but they cannot recognize every
-sensitive field. Review [privacy](#privacy-the-part-that-matters) and
+sensitive field. Review [privacy](#privacy-the-part-that-matters), [security policy](SECURITY.md), and
 [known limitations](docs/limitations.md) before enabling it.
 
 An optional companion offers built-in characters and custom sprite or animated clip packs. Its CLI
@@ -102,8 +111,8 @@ npm --prefix desktop run tauri:dev
 ```
 
 This opens a native app window; it is not an installer. The current shell is a development preview:
-its Windows window opens, but its local metadata bridge is not yet initializing. Saved-text recovery
-and pet customization are also not in the shell yet; use the existing CLI workflows while those
+its native window opens and connects to the local metadata bridge via zero-network Tauri IPC. Saved-text recovery
+and pet customization are upcoming capabilities; use the existing CLI workflows while those
 desktop capabilities are built and verified.
 
 ## The first five minutes
