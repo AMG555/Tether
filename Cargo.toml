@@ -28,7 +28,7 @@ aes-gcm = "0.10"
 hkdf = "0.12"
 sha2 = "0.10"
 zeroize = { version = "1", features = ["derive"] }
-getrandom = "0.2"
+getrandom = "0.4"
 directories = "5"
 # CLI
 # `default-features = false` drops clap's colour + suggestion + error-context stack. Measured:
