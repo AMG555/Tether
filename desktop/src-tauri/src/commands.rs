@@ -521,16 +521,29 @@ pub fn install_catalog_companion(id: String) -> Result<CompanionItem, String> {
         }
     }
 
-    // 2. If not local, download from GitHub Releases asset storage and extract
+    // 2. If not local, download from GitHub Releases asset storage and extract.
+    //    Before writing anything to the data directory, fetch checksums.txt and verify
+    //    the SHA-256 of the downloaded zip.  Any mismatch is a hard error; the temp file
+    //    is deleted and nothing is written to the data directory.
     if !installed_from_local {
         let zip_url = format!(
             "https://github.com/AMG555/Tether/releases/download/v0.1.0/companion-{clean_id}.zip"
         );
+        let checksums_url =
+            "https://github.com/AMG555/Tether/releases/download/v0.1.0/checksums.txt";
         let temp_zip = std::env::temp_dir().join(format!("companion-{clean_id}.zip"));
+        let temp_checksums = std::env::temp_dir().join("tether-companion-checksums.txt");
+
+        // Helper: clean up temp files on any early return.
+        let cleanup = || {
+            let _ = std::fs::remove_file(&temp_zip);
+            let _ = std::fs::remove_file(&temp_checksums);
+        };
 
         // Download via curl or powershell
         #[cfg(target_os = "windows")]
         {
+            // Download the zip.
             let status = std::process::Command::new("curl.exe")
                 .args(["-fSL", &zip_url, "-o", temp_zip.to_str().unwrap_or_default()])
                 .status();
@@ -550,8 +563,39 @@ pub fn install_catalog_companion(id: String) -> Result<CompanionItem, String> {
                 }
             };
             if !downloaded {
+                cleanup();
                 return Err(format!("failed to download {clean_id} from GitHub Releases"));
             }
+
+            // Download checksums.txt.
+            let cs_ok = std::process::Command::new("curl.exe")
+                .args([
+                    "-fSL",
+                    checksums_url,
+                    "-o",
+                    temp_checksums.to_str().unwrap_or_default(),
+                ])
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+            if !cs_ok {
+                cleanup();
+                return Err("failed to download checksums.txt for verification".into());
+            }
+
+            // Verify SHA-256 before extracting.
+            let zip_bytes =
+                std::fs::read(&temp_zip).map_err(|e| format!("cannot read zip: {e}"))?;
+            let checksums_text = std::fs::read_to_string(&temp_checksums)
+                .map_err(|e| format!("cannot read checksums: {e}"))?;
+            let expected_filename = format!("companion-{clean_id}.zip");
+            if let Err(e) =
+                verify_checksum(&zip_bytes, &checksums_text, &expected_filename)
+            {
+                cleanup();
+                return Err(e);
+            }
+            let _ = std::fs::remove_file(&temp_checksums);
 
             let extract_status = std::process::Command::new("tar.exe")
                 .args([
@@ -584,12 +628,45 @@ pub fn install_catalog_companion(id: String) -> Result<CompanionItem, String> {
 
         #[cfg(not(target_os = "windows"))]
         {
+            // Download the zip.
             let status = std::process::Command::new("curl")
                 .args(["-fSL", &zip_url, "-o", temp_zip.to_str().unwrap_or_default()])
                 .status();
             if !status.map(|s| s.success()).unwrap_or(false) {
+                cleanup();
                 return Err(format!("failed to download {clean_id} from GitHub Releases"));
             }
+
+            // Download checksums.txt.
+            let cs_ok = std::process::Command::new("curl")
+                .args([
+                    "-fSL",
+                    checksums_url,
+                    "-o",
+                    temp_checksums.to_str().unwrap_or_default(),
+                ])
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+            if !cs_ok {
+                cleanup();
+                return Err("failed to download checksums.txt for verification".into());
+            }
+
+            // Verify SHA-256 before extracting.
+            let zip_bytes =
+                std::fs::read(&temp_zip).map_err(|e| format!("cannot read zip: {e}"))?;
+            let checksums_text = std::fs::read_to_string(&temp_checksums)
+                .map_err(|e| format!("cannot read checksums: {e}"))?;
+            let expected_filename = format!("companion-{clean_id}.zip");
+            if let Err(e) =
+                verify_checksum(&zip_bytes, &checksums_text, &expected_filename)
+            {
+                cleanup();
+                return Err(e);
+            }
+            let _ = std::fs::remove_file(&temp_checksums);
+
             let extract = std::process::Command::new("tar")
                 .args([
                     "-xf",
@@ -646,6 +723,59 @@ pub fn install_catalog_companion(id: String) -> Result<CompanionItem, String> {
     let json = serde_json::to_string_pretty(&item).map_err(|e| e.to_string())?;
     let _ = std::fs::write(&manifest_path, json);
     Ok(item)
+}
+
+/// Verifies the SHA-256 digest of `data` against a `checksums.txt` entry for `filename`.
+///
+/// `checksums.txt` format (one entry per line):
+/// `<hex-sha256>  <filename>`
+///
+/// Returns `Ok(())` if the digest matches, `Err(message)` otherwise.  Keeping this as
+/// a pure function (no I/O) makes it unit-testable without touching the network.
+pub fn verify_checksum(
+    data: &[u8],
+    checksums_txt: &str,
+    filename: &str,
+) -> Result<(), String> {
+    // Find the expected digest for this filename.
+    let expected_hex = checksums_txt
+        .lines()
+        .find_map(|line| {
+            // Allow both "  " (sha256sum style) and " " separators.
+            let line = line.trim();
+            if let Some((hex, name)) = line.split_once("  ").or_else(|| line.split_once(' ')) {
+                if name.trim() == filename {
+                    return Some(hex.trim().to_lowercase());
+                }
+            }
+            None
+        })
+        .ok_or_else(|| {
+            format!("companion-{filename} is not listed in checksums.txt — refusing to install an unlisted file")
+        })?;
+
+    if expected_hex.len() != 64 {
+        return Err(format!(
+            "checksums.txt entry for {filename} has unexpected length {} (want 64 hex chars)",
+            expected_hex.len()
+        ));
+    }
+
+    // Compute SHA-256 using the sha2 crate already in the dependency tree.
+    use sha2::Digest as _;
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(data);
+    let actual = hasher.finalize();
+    let actual_hex: String = actual.iter().map(|b| format!("{b:02x}")).collect();
+
+    if actual_hex != expected_hex {
+        return Err(format!(
+            "checksum mismatch for {filename}: \
+             expected {expected_hex}, got {actual_hex} — the file may be corrupt or tampered with"
+        ));
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -817,5 +947,59 @@ mod tests {
     fn get_companion_clip_returns_none_for_missing() {
         let clip = get_companion_clip("nonexistent-companion-xyz".into(), "idle".into()).unwrap();
         assert!(clip.is_none());
+    }
+
+    // ── verify_checksum unit tests ────────────────────────────────────────────
+
+    /// Build a real SHA-256 hex string for a byte slice using sha2 so the golden
+    /// value tracks any future dependency change automatically.
+    fn sha256_hex(data: &[u8]) -> String {
+        use sha2::Digest as _;
+        let digest = sha2::Sha256::digest(data);
+        digest.iter().map(|b| format!("{b:02x}")).collect()
+    }
+
+    #[test]
+    fn verify_checksum_accepts_matching_digest() {
+        let data = b"hello companion";
+        let hex = sha256_hex(data);
+        let checksums = format!("{hex}  companion-grace.zip\n");
+        assert!(
+            verify_checksum(data, &checksums, "companion-grace.zip").is_ok(),
+            "matching digest must be accepted"
+        );
+    }
+
+    #[test]
+    fn verify_checksum_rejects_wrong_digest() {
+        let data = b"real zip bytes";
+        let hex = sha256_hex(data);
+        let tampered = b"tampered zip bytes";
+        let checksums = format!("{hex}  companion-grace.zip\n");
+        let err = verify_checksum(tampered, &checksums, "companion-grace.zip")
+            .expect_err("mismatched digest must be rejected");
+        assert!(err.contains("mismatch"), "error should mention mismatch: {err}");
+    }
+
+    #[test]
+    fn verify_checksum_rejects_unlisted_filename() {
+        let data = b"some bytes";
+        let hex = sha256_hex(data);
+        let checksums = format!("{hex}  companion-rory.zip\n");
+        let err = verify_checksum(data, &checksums, "companion-grace.zip")
+            .expect_err("unlisted file must be rejected");
+        assert!(err.contains("not listed"), "error should mention not listed: {err}");
+    }
+
+    #[test]
+    fn verify_checksum_handles_single_space_separator() {
+        let data = b"single space format";
+        let hex = sha256_hex(data);
+        // Some tools emit a single space instead of two.
+        let checksums = format!("{hex} companion-finn.zip\n");
+        assert!(
+            verify_checksum(data, &checksums, "companion-finn.zip").is_ok(),
+            "single-space separator must be accepted"
+        );
     }
 }
