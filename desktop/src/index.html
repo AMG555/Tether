@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="color-scheme" content="light">
+    <meta name="color-scheme" content="dark light">
     <meta name="description" content="Tether Desktop - 100% offline personal workspace, crash recovery, and customizable companion instrument.">
     <meta name="keywords" content="tether, crash recovery, offline, local vault, zero telemetry, companion">
     <title>Tether — Desktop Instrument</title>
@@ -46,6 +46,7 @@
         </nav>
 
         <div class="masthead-actions">
+          <button type="button" id="theme-toggle-btn" class="btn-theme-toggle" aria-label="Toggle light/dark mode" title="Toggle light/dark mode">🌙</button>
           <button type="button" id="shortcuts-btn" class="btn btn-subtle btn-shortcuts" title="Keyboard Shortcuts (?)" aria-label="Keyboard Shortcuts">
             <span aria-hidden="true">⌨</span> Shortcuts
           </button>
@@ -636,7 +637,8 @@
 
         <div class="modal-body">
           <p class="dialog-text">
-            This will remove the startup service/shortcut and unhook Tether background capture.
+            This will remove the startup shortcut, unhook background capture, and launch the
+            Windows uninstaller to remove the application binary and its Start Menu entry.
           </p>
 
           <div class="danger-box">
@@ -645,8 +647,16 @@
               <strong>Also wipe encrypted local vault and encryption key</strong>
             </label>
             <p class="setting-hint">
-              If checked, all saved drafts, revisions, and keys in <code>~/.local/share/tether</code> will be permanently destroyed.
+              If checked, all saved drafts, revisions, and keys stored in
+              <code id="vault-path-hint">%LOCALAPPDATA%\tether\tether\data</code>
+              will be permanently destroyed.
             </p>
+          </div>
+
+          <div class="info-box" style="margin-top:12px;padding:10px 12px;background:var(--paper-sunk);border-radius:var(--radius);font-size:11px;line-height:1.6;">
+            <strong>Alternative:</strong> You can also uninstall from
+            <strong>Windows Settings → Apps → Installed apps → Tether</strong>
+            or via <code>winget uninstall Tether</code> in a terminal.
           </div>
 
           <div id="uninstall-result-box" class="uninstall-result hidden" role="status" aria-live="polite">

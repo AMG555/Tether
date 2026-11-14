@@ -99,6 +99,7 @@ export async function initializeApp(doc = document, loadAppInfo = getAppInfo) {
 }
 
 function setupUI() {
+  setupTheme();
   setupTabs();
   setupRecoveryView();
   setupCompanionsView();
@@ -106,6 +107,35 @@ function setupUI() {
   setupSettingsView();
   setupKeyboardShortcuts();
   setupDynamicTimingAndStatus();
+}
+
+// -----------------------------------------------------------------------------
+// Theme Toggle (dark/light)
+// -----------------------------------------------------------------------------
+function setupTheme() {
+  const stored = (typeof localStorage !== 'undefined' && localStorage.getItem('tether-theme')) || 'dark';
+  applyTheme(stored);
+
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      const next = current === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('tether-theme', next);
+      }
+    });
+  }
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) {
+    btn.textContent = theme === 'dark' ? '🌙' : '☀️';
+    btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -1074,7 +1104,17 @@ async function setupSettingsView() {
   const uninstallResultBox = document.getElementById('uninstall-result-box');
 
   if (uninstallAppBtn && uninstallModal) {
-    uninstallAppBtn.addEventListener('click', () => {
+    uninstallAppBtn.addEventListener('click', async () => {
+      // Fill in the real vault path before showing the modal.
+      const pathHint = document.getElementById('vault-path-hint');
+      if (pathHint) {
+        try {
+          const status = await getVaultStatus();
+          if (status?.vaultPath) pathHint.textContent = status.vaultPath;
+        } catch {
+          // leave the default placeholder
+        }
+      }
       uninstallModal.classList.remove('hidden');
       if (uninstallResultBox) uninstallResultBox.classList.add('hidden');
     });
@@ -1095,11 +1135,15 @@ async function setupSettingsView() {
           if (autostartCheck) autostartCheck.checked = false;
           if (uninstallResultBox) {
             uninstallResultBox.classList.remove('hidden');
+            const isLaunchingUninstaller = res.message.includes('Launching Windows uninstaller');
             uninstallResultBox.innerHTML = `
               <strong>${escapeHtml(res.message)}</strong><br>
-              <span>Startup service removed: ${res.autostartRemoved ? 'Yes' : 'Not installed'}</span><br>
-              <span>Vault purged: ${res.vaultPurged ? 'Yes' : 'Preserved'}</span><br>
-              <p style="margin-top:8px;font-size:11px;">You can now safely delete the Tether executable and desktop shortcut.</p>
+              <span>Startup shortcut removed: ${res.autostartRemoved ? 'Yes' : 'Not installed'}</span><br>
+              <span>Vault purged: ${res.vaultPurged ? 'Yes — all saved texts deleted' : 'Preserved'}</span><br>
+              ${isLaunchingUninstaller
+                ? '<p style="margin-top:8px;font-size:11px;">The Windows uninstaller is opening. Complete it to remove the application files.</p>'
+                : '<p style="margin-top:8px;font-size:11px;">To remove the application binary, go to <strong>Windows Settings → Apps → Tether</strong> and click Uninstall.</p>'
+              }
             `;
           }
           alert('Tether uninstallation completed.');
