@@ -816,6 +816,26 @@ pub fn uninstall_app(purge_data: bool) -> Result<UninstallResult, String> {
         false
     };
 
+    // On Windows: find the NSIS-generated uninstaller via `reg query`, launch it,
+    // then exit so the uninstaller can remove the binary while it is not in use.
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(uninst) = find_nsis_uninstall_string() {
+            let _ = std::process::Command::new(&uninst).spawn();
+            // Exit after a short delay so the UI can show the confirmation first.
+            std::thread::spawn(|| {
+                std::thread::sleep(std::time::Duration::from_millis(800));
+                std::process::exit(0);
+            });
+            return Ok(UninstallResult {
+                autostart_removed,
+                vault_purged,
+                vault_path: dir.display().to_string(),
+                message: "Launching Windows uninstaller — Tether will close now.".to_string(),
+            });
+        }
+    }
+
     Ok(UninstallResult {
         autostart_removed,
         vault_purged,
@@ -823,9 +843,49 @@ pub fn uninstall_app(purge_data: bool) -> Result<UninstallResult, String> {
         message: if vault_purged {
             "Autostart removed and local vault completely purged.".to_string()
         } else {
-            "Autostart removed. Local vault was preserved.".to_string()
+            "Autostart removed. Local vault was preserved. To fully remove Tether, \
+             use Add or Remove Programs in Windows Settings."
+                .to_string()
         },
     })
+}
+
+/// Queries the Windows registry for the NSIS `UninstallString` value.
+/// Checks both HKCU (currentUser install) and HKLM (perMachine install).
+/// Uses `reg query` so no extra crate dependency is needed.
+#[cfg(target_os = "windows")]
+fn find_nsis_uninstall_string() -> Option<String> {
+    let keys = [
+        r"HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\app.tether.desktop",
+        r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\app.tether.desktop",
+        r"HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Tether",
+        r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Tether",
+        r"HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\app.tether.desktop",
+        r"HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Tether",
+    ];
+    for key in &keys {
+        let out = std::process::Command::new("reg")
+            .args(["query", key, "/v", "UninstallString"])
+            .output();
+        if let Ok(o) = out {
+            if o.status.success() {
+                let text = String::from_utf8_lossy(&o.stdout);
+                // Output format: "    UninstallString    REG_SZ    C:\path\to\uninst.exe"
+                for line in text.lines() {
+                    if line.contains("UninstallString") {
+                        // Split on "REG_SZ" and take what follows.
+                        if let Some(pos) = line.find("REG_SZ") {
+                            let path = line[pos + 6..].trim().trim_matches('"');
+                            if !path.is_empty() {
+                                return Some(path.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 #[tauri::command]
