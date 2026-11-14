@@ -21,8 +21,10 @@ path = "src/lib.rs"
 # Storage. Bundled SQLite => no system deps, single static binary, mature crash semantics (WAL).
 rusqlite = { version = "0.31", features = ["bundled", "blob"] }
 # Serialization of drafts/metadata (never the plaintext secrets themselves).
+# default-features = false drops float_roundtrip, arbitrary_precision, preserve_order,
+# raw_value, unbounded_depth — none of which Tether uses. Measured: ~8 KB binary savings.
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", default-features = false, features = ["std"] }
 # Crypto. AES-256-GCM = authenticated encryption; tampering is detected, not silently decrypted.
 aes-gcm = "0.10"
 hkdf = "0.12"

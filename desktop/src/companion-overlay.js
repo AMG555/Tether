@@ -49,8 +49,22 @@ pickNextState();
 const canvas = document.getElementById('companion-canvas');
 const ctx = canvas.getContext('2d');
 let animTime = 0;
+let rafId = null;
+
+function startAnim() {
+  if (rafId !== null) return;
+  rafId = requestAnimationFrame(renderFrame);
+}
+
+function stopAnim() {
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+}
 
 function renderFrame(timestamp) {
+  rafId = null;
   animTime += 0.04;
 
   // Switch state if timer elapsed
@@ -168,10 +182,15 @@ function renderFrame(timestamp) {
     ctx.fillText('⚡', cx + 30, cy - 68 - bob);
   }
 
-  requestAnimationFrame(renderFrame);
+  rafId = requestAnimationFrame(renderFrame);
 }
 
-requestAnimationFrame(renderFrame);
+startAnim();
+
+// Pause when window is hidden (user switched focus away from overlay)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { stopAnim(); } else { startAnim(); }
+});
 
 // ─── Drag to move window ─────────────────────────────────────────────────────
 

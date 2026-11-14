@@ -851,8 +851,23 @@ function setupStudioView() {
     eyesPicker.addEventListener('input', () => { customColors.eyes = eyesPicker.value; });
   }
 
-  // Animation Loop
+  // Animation Loop — only runs while the Studio tab is visible.
+  let animRafId = null;
+
+  function startAnim() {
+    if (animRafId !== null) return; // already running
+    animRafId = requestAnimationFrame(renderFrame);
+  }
+
+  function stopAnim() {
+    if (animRafId !== null) {
+      cancelAnimationFrame(animRafId);
+      animRafId = null;
+    }
+  }
+
   function renderFrame() {
+    animRafId = null; // cleared before re-requesting so stopAnim() works mid-frame
     animTime += 0.04;
     const w = canvas.width;
     const h = canvas.height;
@@ -979,10 +994,26 @@ function setupStudioView() {
       ctx.fillText('⚡', cx + 40, cy - 85 - bob);
     }
 
-    requestAnimationFrame(renderFrame);
+    animRafId = requestAnimationFrame(renderFrame);
   }
 
-  requestAnimationFrame(renderFrame);
+  // Start animation only when Studio tab is active, stop when hidden.
+  const studioSection = document.getElementById('view-studio');
+  if (studioSection) {
+    const studioObserver = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) { startAnim(); } else { stopAnim(); }
+      },
+      { threshold: 0.01 },
+    );
+    studioObserver.observe(studioSection);
+    // Also gate on document visibility
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { stopAnim(); } else if (!studioSection.hidden) { startAnim(); }
+    });
+  } else {
+    startAnim(); // fallback: canvas exists but section detection unavailable
+  }
 
   if (form) {
     form.addEventListener('submit', async (e) => {
