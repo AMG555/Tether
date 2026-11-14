@@ -21,11 +21,34 @@
         "minWidth": 600,
         "minHeight": 480,
         "resizable": true
+      },
+      {
+        "label": "companion-overlay",
+        "url": "companion-overlay.html",
+        "title": "Tether Companion",
+        "width": 220,
+        "height": 280,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false
       }
     ]
   },
   "bundle": {
-    "active": false,
-    "icon": ["icons/icon.ico"]
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/icon.png", "icons/icon.ico"],
+    "resources": {},
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "minimumWebview2Version": "109.0.1518.78",
+        "languages": ["English"],
+        "startMenuFolder": "Tether",
+        "compression": "lzma"
+      }
+    }
   }
 }

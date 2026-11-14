@@ -10,7 +10,7 @@ Everything here is reproducible with the commands shown. Numbers were taken on L
 
 | Measure | Value | How |
 | --- | --- | --- |
-| On disk, stripped | **2,089,960 bytes (1.99 MB)** | `ls -l target/release/tether` |
+| On disk, stripped | **2,090,696 bytes (1.99 MB)** | `ls -l target/release/tether` |
 | Resident memory, long-running capture | **4,188 kB (4.1 MB)** | `VmRSS` after 2 s of `tether run` |
 | Peak resident | 4,192 kB | `VmHWM` |
 | Text section | 1.45 MB | `size -A` |
@@ -97,7 +97,7 @@ measurement carried forward:
 
 | Measure | Value | How |
 |---|---|---|
-| Binary | 2 089 960 B (1.99 MB) | `ls -l target/release/tether` |
+| Binary | 2 090 696 B (1.99 MB) | `ls -l target/release/tether` |
 | Startup (`tether status`, 12 runs) | min 4.1 ms, median **4.4 ms**, max 5.1 ms | subprocess timing in a loop |
 | Idle RSS, capture running | **4 248 kB**, flat across 4 s of sampling | `/proc/$PID/status` VmRSS |
 | Ingest | **4.13 µs**/keystroke | 50 000 `ingest()` calls after a 2 000-key warmup |

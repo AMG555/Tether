@@ -99,6 +99,7 @@ export async function initializeApp(doc = document, loadAppInfo = getAppInfo) {
 }
 
 function setupUI() {
+  setupTheme();
   setupTabs();
   setupRecoveryView();
   setupCompanionsView();
@@ -106,6 +107,35 @@ function setupUI() {
   setupSettingsView();
   setupKeyboardShortcuts();
   setupDynamicTimingAndStatus();
+}
+
+// -----------------------------------------------------------------------------
+// Theme Toggle (dark/light)
+// -----------------------------------------------------------------------------
+function setupTheme() {
+  const stored = (typeof localStorage !== 'undefined' && localStorage.getItem('tether-theme')) || 'dark';
+  applyTheme(stored);
+
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      const next = current === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('tether-theme', next);
+      }
+    });
+  }
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) {
+    btn.textContent = theme === 'dark' ? '🌙' : '☀️';
+    btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -493,6 +523,23 @@ async function setupCompanionsView() {
         activePetId = c.id;
         const activeName = document.getElementById('active-companion-name');
         if (activeName) activeName.textContent = c.name;
+
+        // Persist active companion for the overlay window
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('tether-active-companion', JSON.stringify({
+            id: c.id,
+            name: c.name,
+            colors: c.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' },
+          }));
+        }
+
+        // Show the companion overlay window
+        if (window.__TAURI__) {
+          window.__TAURI__.webviewWindow.getByLabel('companion-overlay').then((w) => {
+            if (w) { w.show(); w.setFocus(); }
+          }).catch(() => {});
+        }
+
         renderGrid();
       });
 
@@ -725,10 +772,26 @@ function setupPreviewModalHandlers() {
       activePetId = previewCompanion.id;
       const activeName = document.getElementById('active-companion-name');
       if (activeName) activeName.textContent = previewCompanion.name;
-      const grid = document.getElementById('companions-grid');
       document.querySelectorAll('.companion-card').forEach((card) => {
         card.classList.remove('active-pet');
       });
+
+      // Persist active companion for the overlay window
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('tether-active-companion', JSON.stringify({
+          id: previewCompanion.id,
+          name: previewCompanion.name,
+          colors: previewCompanion.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' },
+        }));
+      }
+
+      // Show the companion overlay window
+      if (window.__TAURI__) {
+        window.__TAURI__.webviewWindow.getByLabel('companion-overlay').then((w) => {
+          if (w) { w.show(); w.setFocus(); }
+        }).catch(() => {});
+      }
+
       alert(`Companion "${previewCompanion.name}" is now your active companion!`);
       modal?.classList.add('hidden');
     }
@@ -1035,6 +1098,18 @@ async function setupSettingsView() {
     });
   }
 
+  // Companion overlay controls
+  const hideCompanionBtn = document.getElementById('hide-companion-btn');
+  if (hideCompanionBtn) {
+    hideCompanionBtn.addEventListener('click', () => {
+      if (window.__TAURI__) {
+        window.__TAURI__.webviewWindow.getByLabel('companion-overlay').then((w) => {
+          if (w) w.hide();
+        }).catch(() => {});
+      }
+    });
+  }
+
   // Danger Zone & Uninstall Handlers
   const uninstallAutostartBtn = document.getElementById('uninstall-autostart-btn');
   if (uninstallAutostartBtn) {
@@ -1074,7 +1149,17 @@ async function setupSettingsView() {
   const uninstallResultBox = document.getElementById('uninstall-result-box');
 
   if (uninstallAppBtn && uninstallModal) {
-    uninstallAppBtn.addEventListener('click', () => {
+    uninstallAppBtn.addEventListener('click', async () => {
+      // Fill in the real vault path before showing the modal.
+      const pathHint = document.getElementById('vault-path-hint');
+      if (pathHint) {
+        try {
+          const status = await getVaultStatus();
+          if (status?.vaultPath) pathHint.textContent = status.vaultPath;
+        } catch {
+          // leave the default placeholder
+        }
+      }
       uninstallModal.classList.remove('hidden');
       if (uninstallResultBox) uninstallResultBox.classList.add('hidden');
     });
@@ -1095,11 +1180,15 @@ async function setupSettingsView() {
           if (autostartCheck) autostartCheck.checked = false;
           if (uninstallResultBox) {
             uninstallResultBox.classList.remove('hidden');
+            const isLaunchingUninstaller = res.message.includes('Launching Windows uninstaller');
             uninstallResultBox.innerHTML = `
               <strong>${escapeHtml(res.message)}</strong><br>
-              <span>Startup service removed: ${res.autostartRemoved ? 'Yes' : 'Not installed'}</span><br>
-              <span>Vault purged: ${res.vaultPurged ? 'Yes' : 'Preserved'}</span><br>
-              <p style="margin-top:8px;font-size:11px;">You can now safely delete the Tether executable and desktop shortcut.</p>
+              <span>Startup shortcut removed: ${res.autostartRemoved ? 'Yes' : 'Not installed'}</span><br>
+              <span>Vault purged: ${res.vaultPurged ? 'Yes — all saved texts deleted' : 'Preserved'}</span><br>
+              ${isLaunchingUninstaller
+                ? '<p style="margin-top:8px;font-size:11px;">The Windows uninstaller is opening. Complete it to remove the application files.</p>'
+                : '<p style="margin-top:8px;font-size:11px;">To remove the application binary, go to <strong>Windows Settings → Apps → Tether</strong> and click Uninstall.</p>'
+              }
             `;
           }
           alert('Tether uninstallation completed.');

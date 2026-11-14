@@ -27,7 +27,7 @@ pub const KEY_FILE: &str = "key.txt";
 #[command(
     name = "tether",
     about = "Crash-proof, offline, encrypted typing recovery.",
-    long_about = "Tether keeps an encrypted, encrypted-at-rest copy of whatever you are \
+    long_about = "Tether keeps an encrypted, at-rest copy of whatever you are \
 typing, so a crash, a force-quit or a dead battery never costs you a half-written prompt again.\n\
 Everything stays on this machine. No account, no network, no telemetry.",
     version,

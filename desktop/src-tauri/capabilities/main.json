@@ -1,8 +1,7 @@
 {
-  "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
   "description": "Local Tether main window with least-privilege commands",
-  "windows": ["main"],
+  "windows": ["main", "companion-overlay"],
   "permissions": [
     "allow-get-app-info",
     "allow-get-vault-status",
@@ -22,6 +21,11 @@
     "allow-purge-vault-data",
     "allow-uninstall-app",
     "allow-get-companion-clip",
-    "allow-get-system-status"
+    "allow-get-system-status",
+    "core:window:allow-get-all-windows",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-position",
+    "core:window:allow-set-always-on-top"
   ]
 }

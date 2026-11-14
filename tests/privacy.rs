@@ -170,6 +170,113 @@ fn dependencies_are_offline_only() {
     }
 }
 
+/// The shipped source of non-test modules must contain no subprocess calls to network
+/// tools (curl, wget, powershell) and no direct TCP/UDP socket construction.
+/// This is a static source-level check; it catches a network backdoor even when no
+/// crate-level dependency was added.
+#[test]
+fn shipped_source_contains_no_network_calls() {
+    // Modules that ship in the binary (non-test code paths only).
+    let sources = [
+        include_str!("../src/cli.rs"),
+        include_str!("../src/engine.rs"),
+        include_str!("../src/companion.rs"),
+        include_str!("../src/pack.rs"),
+        include_str!("../src/setup.rs"),
+        include_str!("../src/avatar/audit.rs"),
+    ];
+
+    // Patterns whose presence in shipped (non-#[cfg(test)]) code is forbidden.
+    let banned_patterns = [
+        "Command::new(\"curl\")",
+        "Command::new(\"wget\")",
+        "Command::new(\"powershell\")",
+        "Command::new(\"powershell.exe\")",
+        "TcpStream",
+        "UdpSocket",
+        "std::net::",
+    ];
+
+    for source in &sources {
+        // Strip test modules so assertions inside #[cfg(test)] blocks don't fire.
+        // A test that *checks for* a banned pattern would otherwise self-report.
+        let shipped = strip_test_modules(source);
+        for pat in &banned_patterns {
+            assert!(
+                !shipped.contains(pat),
+                "shipped source contains forbidden network pattern `{pat}`"
+            );
+        }
+    }
+}
+
+/// Verify the guard fires: inserting a banned pattern into a synthetic source string
+/// is detected.  Without this the test could silently pass because `strip_test_modules`
+/// accidentally removes everything.
+#[test]
+fn network_source_scan_detects_violation() {
+    let synthetic = r#"
+fn download() {
+    let _ = std::process::Command::new("curl").arg("https://example.com").status();
+}
+"#;
+    let shipped = strip_test_modules(synthetic);
+    assert!(
+        shipped.contains("Command::new(\"curl\")"),
+        "the synthetic violation must survive stripping so the guard can catch it"
+    );
+}
+
+/// Removes `#[cfg(test)] mod tests { … }` blocks from source so the network-call
+/// scanner does not flag patterns that appear only in tests.
+fn strip_test_modules(src: &str) -> String {
+    let mut out = String::with_capacity(src.len());
+    let mut depth: i32 = 0;
+    let mut in_test_block = false;
+    let mut skip_depth: i32 = 0;
+    let chars = src.chars();
+
+    // Simple brace-depth scanner — does not understand string literals or comments,
+    // but that is fine: the patterns we look for ("TcpStream", etc.) are not strings
+    // that appear inside comments in the shipped source.
+    for c in chars {
+        if !in_test_block {
+            // Look for the two-line pattern `#[cfg(test)]` … `mod tests {`
+            // by checking the accumulated output tail.
+            out.push(c);
+            if c == '{' {
+                depth += 1;
+                // Check whether the last token before `{` is a cfg(test) mod.
+                let tail = out.trim_end_matches('{').trim_end();
+                if tail.ends_with("mod tests") || tail.ends_with("mod test") {
+                    // Walk back through the output to find the matching `#[cfg(test)]`.
+                    let before = &out[..out.len() - 1]; // without the `{`
+                    if before.contains("#[cfg(test)]") {
+                        in_test_block = true;
+                        skip_depth = depth;
+                        // Remove everything from #[cfg(test)] onward.
+                        let marker = before.rfind("#[cfg(test)]").unwrap();
+                        out.truncate(marker);
+                    }
+                }
+            } else if c == '}' {
+                depth -= 1;
+            }
+        } else {
+            // Inside a test block: count braces until we close the opening one.
+            if c == '{' {
+                depth += 1;
+            } else if c == '}' {
+                depth -= 1;
+                if depth < skip_depth {
+                    in_test_block = false;
+                }
+            }
+        }
+    }
+    out
+}
+
 /// Deletion must actually remove the bytes, not just the row pointer.
 #[test]
 fn delete_leaves_no_recoverable_text() {

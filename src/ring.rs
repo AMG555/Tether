@@ -253,6 +253,12 @@ impl CrashRing {
         // destroy the only recoverable bytes without a word.
         let want = (HEADER_SIZE + slots * SLOT_SIZE) as u64;
         let actual = file.metadata()?.len();
+        // A brand-new 0-byte file must be pre-sized so writes never extend it mid-crash
+        // (a mid-crash extension can silently produce a sparse tail).  A file that is
+        // short but non-empty may be all that survived a full disk or a partial copy —
+        // extending it with zeros would destroy the only recoverable bytes, so we set
+        // `short_file` and let `drain` salvage what it can before we touch the size.
+        let short_file = actual > 0 && actual < want;
         let mut me = Self {
             path,
             file,
@@ -262,9 +268,12 @@ impl CrashRing {
             written: 0,
             salvaged: false,
             header_corrupt: false,
-            short_file: actual < want,
+            short_file,
         };
-        if !me.short_file && actual != want {
+        if actual == 0 {
+            // Fresh file: pre-size to the full ring shape right away.
+            me.file.set_len(want)?;
+        } else if !me.short_file && actual != want {
             // Longer than expected: truncate back to the ring shape.
             me.file.set_len(want)?;
         }
@@ -660,5 +669,74 @@ mod tests {
         let _ = CrashRing::open(&path, 16, testkey()).unwrap();
         let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o600, "the crash ring must not be world-readable, got {mode:o}");
+    }
+
+    // Regression: a fresh 0-byte ring was classified as `short_file`, so the pre-size
+    // was skipped, the file grew one slot per push, and `drain` always took the salvage
+    // branch on a new install's first crash — printing "the crash buffer's header was
+    // damaged" on every clean recovery.
+    #[test]
+    fn fresh_ring_is_pre_sized_not_salvaged_and_stable_after_push() {
+        let d = tempfile::tempdir().unwrap();
+        let path = d.path().join("ring.bin");
+        let want = (HEADER_SIZE + 16 * SLOT_SIZE) as u64;
+
+        // After open the file must already be the full ring size.
+        let mut ring = CrashRing::open(&path, 16, testkey()).unwrap();
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().len(),
+            want,
+            "fresh ring must be pre-sized on creation"
+        );
+
+        // After a push the file must not have grown.
+        let mut ev = Event::new(EV_CHAR, "t");
+        ev.set_text("x");
+        ring.push(&ev).unwrap();
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().len(),
+            want,
+            "file must not grow after push into a pre-sized ring"
+        );
+
+        // drain must not take the salvage path.
+        let events = ring.drain().unwrap();
+        assert!(!ring.salvaged(), "a fresh ring must never be salvaged");
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].text_str(), "x");
+    }
+
+    // A file that is short AND has content (partial copy / full-disk mid-write) must
+    // still return its surviving events rather than being silently discarded.
+    #[test]
+    fn truncated_ring_with_content_returns_surviving_events() {
+        let d = tempfile::tempdir().unwrap();
+        let path = d.path().join("ring.bin");
+
+        // Write several events, then truncate mid-ring.
+        {
+            let mut ring = CrashRing::open(&path, 16, testkey()).unwrap();
+            for c in "abcde".chars() {
+                let mut ev = Event::new(EV_CHAR, "t");
+                ev.set_text(&c.to_string());
+                ring.push(&ev).unwrap();
+            }
+            ring.sync().unwrap();
+        }
+
+        // Cut the file so only the first 3 data slots survive (beyond the header).
+        let full_len = std::fs::metadata(&path).unwrap().len();
+        let truncated_len = HEADER_SIZE as u64 + 3 * SLOT_SIZE as u64;
+        assert!(truncated_len < full_len, "sanity: cut must actually shorten the file");
+        {
+            let f = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+            f.set_len(truncated_len).unwrap();
+        }
+
+        let mut ring = CrashRing::open(&path, 16, testkey()).unwrap();
+        let text: String = ring.drain().unwrap().iter().map(|e| e.text_str()).collect();
+        // The 3 surviving slots hold "abc".
+        assert_eq!(text, "abc", "surviving slots must be recovered in order");
+        assert!(ring.salvaged(), "a short-with-content ring must be salvaged, not silently empty");
     }
 }

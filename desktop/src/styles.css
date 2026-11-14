@@ -1,4 +1,61 @@
+/* ─── Colour tokens — dark by default ──────────────────────────────────────── */
 :root {
+  color-scheme: dark;
+  --paper: #1a1b1e;
+  --paper-sunk: #141517;
+  --paper-raised: #25262b;
+  --ink: #c9cad0;
+  --ink-soft: #909296;
+  --ink-faint: #5c5f66;
+  --rule: #2c2e33;
+  --rule-strong: #373a40;
+  --signal: #e05c4b;
+  --signal-wash: #3d1f1a;
+  --ok: #2f9e44;
+  --ok-wash: #1a2e1f;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  --text: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --radius: 2px;
+}
+
+/* Explicit dark-theme attribute */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #1a1b1e;
+  --paper-sunk: #141517;
+  --paper-raised: #25262b;
+  --ink: #c9cad0;
+  --ink-soft: #909296;
+  --ink-faint: #5c5f66;
+  --rule: #2c2e33;
+  --rule-strong: #373a40;
+  --signal: #e05c4b;
+  --signal-wash: #3d1f1a;
+  --ok: #2f9e44;
+  --ok-wash: #1a2e1f;
+}
+
+/* OS dark preference (when no explicit data-theme is set) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #1a1b1e;
+    --paper-sunk: #141517;
+    --paper-raised: #25262b;
+    --ink: #c9cad0;
+    --ink-soft: #909296;
+    --ink-faint: #5c5f66;
+    --rule: #2c2e33;
+    --rule-strong: #373a40;
+    --signal: #e05c4b;
+    --signal-wash: #3d1f1a;
+    --ok: #2f9e44;
+    --ok-wash: #1a2e1f;
+  }
+}
+
+/* Explicit light-theme attribute */
+:root[data-theme="light"] {
   color-scheme: light;
   --paper: #f2efe6;
   --paper-sunk: #e7e3d7;
@@ -11,9 +68,26 @@
   --signal: #c2331a;
   --signal-wash: #f3ded9;
   --ok: #1f6b3a;
-  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
-  --text: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
-  --radius: 2px;
+  --ok-wash: #e8f5ec;
+}
+
+/* OS light preference (when no explicit data-theme is set) */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --paper: #f2efe6;
+    --paper-sunk: #e7e3d7;
+    --paper-raised: #fbf9f3;
+    --ink: #14120f;
+    --ink-soft: #4a443c;
+    --ink-faint: #71695e;
+    --rule: #cdc7b8;
+    --rule-strong: #a9a192;
+    --signal: #c2331a;
+    --signal-wash: #f3ded9;
+    --ok: #1f6b3a;
+    --ok-wash: #e8f5ec;
+  }
 }
 
 * {
@@ -1015,16 +1089,16 @@ canvas#studio-canvas {
   margin-left: 8px;
   padding: 3px 8px;
   border-radius: 9999px;
-  background: rgba(31, 107, 58, 0.12);
-  color: #166534;
+  background: var(--ok-wash);
+  color: var(--ok);
   font-weight: 600;
   font-family: var(--mono);
 }
 
 /* Danger Zone & Uninstall */
 .danger-zone {
-  border-color: rgba(194, 51, 26, 0.4);
-  background: #fdfaf9;
+  border-color: rgba(224, 92, 75, 0.4);
+  background: var(--paper-sunk);
 }
 
 .danger-title {
@@ -1038,8 +1112,8 @@ canvas#studio-canvas {
 .danger-box {
   margin-top: 14px;
   padding: 12px;
-  background: rgba(194, 51, 26, 0.06);
-  border: 1px solid rgba(194, 51, 26, 0.25);
+  background: rgba(224, 92, 75, 0.08);
+  border: 1px solid rgba(224, 92, 75, 0.25);
   border-radius: var(--radius);
 }
 
@@ -1326,11 +1400,29 @@ kbd {
 .uninstall-result {
   margin-top: 14px;
   padding: 12px;
-  background: rgba(31, 107, 58, 0.1);
-  border: 1px solid #166534;
-  color: #166534;
+  background: var(--ok-wash);
+  border: 1px solid var(--ok);
+  color: var(--ok);
   border-radius: var(--radius);
   font-size: 12px;
   font-weight: 600;
+}
+
+/* Theme toggle button */
+.btn-theme-toggle {
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-size: 15px;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.btn-theme-toggle:hover {
+  border-color: var(--ink);
+  color: var(--ink);
 }
 
