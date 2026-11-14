@@ -11,6 +11,7 @@ key.txt
 salt.bin
 ring.bin
 .DS_Store
+.bob
 
 # Scratch output from headless visual checks
 /gui/shot-*.png

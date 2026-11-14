@@ -923,6 +923,15 @@ pub fn get_companion_clip(id: String, action: String) -> Result<Option<String>, 
     Ok(None)
 }
 
+/// Shows (un-hides) the main application window.
+/// Called from the frontend when the user wants to bring Tether back after the
+/// window was hidden via the close button — no extra plugin or OS permission needed.
+#[tauri::command]
+pub fn show_main_window(window: tauri::Window) -> Result<(), String> {
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn get_system_status() -> Result<SystemStatusInfo, String> {
     let dir = tether::default_data_dir();

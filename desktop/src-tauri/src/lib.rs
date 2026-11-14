@@ -21,6 +21,18 @@ pub fn run() -> Result<(), tauri::Error> {
             .build()?;
             Ok(())
         })
+        // Intercept the X-button close so the window hides rather than terminating
+        // the process. The app keeps capturing in the background; users exit cleanly
+        // from Settings → Uninstall or via the system tray (future).
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // Only hide the main window; the companion overlay may already be hidden.
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::get_app_info,
             commands::get_vault_status,
@@ -41,6 +53,7 @@ pub fn run() -> Result<(), tauri::Error> {
             commands::uninstall_app,
             commands::get_companion_clip,
             commands::get_system_status,
+            commands::show_main_window,
         ])
         .run(tauri::generate_context!());
 

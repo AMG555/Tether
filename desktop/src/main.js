@@ -18,6 +18,7 @@ import {
   uninstallApp,
   getCompanionClip,
   getSystemStatus,
+  showMainWindow,
 } from './api.js';
 
 const genericFailureMessage = 'Tether could not load app information.';
@@ -1141,6 +1142,14 @@ async function setupSettingsView() {
     });
   }
 
+  // Show main window (after it was hidden via close button)
+  const showWindowBtn = document.getElementById('show-window-btn');
+  if (showWindowBtn) {
+    showWindowBtn.addEventListener('click', () => {
+      showMainWindow();
+    });
+  }
+
   // Danger Zone & Uninstall Handlers
   const uninstallAutostartBtn = document.getElementById('uninstall-autostart-btn');
   if (uninstallAutostartBtn) {
@@ -1306,6 +1315,13 @@ function setupKeyboardShortcuts() {
         e.preventDefault();
         document.querySelector('.tab-btn[data-tab="settings"]')?.click();
       }
+    }
+
+    // Ctrl+Alt+T: bring the window back to the foreground (mirrors the global OS hotkey).
+    // This fires while the window is already visible, which is the "already open" case.
+    if (e.ctrlKey && e.altKey && (e.key === 't' || e.key === 'T')) {
+      e.preventDefault();
+      showMainWindow();
     }
   });
 }

@@ -386,3 +386,17 @@ export async function getSystemStatus() {
     throw new AppApiError('OPERATION_FAILED', String(error));
   }
 }
+
+/**
+ * Shows (un-hides) the main window after it was hidden by the close button.
+ * @returns {Promise<void>}
+ */
+export async function showMainWindow() {
+  const invoke = getInvoker();
+  if (!invoke) return;
+  try {
+    await invoke('show_main_window');
+  } catch {
+    // Best-effort: if the bridge is gone the window is already visible.
+  }
+}
