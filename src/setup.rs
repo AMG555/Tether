@@ -325,12 +325,11 @@ pub fn uninstall_autostart() -> Result<bool, String> {
     #[cfg(target_os = "linux")]
     {
         let mut removed = false;
-        if let Some(dir) = std::env::var_os("XDG_CONFIG_HOME")
-            .map(std::path::PathBuf::from)
-            .or_else(|| {
-                std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".config"))
-            })
-        {
+        let config_dir: Option<std::path::PathBuf> = match std::env::var_os("XDG_CONFIG_HOME") {
+            Some(v) => Some(std::path::PathBuf::from(v)),
+            None => std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".config")),
+        };
+        if let Some(dir) = config_dir {
             let p1 = dir.join("systemd/user/tether.service");
             if p1.exists() {
                 let _ = std::fs::remove_file(p1);
