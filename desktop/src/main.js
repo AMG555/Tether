@@ -523,6 +523,23 @@ async function setupCompanionsView() {
         activePetId = c.id;
         const activeName = document.getElementById('active-companion-name');
         if (activeName) activeName.textContent = c.name;
+
+        // Persist active companion for the overlay window
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('tether-active-companion', JSON.stringify({
+            id: c.id,
+            name: c.name,
+            colors: c.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' },
+          }));
+        }
+
+        // Show the companion overlay window
+        if (window.__TAURI__) {
+          window.__TAURI__.webviewWindow.getByLabel('companion-overlay').then((w) => {
+            if (w) { w.show(); w.setFocus(); }
+          }).catch(() => {});
+        }
+
         renderGrid();
       });
 
@@ -755,10 +772,26 @@ function setupPreviewModalHandlers() {
       activePetId = previewCompanion.id;
       const activeName = document.getElementById('active-companion-name');
       if (activeName) activeName.textContent = previewCompanion.name;
-      const grid = document.getElementById('companions-grid');
       document.querySelectorAll('.companion-card').forEach((card) => {
         card.classList.remove('active-pet');
       });
+
+      // Persist active companion for the overlay window
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('tether-active-companion', JSON.stringify({
+          id: previewCompanion.id,
+          name: previewCompanion.name,
+          colors: previewCompanion.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' },
+        }));
+      }
+
+      // Show the companion overlay window
+      if (window.__TAURI__) {
+        window.__TAURI__.webviewWindow.getByLabel('companion-overlay').then((w) => {
+          if (w) { w.show(); w.setFocus(); }
+        }).catch(() => {});
+      }
+
       alert(`Companion "${previewCompanion.name}" is now your active companion!`);
       modal?.classList.add('hidden');
     }
@@ -1061,6 +1094,18 @@ async function setupSettingsView() {
       } finally {
         pruneBtn.disabled = false;
         pruneBtn.textContent = 'Prune Expired Now';
+      }
+    });
+  }
+
+  // Companion overlay controls
+  const hideCompanionBtn = document.getElementById('hide-companion-btn');
+  if (hideCompanionBtn) {
+    hideCompanionBtn.addEventListener('click', () => {
+      if (window.__TAURI__) {
+        window.__TAURI__.webviewWindow.getByLabel('companion-overlay').then((w) => {
+          if (w) w.hide();
+        }).catch(() => {});
       }
     });
   }

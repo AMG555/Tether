@@ -3,6 +3,24 @@ mod diagnostics;
 
 pub fn run() -> Result<(), tauri::Error> {
     let result = tauri::Builder::default()
+        .setup(|app| {
+            // Companion overlay window — transparent, always-on-top, no decorations.
+            // Hidden until a companion is activated from the main window.
+            let _overlay = tauri::WebviewWindowBuilder::new(
+                app,
+                "companion-overlay",
+                tauri::WebviewUrl::App("companion-overlay.html".into()),
+            )
+            .title("Tether Companion")
+            .inner_size(220.0, 280.0)
+            .decorations(false)
+            .transparent(true)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .visible(false)
+            .build()?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::get_app_info,
             commands::get_vault_status,
