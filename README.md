@@ -12,20 +12,19 @@
   <a href="https://blog.rust-lang.org/2023/12/28/Rust-1.75.0.html"><img src="https://img.shields.io/badge/rustc-1.75%2B-orange.svg" alt="Rust 1.75+"></a>
   <a href="#desktop-application--gui"><img src="https://img.shields.io/badge/gui-Tauri%202.0-24C8D8.svg" alt="Tauri 2"></a>
   <a href="#weight-measured"><img src="https://img.shields.io/badge/cli--binary-1.99--2.58_MB-success.svg" alt="Binary Size"></a>
-  <a href="#privacy-the-part-that-matters"><img src="https://img.shields.io/badge/cli--network-checksum--verified-brightgreen.svg" alt="Network: checksum-verified companion install only"></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/encryption-AES--256--GCM-blueviolet.svg" alt="AES-256-GCM"></a>
+  <a href="#privacy-the-part-that-matters"><img src="https://img.shields.io/badge/network-zero--telemetry-brightgreen.svg" alt="Zero telemetry"></a>
 </p>
 
-**100% offline crash recovery, typing autosave, and desktop companion engine.**<br>
-*Recover unsaved text after an app crash, freeze, force-quit, power outage, or OS restart.*
+**100% offline crash recovery, typing autosave, and desktop companion engine.**
 
 Tether is a privacy-first, ultra-fast local crash recovery instrument written in Rust. While active, it captures typing into a sub-millisecond append-only encrypted ring buffer and flushes drafts into an AES-256-GCM SQLite vault. **Zero network calls. Zero cloud telemetry. Zero subscriptions.** Sensitive fields like passwords, crypto seed phrases, tokens, and credit cards are blocked or masked before disk.
 
-Choose between a **featherlight native Desktop GUI** (Tauri 2) with 32 downloadable companion characters, live state previews, and circadian timing, or an **invisible terminal CLI daemon**.
+Choose a featherlight native **Desktop GUI** (Tauri 2) with 32 downloadable companions, live state previews, and a floating desktop overlay — or an invisible **CLI daemon** for headless servers.
 
 <br>
 
-**[Quick Start](#quick-start) · [Desktop App](#desktop-application--gui) · [32 Companions](#32-companion-characters--on-demand-packs) · [Character Studio & States](#character-studio--state-engine) · [Uninstall](#clean-uninstallation) · [Privacy](#privacy-the-part-that-matters) · [Architecture](#architecture)**
+**[📥 Install](#-direct-download--instant-setup) · [🗑️ Uninstall](#️-clean-uninstallation) · [Highlights](#highlights) · [Desktop App](#desktop-application--gui) · [32 Companions](#32-companion-characters--on-demand-packs) · [Studio](#character-studio--state-engine) · [Privacy](#privacy-the-part-that-matters) · [Architecture](#architecture)**
 
 <br>
 
@@ -35,24 +34,75 @@ Choose between a **featherlight native Desktop GUI** (Tauri 2) with 32 downloada
 
 ---
 
+## 📥 Direct Download & Instant Setup
+
+### Option 1: Standalone Installer (Windows)
+
+**[⬇️ Download Tether_0.1.0_x64-setup.exe (~1.5 MB)](https://github.com/AMG555/Tether/releases/latest/download/Tether_0.1.0_x64-setup.exe)** — Windows 10/11 · no account · no internet required after install
+
+Double-click the installer. Done. Tether appears in your Start Menu and runs at login.
+
+> **Windows SmartScreen notice:** Because Tether does not carry a paid Authenticode certificate, SmartScreen may show "Unrecognized app" on first run. Click **More info → Run anyway** to proceed. Tether is fully open-source and built transparently on GitHub Actions.
+
+> **WebView2:** Included with Windows 11 and most up-to-date Windows 10. If the app doesn't open, install [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) (free, 2 MB).
+
+### Option 2: ⚡ 1-Line PowerShell Installer
+
+```powershell
+irm https://raw.githubusercontent.com/AMG555/Tether/main/scripts/install.ps1 | iex
+```
+
+### Option 3: 1-Line Shell Installer (Linux / macOS)
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/AMG555/Tether/main/scripts/install.sh | sh
+```
+
+---
+
+## 🗑️ Clean Uninstallation
+
+Tether respects your machine. When you uninstall, everything is cleaned up completely.
+
+### Option 1: From the Desktop App (1-click)
+
+Open **Settings** tab (`Ctrl+4`) → scroll to **Danger Zone** → click **Uninstall Tether**.  
+Check **Purge all encrypted vault data** to also wipe saved texts, keys, and companion files.
+
+### Option 2: 1-Line PowerShell Uninstall
+
+```powershell
+irm https://raw.githubusercontent.com/AMG555/Tether/main/scripts/uninstall.ps1 | iex
+```
+
+### Option 3: Windows Settings
+
+**Windows Settings → Apps → Installed apps → Tether → Uninstall**
+
+The uninstaller removes the startup shortcut, unhooks background capture, and optionally purges all encrypted local records.
+
+---
+
 ## Highlights
 
-- 🛡️ **Minimal Network Footprint**: Zero telemetry, zero external APIs, zero background phone-home. The CLI has no network code path whatsoever (enforced by `tests/privacy.rs::shipped_source_contains_no_network_calls`). The desktop shell makes one optional, checksum-verified HTTPS request when installing a companion pack not already on disk; no other network traffic is ever initiated.
-- ⚡ **Instant Crash Recovery**: Sub-millisecond ring buffer writes (`~4 µs/key`). Recovers text even after sudden `SIGKILL`, system kernel panic, or power cut.
-- 🔐 **Military-Grade Local Vault**: AES-256-GCM encryption at rest with HKDF-derived keys and SQLite WAL mode.
-- 🕒 **14-Day Rolling Retention**: Saved texts automatically prune after 14 days by default. Complete control over retention windows.
-- 🖥️ **Tauri 2 Native Desktop App**: Modern, accessible desktop client with instant search, revision timeline, and one-click copy.
-- 🐾 **32 Desktop Companions**: On-demand downloadable animated companion packs (CapCut-style asset streaming) keeping initial installer under 4 MB.
-- 🎭 **Live Preview & State Engine**: Full control over character behaviors (`idle`, `walk`, `wave`, `water`, `stretch`, `happy`, `sad`), speech bubbles, scales, and speeds.
-- ⏰ **Dynamic Timing & System Awareness**: Companions adapt their mood and reminders to local time of day (Morning Flow, Hydration, Evening Stretch, Night Owl) and battery health.
-- ⌨️ **Global Shortcut & Hotkeys**: Instant access via `Ctrl+Alt+T` global hotkey, with full in-app navigation (`Ctrl+1..4`, `Ctrl+F`, `Ctrl+R`, `?`).
-- 🧹 **Complete Clean Uninstall**: 1-click uninstaller in Desktop Settings, `tether uninstall [--purge]` CLI command, and standalone removal scripts.
+- 🛡️ **Minimal Network Footprint** — Zero telemetry, zero external APIs, zero background phone-home. The CLI has no network code path whatsoever (enforced by `tests/privacy.rs`). The desktop shell makes one optional, checksum-verified HTTPS request when installing a companion pack not already on disk.
+- ⚡ **Instant Crash Recovery** — Sub-millisecond ring buffer writes (~4 µs/key). Recovers text even after sudden `SIGKILL`, kernel panic, or power cut.
+- 🔐 **Military-Grade Local Vault** — AES-256-GCM encryption at rest with HKDF-derived keys and SQLite WAL mode.
+- 🕒 **14-Day Rolling Retention** — Saved texts auto-prune after 14 days by default. Full control over retention windows.
+- 🖥️ **Tauri 2 Native Desktop App** — Modern, accessible desktop client with instant search, revision timeline, and one-click copy.
+- 🐾 **Floating Companion Overlay** — After activating a companion, a transparent always-on-top animated character appears on your desktop — draggable, state-cycling, and dismissable with one click.
+- 🎭 **32 Desktop Companions** — On-demand downloadable packs (CapCut-style asset streaming) keeping the initial installer under 4 MB.
+- 🎨 **Live Preview & State Engine** — Full control over `idle`, `walk`, `wave`, `water`, `stretch`, `happy`, and `sad` states with custom speech bubbles, scale, and playback speed.
+- ⏰ **Circadian & Battery Awareness** — Companions adapt mood and reminders to time of day and battery health.
+- ⌨️ **Global Hotkeys** — Instant access via `Ctrl+Alt+T`, with full in-app navigation (`Ctrl+1..4`, `Ctrl+F`, `Ctrl+R`, `?`).
+- 🌙 **Dark/Light Theme** — Defaults to a professional dark charcoal palette; toggle or follow OS preference.
+- 🧹 **Complete Clean Uninstall** — 1-click in Settings, 1-line PowerShell, or Windows Settings → Apps.
 
 ---
 
 ## Desktop Application & GUI
 
-Tether includes a native desktop application powered by **Tauri 2** and system webviews. Designed for accessibility, responsive high-DPI displays, and zero resource waste:
+Tether includes a native desktop application powered by **Tauri 2** and system webviews — accessible, responsive on high-DPI displays, and zero resource waste.
 
 ````carousel
 ![Desktop Text Recovery](shots/desktop-recover.png)
@@ -68,17 +118,18 @@ Tether includes a native desktop application powered by **Tauri 2** and system w
 
 ### Key Desktop Capabilities
 
-1. **Saved Drafts & Revision History**: Search drafts across all applications, inspect revisions, see word counts, and copy back to your clipboard in one click (`Ctrl+C`).
-2. **On-Demand Companion Downloads**: Browse 32 curated animated companion characters. Download only what you want directly to your local machine.
-3. **Interactive Character Preview**: Test every animation state, customize speech lines, adjust scale (80%–150%) and playback speed (0.7x–1.3x) before activating.
-4. **Studio Customizer**: Author bespoke characters from animated WebP clips or create procedural rigs with tailored color palettes, proportions, and personality quirks.
-5. **System Settings & Diagnostics**: Toggle start-at-login autostart, configure rolling retention days (1–90 days), inspect vault encryption status, and run one-click uninstallation.
+1. **Saved Drafts & Revision History** — Search drafts across all applications, inspect revisions, see word counts, and copy back in one click (`Ctrl+C`).
+2. **Floating Companion Overlay** — Activate any companion to spawn a transparent, always-on-top overlay window on your desktop. The companion walks, waves, and reacts. Draggable by mouse. Dismissable from Settings.
+3. **On-Demand Companion Downloads** — Browse 32 curated animated companions. Download only what you want directly to your local machine.
+4. **Interactive Character Preview** — Test every animation state, customize speech lines, adjust scale (80%–150%) and speed (0.7x–1.3x) before activating.
+5. **Studio Customizer** — Author bespoke characters from animated WebP clips or build procedural rigs with custom color palettes, proportions, and personality.
+6. **System Settings & Diagnostics** — Toggle autostart, configure rolling retention (1–90 days), inspect vault encryption status, and run one-click uninstallation.
 
 ---
 
 ## 32 Companion Characters & On-Demand Packs
 
-To keep the application download tiny (`< 4 MB`), Tether uses a lightweight on-demand asset model (inspired by CapCut video effects). Companions are downloaded directly to `%LOCALAPPDATA%\Tether\companions` or `~/.local/share/tether/companions` only when requested.
+To keep the application download under 4 MB, Tether uses a lightweight on-demand asset model. Companions download to `%LOCALAPPDATA%\Tether\companions` or `~/.local/share/tether/companions` only when requested.
 
 | Category | Companions | Personality & Style |
 |---|---|---|
@@ -89,18 +140,18 @@ To keep the application download tiny (`< 4 MB`), Tether uses a lightweight on-d
 | **Nature & Zen** | Nimbus, Splash, Zen, Sage | Ambient tranquility, deep thinking, eye relief prompts |
 | **Whimsical** | Captain Dew, Chip, Ember, Iris, Luna, Nova, Ollie, Peanut, Penny, Theo, Twirl, Waddle | Playful deskside companions with custom dialogue lines |
 
-Every companion includes distinct animation clips: `idle`, `walk`, `wave`, `water`, `stretch`, `happy`, and `sad`.
+Every companion includes animation clips: `idle`, `walk`, `wave`, `water`, `stretch`, `happy`, and `sad`.
 
 ---
 
 ## Character Studio & State Engine
 
-Manage each companion's emotional states and physical presence right inside the desktop app:
+Manage each companion's emotional states and presence right inside the desktop app:
 
 ```
 [Character State Engine]
   ├── Idle      ──> Gentle ambient loop while working
-  ├── Walk      ──> Patrols across active dock or taskbar
+  ├── Walk      ──> Patrols across the overlay window
   ├── Wave      ──> Friendly greeting upon startup or app switch
   ├── Water     ──> Hydration nudge at programmed intervals
   ├── Stretch   ──> Posture and eye-strain micro-break cue
@@ -108,117 +159,56 @@ Manage each companion's emotional states and physical presence right inside the 
   └── Sad       ──> Soft alert on unexpected application exit
 ```
 
-- **Live Speed & Scale Controls**: Tune animation playback speed from `0.7x` (relaxed) to `1.3x` (brisk) and scale from `80%` to `150%`.
-- **Custom Quote Dialogues**: Assign unique reminder lines to each character state.
-- **Trigger Now Testing**: Manually trigger any state on demand to inspect animations without waiting for timers.
+- **Live Speed & Scale Controls** — Tune playback speed from `0.7x` to `1.3x` and scale from `80%` to `150%`.
+- **Custom Quote Dialogues** — Assign unique reminder lines to each character state.
+- **Trigger Now Testing** — Manually trigger any state on demand without waiting for timers.
 
 ---
 
 ## Dynamic Timing & System Status
 
-Tether monitors system health and circadian time passively without recording keystroke content:
+Tether monitors system health and circadian time passively:
 
-- 🌅 **Morning Flow (06:00 – 12:00)**: Companions offer energized greetings, focusing on morning momentum and clear task setup.
-- 💧 **Hydration & Posture (12:00 – 17:00)**: Regular water reminders and ergonomics checks during the afternoon stretch.
-- 🧘 **Evening Wind-Down (17:00 – 22:00)**: Soft stretch prompts to prevent eye fatigue as the workday winds down.
-- 🌙 **Night Owl Mode (22:00 – 06:00)**: Subdued animations, dimmed speech bubbles, and sleep reminders for late-night sessions.
-- 🔋 **Battery Awareness**: Companions adapt their energy levels and remind you to plug in when battery levels drop below 20%.
+- 🌅 **Morning Flow (06:00 – 12:00)** — Energized greetings, focusing on morning momentum.
+- 💧 **Hydration & Posture (12:00 – 17:00)** — Water reminders and ergonomics checks.
+- 🧘 **Evening Wind-Down (17:00 – 22:00)** — Soft stretch prompts as the workday ends.
+- 🌙 **Night Owl Mode (22:00 – 06:00)** — Subdued animations and sleep reminders.
+- 🔋 **Battery Awareness** — Companions adapt energy levels when battery drops below 20%.
 
 ---
 
-## Quick Start & Installation
+## Build from Source
 
-### Option 1: One-Click Windows Setup (Recommended)
-
-Download and run the automated Windows setup script:
-
-```bat
-:: Double click setup-windows.bat in the root folder, or run in cmd/PowerShell:
-.\setup-windows.bat
-```
-
-This checks prerequisites, compiles the release binaries, initializes the encrypted vault, configures login autostart, and places desktop and start menu shortcuts (`Ctrl+Alt+T`).
-
-### Option 2: PowerShell One-Liner (Windows)
-
-```powershell
-irm https://raw.githubusercontent.com/AMG555/Tether/main/scripts/install.ps1 | iex
-tether setup --autostart
-```
-
-*Installer verifies SHA-256 checksums, configures desktop shortcuts with `Ctrl+Alt+T`, and adds Tether to your user `PATH`.*
-
-### Option 3: Shell One-Liner (Linux & macOS)
+Requires [Rust 1.75+](https://rustup.rs/) and [Node.js 22+](https://nodejs.org/).
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/AMG555/Tether/main/scripts/install.sh | sh
-tether setup --autostart
-```
+git clone https://github.com/AMG555/Tether.git && cd Tether
 
-### Option 4: Build from Source
-
-Prerequisites: [Rust 1.75+](https://rustup.rs/) and [Node.js 18+](https://nodejs.org/) (for Desktop GUI).
-
-```sh
-# Clone repository
-git clone https://github.com/AMG555/Tether.git
-cd Tether
-
-# Build lightweight CLI binary (~2.5 MB)
+# CLI only (~2 MB binary)
 cargo build --release
 
-# Build native Desktop GUI application (~3.7 MB)
-npm --prefix desktop install
-cargo build --manifest-path desktop/src-tauri/Cargo.toml --release
-
-# First-time setup
-.\target\release\tether.exe setup --autostart
+# Desktop GUI installer
+cd desktop && npm install
+node node_modules/@tauri-apps/cli/tauri.js build
+# → desktop/src-tauri/target/release/bundle/nsis/Tether_0.1.0_x64-setup.exe
 ```
 
 ---
 
 ## Keyboard Shortcuts
 
-Navigate Tether at full speed with hotkeys:
-
 | Scope | Shortcut | Action |
 |---|---|---|
 | **Global OS** | `Ctrl + Alt + T` | Launch or focus Tether desktop window |
-| **In-App Navigation** | `Ctrl + 1` | Switch to **Recover** tab (Saved Drafts) |
+| **Navigation** | `Ctrl + 1` | Switch to **Recover** tab |
 | | `Ctrl + 2` | Switch to **Companions** tab |
 | | `Ctrl + 3` | Switch to **Studio** tab |
 | | `Ctrl + 4` | Switch to **Settings** tab |
-| **Actions** | `Ctrl + F` or `/` | Focus search bar in Recover view |
-| | `Ctrl + R` | Refresh drafts list from encrypted vault |
-| | `Ctrl + C` | Copy currently selected draft to clipboard |
-| | `?` or `Ctrl + /` | Open Keyboard Shortcuts cheat sheet |
-| | `Escape` | Dismiss open preview modals and dialogs |
-
----
-
-## Clean Uninstallation
-
-Tether respects your machine. When you uninstall, everything can be cleaned up cleanly and completely:
-
-### 1. From the Desktop App (GUI)
-1. Open **Settings** tab (`Ctrl+4`).
-2. Scroll to the **Danger Zone** at the bottom.
-3. Click **Uninstall Tether**.
-4. Check **Purge all encrypted vault data** if you wish to wipe drafts, encryption keys, and companion files.
-5. Confirm uninstall — Tether deregisters startup entries, wipes specified paths, and closes cleanly.
-
-### 2. From the Command Line (CLI)
-```sh
-# Clean uninstallation (removes autostart, stops background daemons, cleans binaries)
-tether uninstall
-
-# Total purge uninstallation (also deletes encrypted vault, keys, and companion packs)
-tether uninstall --purge
-```
-
-### 3. Dedicated Scripts
-- **Windows**: Run `powershell -ExecutionPolicy Bypass -File scripts\uninstall.ps1 -Purge`
-- **Linux / macOS**: Run `sh scripts/uninstall.sh --purge`
+| **Actions** | `Ctrl + F` or `/` | Focus search bar |
+| | `Ctrl + R` | Refresh drafts from vault |
+| | `Ctrl + C` | Copy selected draft to clipboard |
+| | `?` or `Ctrl + /` | Open keyboard shortcuts cheatsheet |
+| | `Escape` | Dismiss open modals |
 
 ---
 
@@ -226,12 +216,10 @@ tether uninstall --purge
 
 ![Crash Recovery Mechanics](shots/clips.png)
 
-Tether uses a dual-tier storage architecture designed to never drop a character:
-
 | Storage Layer | Durability & Scope | Latency |
 |---|---|---|
-| **Crash Ring** | Fixed-slot append-only file. Survives process crashes, force-quits, `SIGKILL`, and OOM kills. | **~4 µs** per keystroke |
-| **Encrypted Vault** | SQLite WAL mode with AES-256-GCM encryption. Stores structured drafts and revisions across reboots. | **~1.2 ms** per flush (~1s) |
+| **Crash Ring** | Fixed-slot append-only file. Survives `SIGKILL`, OOM kills, and power cuts. | **~4 µs** per keystroke |
+| **Encrypted Vault** | SQLite WAL mode with AES-256-GCM. Stores structured drafts and revisions. | **~1.2 ms** per flush (~1s) |
 
 ```
    User Typing
@@ -247,30 +235,21 @@ Tether uses a dual-tier storage architecture designed to never drop a character:
                                                 `tether recover`         `tether list`
 ```
 
-### Platform Keystroke Support
+### Platform Support
 
 | Platform | Keystroke Hook | Clipboard Fallback | Elevation Required |
 |---|---|---|---|
-| **Windows 10 / 11** | ✅ `WH_KEYBOARD_LL` + `ToUnicodeEx` layout mapping | ❌ Excluded from capture | **None** (User space) |
-| **macOS 13+** | ✅ `CGEventTap` + Accessibility probe | ❌ Excluded from capture | Accessibility permissions |
-| **Linux (X11 / Wayland)** | ⚠️ Clipboard-only (Security design) | ✅ `xclip` / `wl-clipboard` | **None** (User space) |
+| **Windows 10 / 11** | ✅ `WH_KEYBOARD_LL` + `ToUnicodeEx` | ❌ Excluded | None (user space) |
+| **macOS 13+** | ✅ `CGEventTap` + Accessibility probe | ❌ Excluded | Accessibility permissions |
+| **Linux (X11 / Wayland)** | ⚠️ Clipboard-only | ✅ `xclip` / `wl-clipboard` | None (user space) |
 
 ---
 
 ## Privacy: The Part That Matters
 
-Because Tether records keyboard interactions, security and ethics are enforced at the compiler level:
-
-1. **Pre-Write Filtering**:
-   - **Always Blocked**: 1Password, Bitwarden, KeePassXC, LastPass, Dashlane, Enpass, Keeper, NordPass, Proton Pass, macOS Keychain, Windows Credential Manager, BitLocker, VeraCrypt, MetaMask, Phantom, Ledger Live, Trezor.
-   - **Pattern Blocked**: Window titles containing "sign in", "reset password", "2FA", "CVV", "credit card", "seed phrase", "private key".
-   - **Secret Masking**: Luhn-valid credit card numbers, JWT tokens, PEM private keys, AWS/GitHub/OpenAI tokens are masked with `█` characters before touching disk.
-2. **Encrypted at Rest**:
-   - AES-256-GCM encryption with per-purpose HKDF key derivation.
-   - Files created with `0600` permissions (`0700` directories) on Unix; protected by user SID ACLs on Windows.
-3. **Network Traffic**:
-   - **CLI: zero network.** No telemetry, no sync, no network code path at all. Enforced by `tests/privacy.rs::dependencies_are_offline_only` (dependency scan) and `tests/privacy.rs::shipped_source_contains_no_network_calls` (source-level scan for subprocess and socket calls).
-   - **Desktop shell: one optional, verified request.** When installing a companion pack not already on disk, the shell fetches `checksums.txt` and the companion zip over HTTPS, verifies SHA-256 before writing anything, and deletes the temp file on mismatch. No other network calls are made.
+1. **Pre-Write Filtering** — 1Password, Bitwarden, KeePassXC, MetaMask, Phantom, and 20+ other password/crypto apps are always blocked. Window titles containing "sign in", "2FA", "CVV", "seed phrase", and similar patterns are pattern-blocked. Luhn-valid card numbers, JWT tokens, PEM private keys, and AWS/GitHub/OpenAI tokens are masked with `█` before touching disk.
+2. **Encrypted at Rest** — AES-256-GCM with per-purpose HKDF key derivation. Files created with `0600` permissions on Unix; protected by user SID ACLs on Windows.
+3. **Network Traffic** — CLI has zero network code (enforced by `tests/privacy.rs`). Desktop makes one optional, checksum-verified HTTPS request to download a companion pack; nothing else.
 
 ---
 
@@ -285,7 +264,7 @@ tether show <id> [--bare]           Output full recovered draft
 tether copy <id>                    Place recovered text directly on system clipboard
 tether search <query>               Fast in-memory decrypt-and-search across drafts
 tether revisions <id>               View past revisions of a specific draft
-tether prune [--max-days 14]        Prune drafts older than retention window (default 14 days)
+tether prune [--max-days 14]        Prune drafts older than retention window
 tether purge --yes                  Wipe all vault data, vacuum SQLite, clear crash ring
 tether uninstall [--purge]          Cleanly uninstall autostart and delete binaries/vault
 tether ask                          Launch desktop companion
@@ -298,28 +277,24 @@ tether doctor                       Verify DB integrity, permissions, and buffer
 
 ## Weight, Measured
 
-Benchmarked on x86-64 release builds:
-
-| Metric | Measured Value | Notes |
+| Metric | Value | Notes |
 |---|---|---|
 | **CLI Binary** | **1.99 MB** | `opt-level="z"`, LTO, abort on panic, stripped |
-| **Desktop App Binary** | **3.71 MB** | Full Tauri 2 GUI client, bundled webview shell |
+| **Desktop App Binary** | **3.71 MB** | Full Tauri 2 GUI client |
 | **Idle Memory (RSS)** | **4.3 MB** | Resident set size while capturing |
-| **Capture Latency** | **4.1 µs** | Average latency per keystroke event |
-| **Commit Latency** | **1.2 ms** | Ingest, sanitize, encrypt, and WAL commit |
+| **Capture Latency** | **4.1 µs** | Average per keystroke |
+| **Commit Latency** | **1.2 ms** | Ingest, sanitize, encrypt, WAL commit |
 | **Cold Startup** | **4.4 ms** | `tether status` execution time |
-| **Runtime Dependencies** | **None** | SQLite compiled directly into binary |
+| **Runtime Dependencies** | **None** | SQLite compiled into binary |
 
 ---
 
 ## Architecture
 
-Modular Rust codebase structured into eleven isolated domain modules:
-
-| Module | Core Responsibility |
+| Module | Responsibility |
 |---|---|
 | [`src/crypto.rs`](src/crypto.rs) | AES-256-GCM encryption, HKDF key derivation, nonces |
-| [`src/policy.rs`](src/policy.rs) | Secret scanning, sensitive application detection, masking |
+| [`src/policy.rs`](src/policy.rs) | Secret scanning, sensitive app detection, masking |
 | [`src/ring.rs`](src/ring.rs) | Encrypted append-only crash buffer with torn-write prevention |
 | [`src/recover.rs`](src/recover.rs) | Event reconstruction, grapheme-aware backspace handling |
 | [`src/vault.rs`](src/vault.rs) | SQLite WAL encrypted storage, blind indexing, revisions |
@@ -333,5 +308,5 @@ Modular Rust codebase structured into eleven isolated domain modules:
 
 ## License
 
-Released under the **MIT License**. Created and maintained by **AMG555**.
+Released under the **MIT License**. Created and maintained by **AMG555**.  
 See [LICENSE](LICENSE) for details.
