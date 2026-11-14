@@ -12,7 +12,7 @@
   <a href="https://blog.rust-lang.org/2023/12/28/Rust-1.75.0.html"><img src="https://img.shields.io/badge/rustc-1.75%2B-orange.svg" alt="Rust 1.75+"></a>
   <a href="#desktop-application--gui"><img src="https://img.shields.io/badge/gui-Tauri%202.0-24C8D8.svg" alt="Tauri 2"></a>
   <a href="#weight-measured"><img src="https://img.shields.io/badge/cli--binary-1.99--2.58_MB-success.svg" alt="Binary Size"></a>
-  <a href="#privacy-the-part-that-matters"><img src="https://img.shields.io/badge/network-zero-brightgreen.svg" alt="Zero Network"></a>
+  <a href="#privacy-the-part-that-matters"><img src="https://img.shields.io/badge/cli--network-checksum--verified-brightgreen.svg" alt="Network: checksum-verified companion install only"></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/encryption-AES--256--GCM-blueviolet.svg" alt="AES-256-GCM"></a>
 </p>
 
@@ -37,7 +37,7 @@ Choose between a **featherlight native Desktop GUI** (Tauri 2) with 32 downloada
 
 ## Highlights
 
-- 🛡️ **Zero Network Guarantee**: Zero telemetry, zero external APIs, zero background phone-home. Enforced by automated CI tests (`tests/privacy.rs`).
+- 🛡️ **Minimal Network Footprint**: Zero telemetry, zero external APIs, zero background phone-home. The CLI has no network code path whatsoever (enforced by `tests/privacy.rs::shipped_source_contains_no_network_calls`). The desktop shell makes one optional, checksum-verified HTTPS request when installing a companion pack not already on disk; no other network traffic is ever initiated.
 - ⚡ **Instant Crash Recovery**: Sub-millisecond ring buffer writes (`~4 µs/key`). Recovers text even after sudden `SIGKILL`, system kernel panic, or power cut.
 - 🔐 **Military-Grade Local Vault**: AES-256-GCM encryption at rest with HKDF-derived keys and SQLite WAL mode.
 - 🕒 **14-Day Rolling Retention**: Saved texts automatically prune after 14 days by default. Complete control over retention windows.
@@ -268,8 +268,9 @@ Because Tether records keyboard interactions, security and ethics are enforced a
 2. **Encrypted at Rest**:
    - AES-256-GCM encryption with per-purpose HKDF key derivation.
    - Files created with `0600` permissions (`0700` directories) on Unix; protected by user SID ACLs on Windows.
-3. **Zero Network Traffic**:
-   - **Zero telemetry, zero sync, zero network dependencies.** Automated test `tests/privacy.rs::dependencies_are_offline_only` enforces that no network libraries exist in the dependency tree.
+3. **Network Traffic**:
+   - **CLI: zero network.** No telemetry, no sync, no network code path at all. Enforced by `tests/privacy.rs::dependencies_are_offline_only` (dependency scan) and `tests/privacy.rs::shipped_source_contains_no_network_calls` (source-level scan for subprocess and socket calls).
+   - **Desktop shell: one optional, verified request.** When installing a companion pack not already on disk, the shell fetches `checksums.txt` and the companion zip over HTTPS, verifies SHA-256 before writing anything, and deletes the temp file on mismatch. No other network calls are made.
 
 ---
 
