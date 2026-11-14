@@ -17,44 +17,9 @@
   --text: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
   --radius: 2px;
 }
+/* data-theme="dark" is an alias for the default — no overrides needed */
 
-/* Explicit dark-theme attribute */
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --paper: #1a1b1e;
-  --paper-sunk: #141517;
-  --paper-raised: #25262b;
-  --ink: #c9cad0;
-  --ink-soft: #909296;
-  --ink-faint: #5c5f66;
-  --rule: #2c2e33;
-  --rule-strong: #373a40;
-  --signal: #e05c4b;
-  --signal-wash: #3d1f1a;
-  --ok: #2f9e44;
-  --ok-wash: #1a2e1f;
-}
-
-/* OS dark preference (when no explicit data-theme is set) */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --paper: #1a1b1e;
-    --paper-sunk: #141517;
-    --paper-raised: #25262b;
-    --ink: #c9cad0;
-    --ink-soft: #909296;
-    --ink-faint: #5c5f66;
-    --rule: #2c2e33;
-    --rule-strong: #373a40;
-    --signal: #e05c4b;
-    --signal-wash: #3d1f1a;
-    --ok: #2f9e44;
-    --ok-wash: #1a2e1f;
-  }
-}
-
-/* Explicit light-theme attribute */
+/* Light theme — attribute selector wins over OS preference */
 :root[data-theme="light"] {
   color-scheme: light;
   --paper: #f2efe6;
@@ -71,7 +36,7 @@
   --ok-wash: #e8f5ec;
 }
 
-/* OS light preference (when no explicit data-theme is set) */
+/* OS prefers light and no explicit override is set */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     color-scheme: light;

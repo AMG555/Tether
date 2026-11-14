@@ -71,7 +71,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo build --manifest-path desktop/src-tauri/Cargo.toml --release
+          # Build the NSIS installer via Tauri — produces the setup.exe that the
+          # README download link points at.
+          cd desktop
+          npm install
+          node node_modules/@tauri-apps/cli/tauri.js build
+          cd ..
+          # Copy the NSIS installer as the primary Windows download asset.
+          NSIS_BIN="desktop/src-tauri/target/release/bundle/nsis/Tether_0.1.0_x64-setup.exe"
+          if [ -f "$NSIS_BIN" ]; then
+            cp "$NSIS_BIN" "dist/Tether_0.1.0_x64-setup.exe"
+          fi
+          # Also ship the raw tether-desktop.exe for users who prefer no installer.
           DESK_BIN="desktop/src-tauri/target/release/tether-desktop.exe"
           if [ -f "$DESK_BIN" ]; then
             cp "$DESK_BIN" "dist/tether-desktop-windows-x86_64.exe"
