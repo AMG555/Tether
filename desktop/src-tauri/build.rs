@@ -15,6 +15,11 @@ fn main() {
             "save_custom_companion",
             "delete_custom_companion",
             "install_catalog_companion",
+            "uninstall_autostart",
+            "purge_vault_data",
+            "uninstall_app",
+            "get_companion_clip",
+            "get_system_status",
         ]),
     ))
     .expect("failed to configure the Tauri command allowlist");

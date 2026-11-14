@@ -1,3 +1,8 @@
+﻿param(
+    [switch]$Uninstall,
+    [switch]$Purge
+)
+
 # Tether installer for Windows — one command, no admin rights.
 #
 #   irm https://raw.githubusercontent.com/AMG555/Tether/main/scripts/install.ps1 | iex
@@ -9,6 +14,31 @@ $ErrorActionPreference = 'Stop'
 $Repo     = if ($env:TETHER_REPO)    { $env:TETHER_REPO }    else { 'AMG555/Tether' }
 $BinDir   = if ($env:TETHER_BIN_DIR) { $env:TETHER_BIN_DIR } else { Join-Path $env:LOCALAPPDATA 'Tether\bin' }
 $Version  = if ($env:TETHER_VERSION) { $env:TETHER_VERSION } else { 'latest' }
+
+if ($Uninstall) {
+    Write-Host "running tether uninstallation..." -ForegroundColor Cyan
+    Get-Process tether, tether-desktop -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    $startupDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup'
+    Remove-Item (Join-Path $startupDir 'tether.url') -Force -ErrorAction SilentlyContinue
+    Remove-Item (Join-Path $startupDir 'tether.lnk') -Force -ErrorAction SilentlyContinue
+    $desktopDir = [Environment]::GetFolderPath('Desktop')
+    Remove-Item (Join-Path $desktopDir 'Tether.lnk') -Force -ErrorAction SilentlyContinue
+    Remove-Item (Join-Path $desktopDir 'Tether Desktop.lnk') -Force -ErrorAction SilentlyContinue
+    $programsDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
+    Remove-Item (Join-Path $programsDir 'Tether.lnk') -Force -ErrorAction SilentlyContinue
+    Remove-Item (Join-Path $programsDir 'Tether Desktop.lnk') -Force -ErrorAction SilentlyContinue
+    if (Test-Path $BinDir) {
+        Remove-Item (Join-Path $BinDir 'tether.exe') -Force -ErrorAction SilentlyContinue
+        Remove-Item (Join-Path $BinDir 'tether-desktop.exe') -Force -ErrorAction SilentlyContinue
+    }
+    if ($Purge) {
+        $vault = Join-Path $env:LOCALAPPDATA 'tether_data'
+        Remove-Item $vault -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "  purged local vault data"
+    }
+    Write-Host "uninstallation complete." -ForegroundColor Green
+    return
+}
 
 Write-Host "tether installer"
 Write-Host "  platform  windows / $($env:PROCESSOR_ARCHITECTURE)"
@@ -68,6 +98,29 @@ try {
         [Environment]::SetEnvironmentVariable('Path', "$userPath;$BinDir", 'User')
         Write-Host "added $BinDir to your user PATH (open a new terminal to use it)"
     }
+
+    # Create Desktop and Start Menu shortcuts with global hotkey [Ctrl+Alt+T]
+    try {
+        $wsh = New-Object -ComObject WScript.Shell
+        $desktopDir = [Environment]::GetFolderPath('Desktop')
+        $shortcut = $wsh.CreateShortcut((Join-Path $desktopDir 'Tether.lnk'))
+        $shortcut.TargetPath = $dest
+        $shortcut.WorkingDirectory = $BinDir
+        $shortcut.Description = "Tether - 100% offline crash recovery and companion"
+        $shortcut.Hotkey = "CTRL+ALT+T"
+        $shortcut.Save()
+
+        $programsDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
+        $startShortcut = $wsh.CreateShortcut((Join-Path $programsDir 'Tether.lnk'))
+        $startShortcut.TargetPath = $dest
+        $startShortcut.WorkingDirectory = $BinDir
+        $startShortcut.Description = "Tether - 100% offline crash recovery and companion"
+        $startShortcut.Save()
+        Write-Host "created desktop shortcut with global hotkey [Ctrl+Alt+T]"
+    } catch {
+        # Non-fatal if COM object fails in non-interactive environment
+    }
+
     Write-Host ""
     Write-Host "next:"
     Write-Host "  tether setup"

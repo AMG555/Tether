@@ -214,6 +214,12 @@ pub enum Command {
         #[arg(long)]
         quiet: bool,
     },
+    /// Completely uninstall Tether autostart and optionally purge local vault data.
+    Uninstall {
+        /// Also purge all local vault data, keys, and cached companions.
+        #[arg(long)]
+        purge: bool,
+    },
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
@@ -328,10 +334,38 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             };
             crate::companion::run(&data, action)
         }
+        Command::Uninstall { purge } => cmd_uninstall(&home, purge),
         Command::Simulate { text, app, crash, ring_slots, quiet } => {
             cmd_simulate(&home, &text, &app, crash, ring_slots, quiet)
         }
     }
+}
+
+fn cmd_uninstall(home: &Option<PathBuf>, purge: bool) -> Result<(), Box<dyn std::error::Error>> {
+    println!("tether: uninstalling system integration...");
+    match crate::setup::uninstall_autostart() {
+        Ok(true) => println!("  ok    autostart service/shortcut removed"),
+        Ok(false) => println!("  --    no autostart service/shortcut was installed"),
+        Err(e) => eprintln!("  warn  could not remove autostart: {e}"),
+    }
+
+    if purge {
+        let dir = data_dir(home);
+        if dir.exists() {
+            println!("tether: purging local vault directory at {}...", dir.display());
+            std::fs::remove_dir_all(&dir)?;
+            println!("  ok    vault and encryption keys completely removed");
+        } else {
+            println!("  --    vault directory does not exist: {}", dir.display());
+        }
+    } else {
+        let dir = data_dir(home);
+        println!("tether: local vault retained at {}", dir.display());
+        println!("  (to remove stored text and keys, pass: tether uninstall --purge)");
+    }
+
+    println!("\ntether uninstallation complete.");
+    Ok(())
 }
 
 fn cmd_init(home: &Option<PathBuf>, show_key: bool) -> Result<(), Box<dyn std::error::Error>> {

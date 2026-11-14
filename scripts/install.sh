@@ -23,6 +23,16 @@ VERSION="${TETHER_VERSION:-latest}"
 say()  { printf '%s\n' "$*"; }
 fail() { printf '\ntether installer: %s\n' "$*" >&2; exit 1; }
 
+if [ "${1:-}" = "--uninstall" ]; then
+  shift
+  pkill -f "tether run" 2>/dev/null || true
+  pkill -f "tether-desktop" 2>/dev/null || true
+  rm -f "${TETHER_BIN_DIR:-$HOME/.local/bin}/tether"
+  rm -f "${TETHER_BIN_DIR:-$HOME/.local/bin}/tether-desktop"
+  say "tether uninstalled"
+  exit 0
+fi
+
 # ---------------------------------------------------------------- 1. platform
 os=$(uname -s 2>/dev/null || echo unknown)
 arch=$(uname -m 2>/dev/null || echo unknown)
@@ -108,6 +118,21 @@ if [ -f "$BIN_DIR/tether" ]; then
 fi
 mv "$src" "$BIN_DIR/tether"
 chmod +x "$BIN_DIR/tether"
+
+if [ "$platform" = "linux" ]; then
+  app_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+  if mkdir -p "$app_dir" 2>/dev/null; then
+    cat > "$app_dir/tether.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Tether
+Comment=100% offline typing crash recovery and desktop companion
+Exec=$BIN_DIR/tether run
+Terminal=false
+Categories=Utility;Application;
+EOF
+  fi
+fi
 
 say ""
 say "installed: $BIN_DIR/tether"

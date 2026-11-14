@@ -81,6 +81,50 @@ pub struct CustomCompanionPayload {
     pub model_data: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UninstallResult {
+    pub autostart_removed: bool,
+    pub vault_purged: bool,
+    pub vault_path: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemStatusInfo {
+    pub platform: String,
+    pub uptime_secs: u64,
+    pub autostart_installed: bool,
+    pub retention_days: i64,
+    pub vault_exists: bool,
+    pub vault_path: String,
+}
+
+fn to_base64(data: &[u8]) -> String {
+    const CHARSET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity((data.len() + 2) / 3 * 4);
+    for chunk in data.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = chunk.get(1).map(|&b| b as u32).unwrap_or(0);
+        let b2 = chunk.get(2).map(|&b| b as u32).unwrap_or(0);
+        let triple = (b0 << 16) | (b1 << 8) | b2;
+        out.push(CHARSET[((triple >> 18) & 0x3F) as usize] as char);
+        out.push(CHARSET[((triple >> 12) & 0x3F) as usize] as char);
+        if chunk.len() > 1 {
+            out.push(CHARSET[((triple >> 6) & 0x3F) as usize] as char);
+        } else {
+            out.push('=');
+        }
+        if chunk.len() > 2 {
+            out.push(CHARSET[(triple & 0x3F) as usize] as char);
+        } else {
+            out.push('=');
+        }
+    }
+    out
+}
+
 fn open_local_vault() -> Result<tether::vault::Vault, String> {
     let dir = tether::default_data_dir();
     let key_file = dir.join("key.txt");
@@ -604,6 +648,110 @@ pub fn install_catalog_companion(id: String) -> Result<CompanionItem, String> {
     Ok(item)
 }
 
+#[tauri::command]
+pub fn uninstall_autostart() -> Result<bool, String> {
+    tether::setup::uninstall_autostart()
+}
+
+#[tauri::command]
+pub fn purge_vault_data() -> Result<bool, String> {
+    let dir = tether::default_data_dir();
+    let db_path = dir.join("vault.db");
+    let wal_path = dir.join("vault.db-wal");
+    let shm_path = dir.join("vault.db-shm");
+    if db_path.exists() {
+        let _ = std::fs::remove_file(db_path);
+    }
+    if wal_path.exists() {
+        let _ = std::fs::remove_file(wal_path);
+    }
+    if shm_path.exists() {
+        let _ = std::fs::remove_file(shm_path);
+    }
+    Ok(true)
+}
+
+#[tauri::command]
+pub fn uninstall_app(purge_data: bool) -> Result<UninstallResult, String> {
+    let autostart_removed = tether::setup::uninstall_autostart().unwrap_or(false);
+    let dir = tether::default_data_dir();
+    let vault_purged = if purge_data {
+        if dir.exists() {
+            let _ = std::fs::remove_dir_all(&dir);
+            true
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+
+    Ok(UninstallResult {
+        autostart_removed,
+        vault_purged,
+        vault_path: dir.display().to_string(),
+        message: if vault_purged {
+            "Autostart removed and local vault completely purged.".to_string()
+        } else {
+            "Autostart removed. Local vault was preserved.".to_string()
+        },
+    })
+}
+
+#[tauri::command]
+pub fn get_companion_clip(id: String, action: String) -> Result<Option<String>, String> {
+    let clean_id = id.trim().to_lowercase();
+    let clean_action = action.trim().to_lowercase();
+    if clean_id.is_empty() || clean_action.is_empty() {
+        return Ok(None);
+    }
+
+    let candidates = [
+        format!("{clean_action}.webp"),
+        format!("{clean_action}.still.webp"),
+        "idle.webp".to_string(),
+        "idle.still.webp".to_string(),
+    ];
+
+    let search_roots = [
+        tether::default_data_dir().join("companions").join(&clean_id),
+        PathBuf::from("assets/companions").join(&clean_id),
+    ];
+
+    for root in &search_roots {
+        for candidate in &candidates {
+            let p = root.join(candidate);
+            if p.is_file() {
+                if let Ok(bytes) = std::fs::read(&p) {
+                    let b64 = to_base64(&bytes);
+                    return Ok(Some(format!("data:image/webp;base64,{b64}")));
+                }
+            }
+        }
+    }
+
+    Ok(None)
+}
+
+#[tauri::command]
+pub fn get_system_status() -> Result<SystemStatusInfo, String> {
+    let dir = tether::default_data_dir();
+    let autostart_installed = get_autostart_status().unwrap_or(false);
+    let (cfg, _) = tether::config::Config::load_or_default(&dir);
+
+    Ok(SystemStatusInfo {
+        platform: std::env::consts::OS.to_string(),
+        uptime_secs: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0),
+        autostart_installed,
+        retention_days: cfg.retention_days,
+        vault_exists: dir.join("vault.db").exists(),
+        vault_path: dir.display().to_string(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -648,5 +796,26 @@ mod tests {
         assert!(install_catalog_companion("..".into()).is_err());
         assert!(install_catalog_companion("".into()).is_err());
         assert!(install_catalog_companion("foo/bar".into()).is_err());
+    }
+
+    #[test]
+    fn system_status_reports_local_platform_and_vault() {
+        let status = get_system_status().unwrap();
+        assert_eq!(status.platform, std::env::consts::OS);
+        assert!(status.retention_days >= 1);
+    }
+
+    #[test]
+    fn to_base64_encodes_standard_vectors() {
+        assert_eq!(to_base64(b""), "");
+        assert_eq!(to_base64(b"f"), "Zg==");
+        assert_eq!(to_base64(b"fo"), "Zm8=");
+        assert_eq!(to_base64(b"foo"), "Zm9v");
+    }
+
+    #[test]
+    fn get_companion_clip_returns_none_for_missing() {
+        let clip = get_companion_clip("nonexistent-companion-xyz".into(), "idle".into()).unwrap();
+        assert!(clip.is_none());
     }
 }

@@ -17,6 +17,11 @@
     "allow-list-companions",
     "allow-save-custom-companion",
     "allow-delete-custom-companion",
-    "allow-install-catalog-companion"
+    "allow-install-catalog-companion",
+    "allow-uninstall-autostart",
+    "allow-purge-vault-data",
+    "allow-uninstall-app",
+    "allow-get-companion-clip",
+    "allow-get-system-status"
   ]
 }

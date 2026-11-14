@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-uninstall-autostart"
+description = "Enables the uninstall_autostart command without any pre-configured scope."
+commands.allow = ["uninstall_autostart"]
+
+[[permission]]
+identifier = "deny-uninstall-autostart"
+description = "Denies the uninstall_autostart command without any pre-configured scope."
+commands.deny = ["uninstall_autostart"]

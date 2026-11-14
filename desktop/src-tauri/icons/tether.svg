@@ -1,7 +1,44 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <rect width="256" height="256" fill="#f2efe6"/>
-  <path d="M46 81 54 26l48 37c16-5 36-5 52 0l48-37 8 55c12 19 18 40 18 65 0 48-40 84-100 84s-100-36-100-84c0-25 6-46 18-65Z" fill="#c2331a"/>
-  <circle cx="92" cy="135" r="9" fill="#f2efe6"/>
-  <circle cx="164" cy="135" r="9" fill="#f2efe6"/>
-  <path d="M105 162c8 7 15 10 23 10s15-3 23-10c-5 17-13 25-23 25s-18-8-23-25Z" fill="#f2efe6"/>
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d9381e"/>
+      <stop offset="100%" stop-color="#991b1b"/>
+    </linearGradient>
+    <linearGradient id="knotGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f2efe6"/>
+    </linearGradient>
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#14120f" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <!-- Background Base Canvas -->
+  <rect width="256" height="256" rx="56" fill="#14120f"/>
+  
+  <!-- Outer Subtle Safety Ring -->
+  <circle cx="128" cy="128" r="106" fill="none" stroke="#26221c" stroke-width="2"/>
+  
+  <!-- Anchor & Protective Shield Emblem -->
+  <g filter="url(#softShadow)">
+    <path d="M128 36 L196 66 C196 132 170 186 128 216 C86 186 60 132 60 66 Z" 
+          fill="url(#shieldGrad)" />
+  </g>
+
+  <!-- Inner Tether Knot & Companion Loop -->
+  <!-- Upper Loop (Continuity / Autosave Ring) -->
+  <circle cx="128" cy="98" r="28" fill="none" stroke="url(#knotGrad)" stroke-width="12" stroke-linecap="round"/>
+  
+  <!-- Central Interlocking Tether Ribbon -->
+  <path d="M106 122 C106 142 128 162 128 174 C128 162 150 142 150 122" 
+        fill="none" stroke="url(#knotGrad)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Companion Eyes (Subtle friendly character silhouette inside shield) -->
+  <circle cx="116" cy="98" r="4.5" fill="#14120f"/>
+  <circle cx="140" cy="98" r="4.5" fill="#14120f"/>
+  <circle cx="117.5" cy="96.5" r="1.5" fill="#ffffff"/>
+  <circle cx="141.5" cy="96.5" r="1.5" fill="#ffffff"/>
+
+  <!-- Anchor Point / Local Lock Indicator -->
+  <circle cx="128" cy="176" r="6" fill="#f2efe6"/>
 </svg>

@@ -320,6 +320,76 @@ pub fn install_autostart(exe: &Path) -> Result<std::path::PathBuf, String> {
     }
 }
 
+/// Remove user-level login/startup items installed by `install_autostart`.
+pub fn uninstall_autostart() -> Result<bool, String> {
+    #[cfg(target_os = "linux")]
+    {
+        let mut removed = false;
+        if let Some(dir) = std::env::var_os("XDG_CONFIG_HOME")
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".config"))
+            })
+        {
+            let p1 = dir.join("systemd/user/tether.service");
+            if p1.exists() {
+                let _ = std::fs::remove_file(p1);
+                removed = true;
+            }
+            let p2 = dir.join("autostart/tether.desktop");
+            if p2.exists() {
+                let _ = std::fs::remove_file(p2);
+                removed = true;
+            }
+        }
+        Ok(removed)
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let mut removed = false;
+        if let Some(home) = std::env::var_os("HOME") {
+            let dir = std::path::PathBuf::from(home).join("Library/LaunchAgents");
+            let p1 = dir.join("dev.tether.agent.plist");
+            if p1.exists() {
+                let _ = std::fs::remove_file(p1);
+                removed = true;
+            }
+            let p2 = dir.join("dev.tether.plist");
+            if p2.exists() {
+                let _ = std::fs::remove_file(p2);
+                removed = true;
+            }
+        }
+        Ok(removed)
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let mut removed = false;
+        if let Some(appdata) = std::env::var_os("APPDATA") {
+            let dir = std::path::PathBuf::from(appdata)
+                .join("Microsoft/Windows/Start Menu/Programs/Startup");
+            let p1 = dir.join("tether.url");
+            if p1.exists() {
+                let _ = std::fs::remove_file(p1);
+                removed = true;
+            }
+            let p2 = dir.join("tether.lnk");
+            if p2.exists() {
+                let _ = std::fs::remove_file(p2);
+                removed = true;
+            }
+        }
+        Ok(removed)
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    {
+        Err("autostart is not implemented for this platform".into())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

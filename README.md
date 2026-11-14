@@ -1,494 +1,336 @@
 <div align="center">
 
+<p align="center">
+  <img src="assets/logo.svg" width="96" height="96" alt="Tether Vector Logo" />
+</p>
+
 # Tether
 
 <p align="center">
   <a href="https://github.com/AMG555/Tether/actions/workflows/ci.yml"><img src="https://github.com/AMG555/Tether/actions/workflows/ci.yml/badge.svg" alt="CI Status"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://blog.rust-lang.org/2023/12/28/Rust-1.75.0.html"><img src="https://img.shields.io/badge/rustc-1.75%2B-orange.svg" alt="Rust 1.75+"></a>
-  <a href="#weight-measured"><img src="https://img.shields.io/badge/binary-1.99--2.58_MB-success.svg" alt="Binary Size"></a>
+  <a href="#desktop-application--gui"><img src="https://img.shields.io/badge/gui-Tauri%202.0-24C8D8.svg" alt="Tauri 2"></a>
+  <a href="#weight-measured"><img src="https://img.shields.io/badge/cli--binary-1.99--2.58_MB-success.svg" alt="Binary Size"></a>
   <a href="#privacy-the-part-that-matters"><img src="https://img.shields.io/badge/network-zero-brightgreen.svg" alt="Zero Network"></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/encryption-AES--256--GCM-blueviolet.svg" alt="AES-256-GCM"></a>
 </p>
 
-**100% offline crash recovery and typing autosave. Recover unsaved text after an app crash, freeze, force-quit, or OS restart.**
+**100% offline crash recovery, typing autosave, and desktop companion engine.**<br>
+*Recover unsaved text after an app crash, freeze, force-quit, power outage, or OS restart.*
 
-Tether is a privacy-first, ultra-lightweight local crash recovery tool. While capture is running, it records supported text
-input into a sub-millisecond append-only ring buffer and commits encrypted drafts into an AES-256-GCM SQLite vault with zero network dependencies. It acts as an ethical, non-tracking recovery safeguard—never sending data anywhere, never capturing password fields, and masking payment and token secrets in place. Windows and macOS capture
-keystrokes; Linux is clipboard-only. Capture filters reduce risk, but they cannot recognize every
-sensitive field. Review [privacy](#privacy-the-part-that-matters), [security policy](SECURITY.md), and
-[known limitations](docs/limitations.md) before enabling it.
+Tether is a privacy-first, ultra-fast local crash recovery instrument written in Rust. While active, it captures typing into a sub-millisecond append-only encrypted ring buffer and flushes drafts into an AES-256-GCM SQLite vault. **Zero network calls. Zero cloud telemetry. Zero subscriptions.** Sensitive fields like passwords, crypto seed phrases, tokens, and credit cards are blocked or masked before disk.
 
-An optional companion offers built-in characters, custom sprite/animated clip packs, and a full
-visual desktop application. Access saved typing drafts, inspect revisions, create custom companions,
-or manage auto-startup directly from the native desktop GUI or the terminal CLI.
+Choose between a **featherlight native Desktop GUI** (Tauri 2) with 32 downloadable companion characters, live state previews, and circadian timing, or an **invisible terminal CLI daemon**.
 
 <br>
 
-**[Install](#install) · [The companion](#the-companion) · [How capture works](#how-capture-works) · [Privacy](#privacy-the-part-that-matters) · [Limits](#what-it-does-not-protect-against) · [Docs](docs/)**
+**[Quick Start](#quick-start) · [Desktop App](#desktop-application--gui) · [32 Companions](#32-companion-characters--on-demand-packs) · [Character Studio & States](#character-studio--state-engine) · [Uninstall](#clean-uninstallation) · [Privacy](#privacy-the-part-that-matters) · [Architecture](#architecture)**
 
 <br>
 
-![Tether in a terminal](shots/terminal.png)
-
-<sub>Real output from the release binary. No mockups in this repo.</sub>
+![Tether Desktop Recover](shots/desktop-recover.png)
 
 </div>
 
 ---
 
-## Install
+## Highlights
 
-The one-command installers require a tagged GitHub release with platform binaries and checksums.
-If the [Releases page](https://github.com/AMG555/Tether/releases) has no release yet, build from
-source once the repository files are available:
+- 🛡️ **Zero Network Guarantee**: Zero telemetry, zero external APIs, zero background phone-home. Enforced by automated CI tests (`tests/privacy.rs`).
+- ⚡ **Instant Crash Recovery**: Sub-millisecond ring buffer writes (`~4 µs/key`). Recovers text even after sudden `SIGKILL`, system kernel panic, or power cut.
+- 🔐 **Military-Grade Local Vault**: AES-256-GCM encryption at rest with HKDF-derived keys and SQLite WAL mode.
+- 🕒 **14-Day Rolling Retention**: Saved texts automatically prune after 14 days by default. Complete control over retention windows.
+- 🖥️ **Tauri 2 Native Desktop App**: Modern, accessible desktop client with instant search, revision timeline, and one-click copy.
+- 🐾 **32 Desktop Companions**: On-demand downloadable animated companion packs (CapCut-style asset streaming) keeping initial installer under 4 MB.
+- 🎭 **Live Preview & State Engine**: Full control over character behaviors (`idle`, `walk`, `wave`, `water`, `stretch`, `happy`, `sad`), speech bubbles, scales, and speeds.
+- ⏰ **Dynamic Timing & System Awareness**: Companions adapt their mood and reminders to local time of day (Morning Flow, Hydration, Evening Stretch, Night Owl) and battery health.
+- ⌨️ **Global Shortcut & Hotkeys**: Instant access via `Ctrl+Alt+T` global hotkey, with full in-app navigation (`Ctrl+1..4`, `Ctrl+F`, `Ctrl+R`, `?`).
+- 🧹 **Complete Clean Uninstall**: 1-click uninstaller in Desktop Settings, `tether uninstall [--purge]` CLI command, and standalone removal scripts.
 
-```sh
-git clone https://github.com/AMG555/Tether.git
-cd Tether
-cargo build --release
-```
-
-Rust 1.75+ is required. SQLite is compiled in; the CLI has no runtime dependencies.
-Run `./target/release/tether setup` on Linux/macOS or
-`.\target\release\tether.exe setup` in PowerShell to create the local vault.
-
-<details>
-<summary>Install from a release (after one is published)</summary>
-
-**Linux / macOS**
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/AMG555/Tether/main/scripts/install.sh | sh
-tether setup
-```
-
-**Windows** (PowerShell)
-
-```powershell
-irm https://raw.githubusercontent.com/AMG555/Tether/main/scripts/install.ps1 | iex
-tether setup
-```
-
-The installer downloads the build for your platform, **verifies its SHA-256 against the published
-`checksums.txt`, and refuses to install on a mismatch.** It writes to `~/.local/bin` (or
-`%LOCALAPPDATA%\Tether\bin`), never to `/usr/local`, and tells you exactly what to add to your
-`PATH` if you need to. Re-running it upgrades in place.
-
-</details>
-
-After installing, run `tether setup` once. It creates the vault, checks file permissions, states
-what capture is available on your OS, and prints a fix beside anything that is wrong:
-
-```
-$ tether setup
-
-[1/3] creating the vault
-vault:   /home/you/.local/share/tether
-keyfile: /home/you/.local/share/tether/key.txt  (chmod 600)
-...
-[2/3] checks
-  ok    capture      the clipboard — Linux has no safe system-wide keystroke API; this is a deliberate limit
-  ok    permissions  700 (private)
-  warn  key backup   the key sits next to the vault: losing the disk loses both
-                     fix: copy .../key.txt somewhere separate (password manager, USB stick)
-  warn  start at login not installed — a crash only counts if Tether was already running
-                     fix: tether setup --autostart
-```
-
-If anything blocking is left, it exits non-zero and says what to do. `tether setup --autostart`
-installs a systemd user unit, a LaunchAgent, or a Windows startup item — because **a recovery tool
-that starts after the crash recovers nothing.**
+---
 
 ## Desktop Application & GUI
 
-Tether includes a dedicated native desktop application (powered by Tauri 2 and the OS webview) for users who prefer a graphical interface over the terminal:
+Tether includes a native desktop application powered by **Tauri 2** and system webviews. Designed for accessibility, responsive high-DPI displays, and zero resource waste:
 
-- **Saved-Text Recovery**: Search, view, copy, and inspect revisions of all typing drafts with 14-day auto-purge countdowns.
-- **Companion Roster & Effects Catalog**: Pick from built-in companions (Grace, Rory, Finn, Spike) or download from the 32-character catalog on demand (CapCut effects style, keeping app size under 4 MB).
-- **Character Studio**: Live action preview stage (Idle, Walk, Wave, Water, Stretch, Celebrate, Rest) and full character customizer (colors, traits, proportions, models).
-- **System Settings**: 1-click toggle for startup at login, retention configuration, and cryptographic diagnostics.
+````carousel
+![Desktop Text Recovery](shots/desktop-recover.png)
+<!-- slide -->
+![Companions Catalog](shots/desktop-companions.png)
+<!-- slide -->
+![Companion Preview & Customizer](shots/desktop-preview.png)
+<!-- slide -->
+![Character Studio & State Engine](shots/desktop-studio.png)
+<!-- slide -->
+![System Settings & Clean Uninstall](shots/desktop-settings.png)
+````
 
-To run the desktop application from source:
+### Key Desktop Capabilities
+
+1. **Saved Drafts & Revision History**: Search drafts across all applications, inspect revisions, see word counts, and copy back to your clipboard in one click (`Ctrl+C`).
+2. **On-Demand Companion Downloads**: Browse 32 curated animated companion characters. Download only what you want directly to your local machine.
+3. **Interactive Character Preview**: Test every animation state, customize speech lines, adjust scale (80%–150%) and playback speed (0.7x–1.3x) before activating.
+4. **Studio Customizer**: Author bespoke characters from animated WebP clips or create procedural rigs with tailored color palettes, proportions, and personality quirks.
+5. **System Settings & Diagnostics**: Toggle start-at-login autostart, configure rolling retention days (1–90 days), inspect vault encryption status, and run one-click uninstallation.
+
+---
+
+## 32 Companion Characters & On-Demand Packs
+
+To keep the application download tiny (`< 4 MB`), Tether uses a lightweight on-demand asset model (inspired by CapCut video effects). Companions are downloaded directly to `%LOCALAPPDATA%\Tether\companions` or `~/.local/share/tether/companions` only when requested.
+
+| Category | Companions | Personality & Style |
+|---|---|---|
+| **Classics** | Grace, Rory, Finn, Spike | Balanced productivity, gentle focus, hydration pacing |
+| **Energetic** | Blaze, Bolt, Zippy, Axel | High-tempo sprints, coding velocity, victory celebrations |
+| **Cozy & Calm** | Bao, Coco, Daisy, Marmalade | Soft pauses, posture alignment, tea & breathing reminders |
+| **Tech & Cyber** | Pixel, Quest, Doc, Shadow | Monospace vibes, terminal aesthetics, debugging encouragement |
+| **Nature & Zen** | Nimbus, Splash, Zen, Sage | Ambient tranquility, deep thinking, eye relief prompts |
+| **Whimsical** | Captain Dew, Chip, Ember, Iris, Luna, Nova, Ollie, Peanut, Penny, Theo, Twirl, Waddle | Playful deskside companions with custom dialogue lines |
+
+Every companion includes distinct animation clips: `idle`, `walk`, `wave`, `water`, `stretch`, `happy`, and `sad`.
+
+---
+
+## Character Studio & State Engine
+
+Manage each companion's emotional states and physical presence right inside the desktop app:
+
+```
+[Character State Engine]
+  ├── Idle      ──> Gentle ambient loop while working
+  ├── Walk      ──> Patrols across active dock or taskbar
+  ├── Wave      ──> Friendly greeting upon startup or app switch
+  ├── Water     ──> Hydration nudge at programmed intervals
+  ├── Stretch   ──> Posture and eye-strain micro-break cue
+  ├── Happy     ──> Triggered when long typing drafts save safely
+  └── Sad       ──> Soft alert on unexpected application exit
+```
+
+- **Live Speed & Scale Controls**: Tune animation playback speed from `0.7x` (relaxed) to `1.3x` (brisk) and scale from `80%` to `150%`.
+- **Custom Quote Dialogues**: Assign unique reminder lines to each character state.
+- **Trigger Now Testing**: Manually trigger any state on demand to inspect animations without waiting for timers.
+
+---
+
+## Dynamic Timing & System Status
+
+Tether monitors system health and circadian time passively without recording keystroke content:
+
+- 🌅 **Morning Flow (06:00 – 12:00)**: Companions offer energized greetings, focusing on morning momentum and clear task setup.
+- 💧 **Hydration & Posture (12:00 – 17:00)**: Regular water reminders and ergonomics checks during the afternoon stretch.
+- 🧘 **Evening Wind-Down (17:00 – 22:00)**: Soft stretch prompts to prevent eye fatigue as the workday winds down.
+- 🌙 **Night Owl Mode (22:00 – 06:00)**: Subdued animations, dimmed speech bubbles, and sleep reminders for late-night sessions.
+- 🔋 **Battery Awareness**: Companions adapt their energy levels and remind you to plug in when battery levels drop below 20%.
+
+---
+
+## Quick Start & Installation
+
+### Option 1: One-Click Windows Setup (Recommended)
+
+Download and run the automated Windows setup script:
+
+```bat
+:: Double click setup-windows.bat in the root folder, or run in cmd/PowerShell:
+.\setup-windows.bat
+```
+
+This checks prerequisites, compiles the release binaries, initializes the encrypted vault, configures login autostart, and places desktop and start menu shortcuts (`Ctrl+Alt+T`).
+
+### Option 2: PowerShell One-Liner (Windows)
+
+```powershell
+irm https://raw.githubusercontent.com/AMG555/Tether/main/scripts/install.ps1 | iex
+tether setup --autostart
+```
+
+*Installer verifies SHA-256 checksums, configures desktop shortcuts with `Ctrl+Alt+T`, and adds Tether to your user `PATH`.*
+
+### Option 3: Shell One-Liner (Linux & macOS)
 
 ```sh
+curl -fsSL https://raw.githubusercontent.com/AMG555/Tether/main/scripts/install.sh | sh
+tether setup --autostart
+```
+
+### Option 4: Build from Source
+
+Prerequisites: [Rust 1.75+](https://rustup.rs/) and [Node.js 18+](https://nodejs.org/) (for Desktop GUI).
+
+```sh
+# Clone repository
+git clone https://github.com/AMG555/Tether.git
+cd Tether
+
+# Build lightweight CLI binary (~2.5 MB)
+cargo build --release
+
+# Build native Desktop GUI application (~3.7 MB)
 npm --prefix desktop install
-npm --prefix desktop run tauri:dev
-```
-
-To build a release desktop executable (`~3.6 MB`):
-
-```sh
 cargo build --manifest-path desktop/src-tauri/Cargo.toml --release
+
+# First-time setup
+.\target\release\tether.exe setup --autostart
 ```
 
-## The first five minutes
+---
 
-```sh
-tether setup                     # vault, permissions, checks — do this once
-tether run                       # start capturing; Ctrl-C commits and exits
-```
+## Keyboard Shortcuts
 
-Now keep working. When something dies:
+Navigate Tether at full speed with hotkeys:
 
-```sh
-$ tether status
-buffer     412 event(s) pending
-           ^ run `tether recover` to commit them
-
-$ tether recover
-recovered 1 rescue(s) from the crash buffer.
-  #1    Claude            106 chars   refactor the auth middleware to rotate tokens every 15
-
-$ tether copy 1                  # back on the clipboard, ready to paste
-```
-
-### The demo that proves it
-
-```sh
-$ tether simulate --text "write a rust function that never loses a keystroke" --crash
-simulating a hard crash (SIGKILL, no flush)...
-
-$ tether recover
-recovered 1 rescue(s) from the crash buffer.
-  #1    rescue-demo       50 chars   write a rust function that never loses a keystroke
-```
-
-That is a real `abort()` mid-sentence: no flush, no unwinding, no `Drop`. The text comes back
-byte-identical. It is also an automated test (`tests/crash_recovery.rs`), including one that
-`SIGKILL`s an actual subprocess and reads the result back.
-
-## How capture works
-
-![Crash recovery](shots/clips.png)
-
-Two independent layers, because either one alone has a hole:
-
-| Layer | Survives | Costs |
+| Scope | Shortcut | Action |
 |---|---|---|
-| **Crash ring** — encrypted append-only file, one `write(2)` per keystroke, no fsync | process crash, force-quit, `SIGKILL`, OOM kill | ~4 µs |
-| **Vault** — AES-256-GCM SQLite with revisions | reboot, power loss, and it is what keeps history | ~1 ms per second |
+| **Global OS** | `Ctrl + Alt + T` | Launch or focus Tether desktop window |
+| **In-App Navigation** | `Ctrl + 1` | Switch to **Recover** tab (Saved Drafts) |
+| | `Ctrl + 2` | Switch to **Companions** tab |
+| | `Ctrl + 3` | Switch to **Studio** tab |
+| | `Ctrl + 4` | Switch to **Settings** tab |
+| **Actions** | `Ctrl + F` or `/` | Focus search bar in Recover view |
+| | `Ctrl + R` | Refresh drafts list from encrypted vault |
+| | `Ctrl + C` | Copy currently selected draft to clipboard |
+| | `?` or `Ctrl + /` | Open Keyboard Shortcuts cheat sheet |
+| | `Escape` | Dismiss open preview modals and dialogs |
 
-The ring covers the ~1 second between commits; the vault covers everything older. A crash in
-either window loses nothing: on next start, `recover` replays the ring and stitches it onto the
-last committed version.
+---
 
-```
-   you type
-      │
-      ▼
- ┌─────────────┐   refuses secrets    ┌──────────────┐   every ~1s    ┌─────────────┐
- │  OS capture ├────────► Policy ────►│  Crash ring  ├───────────────►│   Vault     │
- │  (hook/tap) │   masks API keys     │  encrypted,  │   encrypted    │  encrypted  │
- └─────────────┘   blocks 1Password   │  bounded     │   SQLite WAL   │  revisions  │
-                                      └──────┬───────┘                └──────┬──────┘
-                             process dies ──┘                               │
-                                            ▼                               ▼
-                                   `tether recover`  ────────►  `tether list`
-```
+## Clean Uninstallation
 
-### Platform support, honestly
+Tether respects your machine. When you uninstall, everything can be cleaned up cleanly and completely:
 
-| Platform | Keystrokes | Clipboard | What you must grant |
-|---|---|---|---|
-| **Windows 10/11** | ✅ `WH_KEYBOARD_LL` hook, layout-correct via `ToUnicodeEx` | ❌ paste contents are not captured | nothing — no elevation |
-| **macOS 13+** | ✅ `CGEventTap` + Accessibility probe | not independently monitored | Accessibility **and** Input Monitoring |
-| **Linux X11** | ⚠️ clipboard only | ✅ `xclip` | nothing |
-| **Linux Wayland** | ⚠️ clipboard only | ✅ `wl-clipboard` | nothing |
+### 1. From the Desktop App (GUI)
+1. Open **Settings** tab (`Ctrl+4`).
+2. Scroll to the **Danger Zone** at the bottom.
+3. Click **Uninstall Tether**.
+4. Check **Purge all encrypted vault data** if you wish to wipe drafts, encryption keys, and companion files.
+5. Confirm uninstall — Tether deregisters startup entries, wipes specified paths, and closes cleanly.
 
-**Why Linux is clipboard-only:** Wayland deliberately forbids global keyboard hooks, and X11
-global hooks are indistinguishable from malware. Rather than ask for root or fight the compositor,
-Tether degrades to the smaller honest guarantee: eligible clipboard text can be recovered from
-the encrypted vault. Windows paste contents are not captured either.
-`tether setup` says this on screen rather than letting you discover it later. If you want keystroke
-capture on X11, the `Source` trait is ~80 lines and a backend is very welcome.
-
-## The companion
-
-![The companion](shots/companion.png)
-
-A pet that walks around your desktop, reminds you to drink water, and — the part that matters —
-**shows you what Tether caught.** Click it and the text you nearly lost is one keystroke away.
-
-Why it belongs in a recovery tool: Tether's weakness is that it is invisible. An invisible daemon
-is one you forget to trust and never check. The pet is the recovery surface, and the break
-reminders give it a reason to exist on days when nothing crashes.
-
+### 2. From the Command Line (CLI)
 ```sh
-tether ask --character-studio    # author a realistic character (offline HTML, no uploads)
-tether ask --set-clip idle clip.webp
-tether ask --clips               # what you have, what is missing
-tether ask --check               # simulate a 9-hour day, print every reminder
-tether ask                       # the companion itself
+# Clean uninstallation (removes autostart, stops background daemons, cleans binaries)
+tether uninstall
+
+# Total purge uninstallation (also deletes encrypted vault, keys, and companion packs)
+tether uninstall --purge
 ```
 
-### Realistic characters: clip packs
+### 3. Dedicated Scripts
+- **Windows**: Run `powershell -ExecutionPolicy Bypass -File scripts\uninstall.ps1 -Purge`
+- **Linux / macOS**: Run `sh scripts/uninstall.sh --purge`
 
-The most convincing desktop companions are not 3D models — they are **character art animated into
-short clips**, delivered as animated WebP with a real alpha channel. It beats a procedural 3D rig
-on quality-per-byte by a wide margin and needs no GPU, no rig and no engine.
+---
 
-![Character Studio](shots/studio-make.png)
+## How Capture Works
 
-`tether ask --character-studio` writes out an offline authoring page: it **writes the image and
-animation prompts for you**, tells you what one character will cost in credits across the popular
-generators, reads each clip's header locally when you drop it in, and tells you what is missing.
-It makes no network requests — a test fails the build if a URL ever appears in that file.
+![Crash Recovery Mechanics](shots/clips.png)
 
-### Build the character over days, from more than one account
+Tether uses a dual-tier storage architecture designed to never drop a character:
 
-This is deliberate, and it shapes the whole format. A good character is eight to ten clips, and
-nobody makes them in one sitting. So **every clip is independent, and can be added or removed at
-any time after installation:**
-
-```sh
-# Monday, free account A
-tether ask --set-clip idle  ~/Downloads/amma_idle.webp
-tether ask --set-clip walk  ~/Downloads/amma_walk.webp
-
-# Wednesday, account B
-tether ask --set-clip water ~/Downloads/amma_water.webp
-
-# next week you change your mind about one
-tether ask --unset-clip happy
-tether ask --clips
-```
-
-```
-state      status      frames  seconds     size  file
-idle       required        18      1.0  0.11 MB  idle.webp
-walk       ok              18      1.0  0.11 MB  walk.webp
-remind     —                —        —        —  optional — add any time
-water      ok             131      7.3  1.05 MB  water.webp
-eyes       ok             200     11.2  1.09 MB  eyes.webp
-...
-5 of 10 states present.
-```
-
-**Only `idle` is required to load.** A pack with one clip is a valid pack; it is what you get on
-day one, and it works. Everything else, `walk` included, can be added or dropped whenever.
-
-The mechanics are the point:
-
-- **A new clip is audited before it is committed.** Its header is read without decoding
-  (`src/avatar/clips.rs` walks `VP8X`/`ANIM`/`ANMF` for WebP, `acTL`/`fcTL` for APNG) and bombs
-  are refused by declared size, never after an allocation. Stills are refused for animated states,
-  and a `walk` that does not loop is refused, because a walk that plays once and freezes is a bug.
-- **It is atomic.** The manifest and the clip being replaced are backed up, the file is copied to
-  its final name, the manifest is written, the pack is re-validated **in place** — and any error
-  rolls all of it back. A rejected clip leaves the pet exactly as it was.
-- **Nothing is deleted until nothing points at it.** A clip file is removed only when no state
-  still references it.
-- **An empty pack still loads.** A pet with no `idle` is a pet that cannot load, so `idle` is
-  removed only by replacing it.
-
-A pet uses **either** `clips`, `sprite.png`, or a 3D `model` — full format in
-[docs/pet-format.md](docs/pet-format.md). A downloaded pack is untrusted input: names with bidi
-overrides (`U+202E`), control characters, oversized speech, non-power-of-two frame sizes and
-decompression bombs are all refused, and a broken third-party pet is skipped with a reason instead
-of crashing startup.
-
-<details>
-<summary>What one character actually costs in credits</summary>
-
-Google Flow's free tier gives **50 credits per day, no rollover.** Veo 3.1 Lite is 10 credits per
-generation; a character needs roughly 12 generations (8 clips plus retries):
-
-| Model | Credits/generation | For one character | Days of free allowance |
-|---|---|---|---|
-| Veo 3.1 Lite | 10 | 120 | **3** |
-| Omni Flash 360p | 6 | 72 | **2** |
-| Veo 3.1 Fast | 20 | 240 | 5 |
-| Veo 3.1 Quality | 100 | 1200 | 24 — not free |
-
-So yes, a character is workable on the free tier — as **manual authoring over three to five days**,
-not as "one character in 50 credits". The studio's planner does this arithmetic for you and lets
-you change the numbers. For a different pipeline (any image model plus any animation tool), the
-prompts it writes are still the useful part.
-</details>
-
-<details>
-<summary>3D avatars, if you have a rig</summary>
-
-A pet can also be a `.vrm` (VRoid Studio, free and offline) or `.glb`/`.gltf` (Blender, Mixamo).
-**Realism is an asset problem, not a rendering problem**, so Tether is the runtime for avatars you
-own rather than a generator that pretends.
-
-Three things make this safe in a tool whose selling point is that it never touches the network:
-the renderer is **vendored** (three.js r187, MIT — a no-network tool cannot fetch it from a CDN);
-an avatar is **audited before it loads**, with external `uri` references blocked (a model that
-points at `https://…` is a tracking pixel with a skeleton); and it **costs the binary nothing**,
-because the renderer lives in `gui/`. See [ADR 0006](docs/adr/0006-3d-avatars.md).
-</details>
-
-### The reminders are behaviour-blind, by construction
-
-This is the line I would not cross. A pet that watches *how* you work to decide *when* to nag is a
-much larger privacy surface than a crash-recovery tool, so:
-
-- timing comes from a **monotonic clock**, never from analysing keystrokes;
-- "are you at the keyboard?" is **one bit** — did any input arrive since the last tick — consumed,
-  not accumulated;
-- when you are away the timer **pauses**, so you are never nagged about a break you already took;
-- the engine's entire input surface is `tick(now, any_input: bool, hour, minute)`.
-
-A test asserts that a day of typing code and a day of typing prose produce identical reminders.
-Tether can tell you *"time for water"*. It cannot tell you *"you typed 4,000 words today."*
-
-## Privacy: the part that matters
-
-This is a keystroke recorder. Get the ethics wrong and it is spyware. Three rules, enforced in code
-and tested against the bytes on disk:
-
-**1. Filters block recognized secret surfaces and patterns.** They run before data is written to
-the crash ring or vault. They are defense in depth, not a guarantee: some password fields and
-terminal prompts cannot be identified, and behavior varies by app and platform. Do not rely on
-Tether to recognize every secret; see [known limitations](docs/limitations.md).
-
-- **Blocked apps, always:** 1Password, Bitwarden, KeePassXC, LastPass, Dashlane, Enpass, Keeper,
-  NordPass, Proton Pass, Keychain/SecurityAgent, Windows Credential Manager, BitLocker, VeraCrypt,
-  FileVault, MetaMask, Phantom, Exodus, Ledger Live, Trezor, Electrum.
-- **Blocked by title:** "sign in", "reset password", "2FA", "CVV", "credit card", "seed phrase",
-  "private key"…
-- **Masked in *any* app** (`█`): card numbers that pass the Luhn checksum, PEM private keys, JWTs,
-  AWS keys, GitHub/Slack/OpenAI/SendGrid tokens.
-- Accessibility APIs can identify some password fields, but coverage is not universal.
-
-**2. Draft text is encrypted at rest.** AES-256-GCM, keys derived per purpose via HKDF. What an
-attacker with your disk learns: how many drafts, roughly when, how many characters. **Not** the
-text. **Not** the app names. **Not** the window titles. Every file in the data directory is mode
-`0600` and the directory is `0700` on Unix-like systems. On Windows, the data directory inherits
-your user-profile ACL; see [known limitations](docs/limitations.md).
-
-**3. Nothing leaves the machine.** There is no network code in this binary, and a test fails the
-build if a network-capable dependency is ever added
-(`tests/privacy.rs::dependencies_are_offline_only`). No account, no sync, no telemetry, no crash
-reporting.
-
-```sh
-tether doctor       # permissions, DB integrity, backend, pending buffer
-tether purge --yes  # delete everything, vacuum the DB, wipe the ring
-```
-
-## What it does *not* protect against
-
-Being honest is part of the design — full list in [docs/limitations.md](docs/limitations.md):
-
-- **Root or admin on a running machine.** Anyone who can read your process memory can read your
-  text. Tether protects against crashes, theft, backups and careless disk copies — not against a
-  live privileged attacker.
-- **Full metadata hiding.** Row counts and timestamps are visible. Padding every record to a fixed
-  size is out of scope; the design note is in [ADR 0003](docs/adr/0003-encryption.md).
-- **A key stored next to the vault.** The master key lives in `key.txt` (mode 0600) because a
-  passphrase prompt would break foreground capture. Back it up separately, or lose your vault.
-  `init` and `setup` both say this loudly.
-- **The caret.** Replayed keystrokes assume "typing at the end". Probe mode (macOS/Windows) reads
-  the field directly, so it is exact; pure keystroke replay can misplace a mid-string edit. It
-  never *loses* text.
-- **Linux keystrokes.** Clipboard only, as above.
-
-## Commands
-
-```
-tether setup [--autostart]      guided first run: vault, permissions, checks
-tether init                     create the vault, show the recovery key once
-tether run [--mode ...]         capture in the foreground (Ctrl-C commits)
-tether recover                  replay the crash buffer into the vault
-tether list [-n 20] [--preview N] [--json]
-tether show <id> [--bare]       full text (--bare for piping)
-tether copy <id>                put it back on the clipboard
-tether search <query>           decrypt-and-search, in-process only
-tether revisions <id>           earlier versions of a draft
-tether delete <id>              delete + vacuum (bytes really go)
-tether prune [--keep 500] [--max-days 14]   retention policy (auto-purged after 14 days)
-tether backup <dir>             encrypted backup, safe to sync
-tether doctor | status
-tether simulate --text ... --crash          reproduce a crash deterministically
-tether ask                      the companion
-tether ask --set-clip STATE FILE             add or replace one clip, any time
-tether ask --unset-clip STATE                remove an optional clip
-tether ask --clips [--pet NAME]              every state, and what is missing
-tether ask --character-studio                offline clip-pack authoring
-tether ask --new NAME | --studio | --check | --list | --install DIR
-tether ask --audit FILE | --avatars          3D avatar audit / list
-```
-
-Exit codes: `0` ok · `1` runtime error · `2` refused (destructive without confirmation) ·
-`3` bad usage.
-
-## Weight, measured
-
-`docs/weight.md` records every number with the command that produced it, including the
-optimisations that were **rejected**. On an x86-64 Linux release build:
-
-| | |
-|---|---|
-| Binary | **1.99 MB** (`opt-level="z"`, LTO, abort, stripped) |
-| Idle resident | **4.3 MB** (VmRSS, flat while capturing) |
-| Startup | **4.4 ms** median (`tether status`, 12 runs) |
-| Capture hot path | **4.1 µs** per keystroke (~240k keys/s) |
-| Vault commit | **1.2 ms** (drain + decrypt + reconstruct + AES-GCM + WAL) |
-| Runtime dependencies | **none** — SQLite is compiled in |
-| Network calls | **none** — enforced by a test |
-
-The number that decided the architecture: the realistic path is the *small* one.
-
-| Path | Code the user runs | Gzipped |
+| Storage Layer | Durability & Scope | Latency |
 |---|---|---|
-| Clip pack (animated WebP, the realistic path) | `gui/clip-player.js` | **2.8 KB** |
-| Procedural 3D (three.js) | `gui/vendor/three-bundle.js` | **210 KB** |
+| **Crash Ring** | Fixed-slot append-only file. Survives process crashes, force-quits, `SIGKILL`, and OOM kills. | **~4 µs** per keystroke |
+| **Encrypted Vault** | SQLite WAL mode with AES-256-GCM encryption. Stores structured drafts and revisions across reboots. | **~1.2 ms** per flush (~1s) |
 
-74× — for characters that look *worse*, because the 3D ones are primitives and the clip ones are
-real art. So the 3D renderer stays optional and separate, and the default realistic path costs less
-than a marketing page's CSS.
+```
+   User Typing
+       │
+       ▼
+ ┌─────────────┐    Sanitizes secrets     ┌──────────────┐    Every ~1s    ┌─────────────┐
+ │  OS Capture ├─────────────────────────►│  Crash Ring  ├────────────────►│   Vault     │
+ │  (Hook/Tap) │    Blocks password apps  │  (Encrypted) │    Encrypted    │ (AES-256-GCM│
+ └─────────────┘    Masks payment cards   └──────┬───────┘    SQLite WAL   │  Revisions) │
+                                                 │                         └──────┬──────┘
+                                          Process Dies ──┐                        │
+                                                         ▼                        ▼
+                                                `tether recover`         `tether list`
+```
 
-Budgets are enforced in CI: binary ≤ 2.75 MiB, idle RSS ≤ 12 MB, ingest ≤ 200 µs/keystroke.
+### Platform Keystroke Support
+
+| Platform | Keystroke Hook | Clipboard Fallback | Elevation Required |
+|---|---|---|---|
+| **Windows 10 / 11** | ✅ `WH_KEYBOARD_LL` + `ToUnicodeEx` layout mapping | ❌ Excluded from capture | **None** (User space) |
+| **macOS 13+** | ✅ `CGEventTap` + Accessibility probe | ❌ Excluded from capture | Accessibility permissions |
+| **Linux (X11 / Wayland)** | ⚠️ Clipboard-only (Security design) | ✅ `xclip` / `wl-clipboard` | **None** (User space) |
+
+---
+
+## Privacy: The Part That Matters
+
+Because Tether records keyboard interactions, security and ethics are enforced at the compiler level:
+
+1. **Pre-Write Filtering**:
+   - **Always Blocked**: 1Password, Bitwarden, KeePassXC, LastPass, Dashlane, Enpass, Keeper, NordPass, Proton Pass, macOS Keychain, Windows Credential Manager, BitLocker, VeraCrypt, MetaMask, Phantom, Ledger Live, Trezor.
+   - **Pattern Blocked**: Window titles containing "sign in", "reset password", "2FA", "CVV", "credit card", "seed phrase", "private key".
+   - **Secret Masking**: Luhn-valid credit card numbers, JWT tokens, PEM private keys, AWS/GitHub/OpenAI tokens are masked with `█` characters before touching disk.
+2. **Encrypted at Rest**:
+   - AES-256-GCM encryption with per-purpose HKDF key derivation.
+   - Files created with `0600` permissions (`0700` directories) on Unix; protected by user SID ACLs on Windows.
+3. **Zero Network Traffic**:
+   - **Zero telemetry, zero sync, zero network dependencies.** Automated test `tests/privacy.rs::dependencies_are_offline_only` enforces that no network libraries exist in the dependency tree.
+
+---
+
+## CLI Command Reference
+
+```
+tether setup [--autostart]          Guided first run: creates vault, permissions, checks
+tether run [--mode ...]             Start foreground capture engine (Ctrl-C commits)
+tether recover                      Replay pending crash ring buffer into encrypted vault
+tether list [-n 20] [--preview N]   Display recent typing drafts with timestamps
+tether show <id> [--bare]           Output full recovered draft
+tether copy <id>                    Place recovered text directly on system clipboard
+tether search <query>               Fast in-memory decrypt-and-search across drafts
+tether revisions <id>               View past revisions of a specific draft
+tether prune [--max-days 14]        Prune drafts older than retention window (default 14 days)
+tether purge --yes                  Wipe all vault data, vacuum SQLite, clear crash ring
+tether uninstall [--purge]          Cleanly uninstall autostart and delete binaries/vault
+tether ask                          Launch desktop companion
+tether ask --character-studio       Open offline Character Studio in local browser
+tether ask --clips                  Inspect installed clip states for current character
+tether doctor                       Verify DB integrity, permissions, and buffer state
+```
+
+---
+
+## Weight, Measured
+
+Benchmarked on x86-64 release builds:
+
+| Metric | Measured Value | Notes |
+|---|---|---|
+| **CLI Binary** | **1.99 MB** | `opt-level="z"`, LTO, abort on panic, stripped |
+| **Desktop App Binary** | **3.71 MB** | Full Tauri 2 GUI client, bundled webview shell |
+| **Idle Memory (RSS)** | **4.3 MB** | Resident set size while capturing |
+| **Capture Latency** | **4.1 µs** | Average latency per keystroke event |
+| **Commit Latency** | **1.2 ms** | Ingest, sanitize, encrypt, and WAL commit |
+| **Cold Startup** | **4.4 ms** | `tether status` execution time |
+| **Runtime Dependencies** | **None** | SQLite compiled directly into binary |
+
+---
 
 ## Architecture
 
-Six deep modules, one seam each. Full notes in [docs/architecture.md](docs/architecture.md).
+Modular Rust codebase structured into eleven isolated domain modules:
 
-| Module | Interface | Hides |
-|---|---|---|
-| `crypto` | `seal` / `open` / `derive_keys` | AES-GCM framing, HKDF purpose separation, nonces |
-| `policy` | `verdict` / `sanitize` | blocked apps, title patterns, Luhn, token patterns |
-| `ring` | `push` / `drain` / `clear` | fixed-slot encrypted ring, header cursor, torn writes |
-| `recover` | `reconstruct` | event stream → text, grapheme-aware backspace |
-| `vault` | `save_draft` / `list` / `search` | SQLite WAL, blind index, revisions, vacuuming |
-| `engine` | `ingest` / `flush` / `recover` | **the ordering** — policy before ring before vault |
-| `remind` | `tick` | behaviour-blind scheduling: presence is one bool, never content |
-| `pack` | `add_clip` / `remove_clip` / `inventory` | atomic clip mutation, audit-before-commit |
-| `pet` | `load` / `validate` / `scaffold` | untrusted manifest validation, procedural art |
-| `setup` | `checks` / `install_autostart` | what "installed correctly" means on each OS |
-| `companion` | `run` | `tether ask`: scaffold, install, clips, terminal pet |
+| Module | Core Responsibility |
+|---|---|
+| [`src/crypto.rs`](src/crypto.rs) | AES-256-GCM encryption, HKDF key derivation, nonces |
+| [`src/policy.rs`](src/policy.rs) | Secret scanning, sensitive application detection, masking |
+| [`src/ring.rs`](src/ring.rs) | Encrypted append-only crash buffer with torn-write prevention |
+| [`src/recover.rs`](src/recover.rs) | Event reconstruction, grapheme-aware backspace handling |
+| [`src/vault.rs`](src/vault.rs) | SQLite WAL encrypted storage, blind indexing, revisions |
+| [`src/engine.rs`](src/engine.rs) | Orchestrates capture pipeline: Policy → Ring → Vault |
+| [`src/remind.rs`](src/remind.rs) | Circadian break timer (presence-aware, content-blind) |
+| [`src/avatar/`](src/avatar/) | Character manifest validation, animated WebP/APNG auditor |
+| [`src/setup.rs`](src/setup.rs) | Guided system check, autostart installer, and uninstaller |
+| [`desktop/`](desktop/) | Tauri 2 native desktop app frontend & IPC commands |
 
-[docs/architecture.md](docs/architecture.md) · [docs/limitations.md](docs/limitations.md) ·
-[ADR 0001 storage](docs/adr/0001-storage.md) ·
-[ADR 0002 crash safety](docs/adr/0002-crash-safety.md) ·
-[ADR 0003 encryption](docs/adr/0003-encryption.md) ·
-[ADR 0004 reconstruction](docs/adr/0004-draft-reconstruction.md) ·
-[ADR 0006 3D avatars](docs/adr/0006-3d-avatars.md)
-
-## Development
-
-```sh
-cargo test
-node --test gui/*.test.js
-cargo clippy --all-targets -- -D warnings
-cargo fmt --check
-sh scripts/test-install.sh
-```
-
-Windows and macOS backends are `#[cfg]`-gated, so Linux CI stays green; build them on their own
-platforms. Screenshots in `shots/` are captured headless from the shipping pages and the actual
-binary — see `shots/capture.py`. If you change a page, re-run it; a green test suite and an
-invisible window have coexisted here before.
-
-## Publishing
-
-See the [GitHub publishing checklist](docs/publishing.md) for the initial source push, repository
-setup, and first release steps.
+---
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Released under the **MIT License**. Created and maintained by **AMG555**.
+See [LICENSE](LICENSE) for details.

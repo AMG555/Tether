@@ -18,6 +18,11 @@ pub fn run() -> Result<(), tauri::Error> {
             commands::save_custom_companion,
             commands::delete_custom_companion,
             commands::install_catalog_companion,
+            commands::uninstall_autostart,
+            commands::purge_vault_data,
+            commands::uninstall_app,
+            commands::get_companion_clip,
+            commands::get_system_status,
         ])
         .run(tauri::generate_context!());
 

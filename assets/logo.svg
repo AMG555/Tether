@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d9381e"/>
+      <stop offset="100%" stop-color="#991b1b"/>
+    </linearGradient>
+    <linearGradient id="knotGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f2efe6"/>
+    </linearGradient>
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#14120f" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <rect width="256" height="256" rx="56" fill="#14120f"/>
+  <circle cx="128" cy="128" r="106" fill="none" stroke="#26221c" stroke-width="2"/>
+  
+  <g filter="url(#softShadow)">
+    <path d="M128 36 L196 66 C196 132 170 186 128 216 C86 186 60 132 60 66 Z" 
+          fill="url(#shieldGrad)" />
+  </g>
+
+  <circle cx="128" cy="98" r="28" fill="none" stroke="url(#knotGrad)" stroke-width="12" stroke-linecap="round"/>
+  <path d="M106 122 C106 142 128 162 128 174 C128 162 150 142 150 122" 
+        fill="none" stroke="url(#knotGrad)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <circle cx="116" cy="98" r="4.5" fill="#14120f"/>
+  <circle cx="140" cy="98" r="4.5" fill="#14120f"/>
+  <circle cx="117.5" cy="96.5" r="1.5" fill="#ffffff"/>
+  <circle cx="141.5" cy="96.5" r="1.5" fill="#ffffff"/>
+  <circle cx="128" cy="176" r="6" fill="#f2efe6"/>
+</svg>

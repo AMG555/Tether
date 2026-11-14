@@ -306,3 +306,83 @@ export async function installCatalogCompanion(id) {
     throw new AppApiError('OPERATION_FAILED', String(error));
   }
 }
+
+/** @returns {Promise<boolean>} */
+export async function uninstallAutostart() {
+  const invoke = getInvoker();
+  if (!invoke) return true;
+  try {
+    return await invoke('uninstall_autostart');
+  } catch (error) {
+    throw new AppApiError('OPERATION_FAILED', String(error));
+  }
+}
+
+/** @returns {Promise<boolean>} */
+export async function purgeVaultData() {
+  const invoke = getInvoker();
+  if (!invoke) return true;
+  try {
+    return await invoke('purge_vault_data');
+  } catch (error) {
+    throw new AppApiError('OPERATION_FAILED', String(error));
+  }
+}
+
+/**
+ * @param {boolean} [purgeData]
+ * @returns {Promise<{ autostartRemoved: boolean, vaultPurged: boolean, vaultPath: string, message: string }>}
+ */
+export async function uninstallApp(purgeData = false) {
+  const invoke = getInvoker();
+  if (!invoke) {
+    return {
+      autostartRemoved: true,
+      vaultPurged: purgeData,
+      vaultPath: '~/.local/share/tether',
+      message: 'Uninstallation simulated in mock environment.',
+    };
+  }
+  try {
+    return await invoke('uninstall_app', { purgeData });
+  } catch (error) {
+    throw new AppApiError('OPERATION_FAILED', String(error));
+  }
+}
+
+/**
+ * @param {string} id
+ * @param {string} [action]
+ * @returns {Promise<string|null>}
+ */
+export async function getCompanionClip(id, action = 'idle') {
+  const invoke = getInvoker();
+  if (!invoke) return null;
+  try {
+    return await invoke('get_companion_clip', { id, action });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @returns {Promise<{ platform: string, uptimeSecs: number, autostartInstalled: boolean, retentionDays: number, vaultExists: boolean, vaultPath: string }>}
+ */
+export async function getSystemStatus() {
+  const invoke = getInvoker();
+  if (!invoke) {
+    return {
+      platform: 'browser',
+      uptimeSecs: 0,
+      autostartInstalled: false,
+      retentionDays: 14,
+      vaultExists: true,
+      vaultPath: '~/.local/share/tether',
+    };
+  }
+  try {
+    return await invoke('get_system_status');
+  } catch (error) {
+    throw new AppApiError('OPERATION_FAILED', String(error));
+  }
+}

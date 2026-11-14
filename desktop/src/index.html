@@ -15,7 +15,15 @@
       <!-- Masthead Header -->
       <header class="masthead">
         <div class="brand-lockup">
-          <span class="brand-mark" aria-hidden="true">T</span>
+          <svg class="brand-logo" width="30" height="30" viewBox="0 0 256 256" aria-hidden="true" role="img">
+            <rect width="256" height="256" rx="56" fill="#14120f"/>
+            <path d="M128 36 L196 66 C196 132 170 186 128 216 C86 186 60 132 60 66 Z" fill="#c2331a"/>
+            <circle cx="128" cy="98" r="28" fill="none" stroke="#f2efe6" stroke-width="12" stroke-linecap="round"/>
+            <path d="M106 122 C106 142 128 162 128 174 C128 162 150 142 150 122" fill="none" stroke="#f2efe6" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="116" cy="98" r="4.5" fill="#14120f"/>
+            <circle cx="140" cy="98" r="4.5" fill="#14120f"/>
+            <circle cx="128" cy="176" r="6" fill="#f2efe6"/>
+          </svg>
           <div>
             <span class="brand-name">Tether</span>
             <span class="brand-tag">Offline Instrument</span>
@@ -37,10 +45,15 @@
           </button>
         </nav>
 
-        <div class="masthead-status">
-          <span id="app-status" class="status-indicator" data-state="loading" role="status" aria-live="polite" aria-atomic="true">
-            Connecting…
-          </span>
+        <div class="masthead-actions">
+          <button type="button" id="shortcuts-btn" class="btn btn-subtle btn-shortcuts" title="Keyboard Shortcuts (?)" aria-label="Keyboard Shortcuts">
+            <span aria-hidden="true">⌨</span> Shortcuts
+          </button>
+          <div class="masthead-status">
+            <span id="app-status" class="status-indicator" data-state="loading" role="status" aria-live="polite" aria-atomic="true">
+              Connecting…
+            </span>
+          </div>
         </div>
       </header>
 
@@ -134,6 +147,7 @@
             <div class="active-pet-pill">
               <span class="meta-label">Active:</span>
               <strong id="active-companion-name">Grace</strong>
+              <span id="companion-mood-indicator" class="mood-badge" title="Dynamic mood based on time &amp; system status">Idle • Ready</span>
             </div>
           </div>
 
@@ -231,6 +245,96 @@
               </form>
             </div>
           </div>
+
+          <!-- Character State & Mood Engine -->
+          <div class="studio-states-card">
+            <div class="stage-header">
+              <span class="stage-label">Character State &amp; Mood Engine</span>
+              <span class="stage-status">7 Configurable Behaviors</span>
+            </div>
+            <p class="view-lede">
+              Fine-tune each character state, reminder dialogue, and automated triggers based on time and system status.
+            </p>
+            
+            <div class="states-grid" role="region" aria-label="Character states manager">
+              <!-- State 1: Idle -->
+              <div class="state-card" data-state-id="idle">
+                <div class="state-card-header">
+                  <span class="state-badge">Idle</span>
+                  <button type="button" class="btn btn-tiny btn-test-state" data-state="idle">Trigger Now</button>
+                </div>
+                <label for="state-quote-idle" class="state-field-label">Speech Quote:</label>
+                <input type="text" id="state-quote-idle" class="input-text-compact" value="Ready to safeguard your writing." maxlength="80">
+                <span class="state-trigger-hint">Trigger: Default baseline loop</span>
+              </div>
+
+              <!-- State 2: Walk -->
+              <div class="state-card" data-state-id="walk">
+                <div class="state-card-header">
+                  <span class="state-badge">Walking</span>
+                  <button type="button" class="btn btn-tiny btn-test-state" data-state="walk">Trigger Now</button>
+                </div>
+                <label for="state-quote-walk" class="state-field-label">Speech Quote:</label>
+                <input type="text" id="state-quote-walk" class="input-text-compact" value="Pacing along your paragraphs." maxlength="80">
+                <span class="state-trigger-hint">Trigger: Active focus flow</span>
+              </div>
+
+              <!-- State 3: Wave -->
+              <div class="state-card" data-state-id="wave">
+                <div class="state-card-header">
+                  <span class="state-badge">Wave / Greeting</span>
+                  <button type="button" class="btn btn-tiny btn-test-state" data-state="wave">Trigger Now</button>
+                </div>
+                <label for="state-quote-wave" class="state-field-label">Speech Quote:</label>
+                <input type="text" id="state-quote-wave" class="input-text-compact" value="Good morning! Ready for today's work." maxlength="80">
+                <span class="state-trigger-hint">Trigger: Morning (06:00 - 12:00)</span>
+              </div>
+
+              <!-- State 4: Water / Hydration -->
+              <div class="state-card" data-state-id="water">
+                <div class="state-card-header">
+                  <span class="state-badge">Water / Health</span>
+                  <button type="button" class="btn btn-tiny btn-test-state" data-state="water">Trigger Now</button>
+                </div>
+                <label for="state-quote-water" class="state-field-label">Speech Quote:</label>
+                <input type="text" id="state-quote-water" class="input-text-compact" value="Time for a sip of water! Stay hydrated." maxlength="80">
+                <span class="state-trigger-hint">Trigger: Continuous typing &gt; 45m</span>
+              </div>
+
+              <!-- State 5: Stretch -->
+              <div class="state-card" data-state-id="stretch">
+                <div class="state-card-header">
+                  <span class="state-badge">Stretch / Ergonomics</span>
+                  <button type="button" class="btn btn-tiny btn-test-state" data-state="stretch">Trigger Now</button>
+                </div>
+                <label for="state-quote-stretch" class="state-field-label">Speech Quote:</label>
+                <input type="text" id="state-quote-stretch" class="input-text-compact" value="Relax your shoulders and stretch your wrists." maxlength="80">
+                <span class="state-trigger-hint">Trigger: Evening (17:00 - 21:00)</span>
+              </div>
+
+              <!-- State 6: Celebrate / Happy -->
+              <div class="state-card" data-state-id="happy">
+                <div class="state-card-header">
+                  <span class="state-badge">Celebrate</span>
+                  <button type="button" class="btn btn-tiny btn-test-state" data-state="happy">Trigger Now</button>
+                </div>
+                <label for="state-quote-happy" class="state-field-label">Speech Quote:</label>
+                <input type="text" id="state-quote-happy" class="input-text-compact" value="Milestone achieved! Autosave secured." maxlength="80">
+                <span class="state-trigger-hint">Trigger: Rapid typing burst / rescue</span>
+              </div>
+
+              <!-- State 7: Sleepy / Rest -->
+              <div class="state-card" data-state-id="sad">
+                <div class="state-card-header">
+                  <span class="state-badge">Sleepy / Night</span>
+                  <button type="button" class="btn btn-tiny btn-test-state" data-state="sad">Trigger Now</button>
+                </div>
+                <label for="state-quote-sad" class="state-field-label">Speech Quote:</label>
+                <input type="text" id="state-quote-sad" class="input-text-compact" value="Late night writing... remember to rest." maxlength="80">
+                <span class="state-trigger-hint">Trigger: Night (22:00 - 06:00) or Battery &lt; 20%</span>
+              </div>
+            </div>
+          </div>
         </section>
 
         <!-- View 4: Settings -->
@@ -323,6 +427,36 @@
                 </div>
               </dl>
             </div>
+
+            <!-- Danger Zone & Uninstall Options -->
+            <div class="settings-card danger-zone">
+              <h3 class="card-title danger-title">Danger Zone &amp; Uninstall</h3>
+              <p class="setting-hint">Cleanly remove system integration, purge stored writing history, or completely uninstall Tether.</p>
+              
+              <div class="setting-item">
+                <div class="setting-text">
+                  <span class="setting-label">Remove Startup Integration</span>
+                  <p class="setting-hint">Removes the login daemon / startup shortcut without touching your saved texts.</p>
+                </div>
+                <button type="button" id="uninstall-autostart-btn" class="btn btn-secondary">Remove Autostart</button>
+              </div>
+
+              <div class="setting-item">
+                <div class="setting-text">
+                  <span class="setting-label">Purge All Saved Texts</span>
+                  <p class="setting-hint">Permanently deletes all crash drafts, revisions, and resets the encrypted vault database.</p>
+                </div>
+                <button type="button" id="purge-vault-btn" class="btn btn-danger">Purge All Texts</button>
+              </div>
+
+              <div class="setting-item">
+                <div class="setting-text">
+                  <span class="setting-label">Complete App Uninstall &amp; Wipe</span>
+                  <p class="setting-hint">Removes system startup, companion cache, and optionally purges all encrypted local records.</p>
+                </div>
+                <button type="button" id="uninstall-app-btn" class="btn btn-danger">Uninstall Tether</button>
+              </div>
+            </div>
           </div>
         </section>
       </main>
@@ -332,6 +466,199 @@
         <span>Tether Desktop — Local Instrument</span>
         <span>AES-256-GCM • Offline • Zero Telemetry</span>
       </footer>
+    </div>
+
+    <!-- Companion Preview & Customizer Modal -->
+    <div id="companion-preview-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="preview-modal-title">
+      <div class="modal-dialog modal-large">
+        <div class="modal-header">
+          <div>
+            <h2 id="preview-modal-title" class="modal-title">Preview Companion</h2>
+            <span id="preview-modal-subtitle" class="meta-label">32 Procedural &amp; Animated Effects</span>
+          </div>
+          <button type="button" id="close-preview-modal-btn" class="btn-close" aria-label="Close preview dialog">&times;</button>
+        </div>
+
+        <div class="modal-body preview-modal-body">
+          <!-- Stage container -->
+          <div class="preview-stage-wrap">
+            <div class="preview-media-container">
+              <img id="preview-companion-img" class="preview-companion-img" src="" alt="Companion animation clip" hidden>
+              <canvas id="preview-companion-canvas" class="preview-companion-canvas" width="280" height="240" aria-label="Companion animation preview"></canvas>
+            </div>
+
+            <div id="preview-speech-bubble" class="preview-speech-bubble">
+              <span id="preview-speech-text">Ready to safeguard your writing.</span>
+            </div>
+
+            <!-- Action switcher strip -->
+            <div class="modal-action-strip" role="group" aria-label="Preview companion states">
+              <button type="button" class="btn-action active" data-preview-action="idle">Idle</button>
+              <button type="button" class="btn-action" data-preview-action="walk">Walk</button>
+              <button type="button" class="btn-action" data-preview-action="wave">Wave</button>
+              <button type="button" class="btn-action" data-preview-action="water">Water</button>
+              <button type="button" class="btn-action" data-preview-action="stretch">Stretch</button>
+              <button type="button" class="btn-action" data-preview-action="happy">Celebrate</button>
+              <button type="button" class="btn-action" data-preview-action="sad">Sleepy</button>
+            </div>
+          </div>
+
+          <!-- Customizer controls -->
+          <div class="preview-customizer-wrap">
+            <h3 class="form-title">Companion Settings &amp; Personalization</h3>
+            
+            <div class="form-group">
+              <label for="preview-scale-select">Display Scale</label>
+              <select id="preview-scale-select" class="select-field">
+                <option value="0.8">Compact (80%)</option>
+                <option value="1.0" selected>Standard (100%)</option>
+                <option value="1.2">Large (120%)</option>
+                <option value="1.5">Giant (150%)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="preview-speed-select">Animation Speed</label>
+              <select id="preview-speed-select" class="select-field">
+                <option value="0.7">Relaxed (0.7x)</option>
+                <option value="1.0" selected>Natural (1.0x)</option>
+                <option value="1.3">Brisk (1.3x)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="preview-custom-quote">Custom Reminder Dialogue</label>
+              <input type="text" id="preview-custom-quote" class="input-text" placeholder="e.g. Focus on the sentence in front of you." maxlength="100">
+            </div>
+
+            <div class="form-group">
+              <label for="preview-behavior-trigger">Primary Automated Trigger</label>
+              <select id="preview-behavior-trigger" class="select-field">
+                <option value="time">Time of Day (Night / Morning awareness)</option>
+                <option value="session">Continuous Focus Session (Water / Stretch every 45m)</option>
+                <option value="wpm">Typing Flow (Cheering during fast typing)</option>
+                <option value="manual">Manual / Ambient Loop Only</option>
+              </select>
+            </div>
+
+            <div class="preview-meta-stats">
+              <span id="preview-meta-pack" class="meta-item">Pack: Builtin</span>
+              <span id="preview-meta-size" class="meta-item">Size: 3.2 MB</span>
+              <span id="preview-meta-status" class="meta-item">Installed</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" id="preview-set-active-btn" class="btn btn-primary">Set as Active Companion</button>
+          <button type="button" id="preview-apply-custom-btn" class="btn btn-secondary">Apply Customizations</button>
+          <button type="button" id="close-preview-modal-bottom-btn" class="btn btn-subtle">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Modal -->
+    <div id="shortcuts-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="shortcuts-modal-title">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <div>
+            <h2 id="shortcuts-modal-title" class="modal-title">Keyboard Shortcuts</h2>
+            <span class="meta-label">Quick Desktop Navigation</span>
+          </div>
+          <button type="button" id="close-shortcuts-modal-btn" class="btn-close" aria-label="Close shortcuts dialog">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <table class="shortcuts-table" aria-label="Keyboard shortcuts list">
+            <thead>
+              <tr>
+                <th scope="col">Shortcut</th>
+                <th scope="col">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><kbd>Ctrl</kbd> + <kbd>1</kbd></td>
+                <td>Switch to Recover Texts</td>
+              </tr>
+              <tr>
+                <td><kbd>Ctrl</kbd> + <kbd>2</kbd></td>
+                <td>Switch to Companions Catalog</td>
+              </tr>
+              <tr>
+                <td><kbd>Ctrl</kbd> + <kbd>3</kbd></td>
+                <td>Switch to Companion Studio</td>
+              </tr>
+              <tr>
+                <td><kbd>Ctrl</kbd> + <kbd>4</kbd></td>
+                <td>Switch to Settings</td>
+              </tr>
+              <tr>
+                <td><kbd>Ctrl</kbd> + <kbd>F</kbd> or <kbd>/</kbd></td>
+                <td>Focus search input in drafts</td>
+              </tr>
+              <tr>
+                <td><kbd>Ctrl</kbd> + <kbd>R</kbd></td>
+                <td>Refresh drafts list from vault</td>
+              </tr>
+              <tr>
+                <td><kbd>Ctrl</kbd> + <kbd>C</kbd></td>
+                <td>Copy selected draft text</td>
+              </tr>
+              <tr>
+                <td><kbd>?</kbd> or <kbd>Ctrl</kbd> + <kbd>/</kbd></td>
+                <td>Open / close shortcuts cheatsheet</td>
+              </tr>
+              <tr>
+                <td><kbd>Esc</kbd></td>
+                <td>Close any open modal or search</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" id="close-shortcuts-bottom-btn" class="btn btn-primary">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Uninstall Confirmation Modal -->
+    <div id="uninstall-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="uninstall-modal-title">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <div>
+            <h2 id="uninstall-modal-title" class="modal-title danger-text">Uninstall Tether</h2>
+            <span class="meta-label">Clean System Removal</span>
+          </div>
+          <button type="button" id="close-uninstall-modal-btn" class="btn-close" aria-label="Close uninstall dialog">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <p class="dialog-text">
+            This will remove the startup service/shortcut and unhook Tether background capture.
+          </p>
+
+          <div class="danger-box">
+            <label class="checkbox-label" for="wipe-vault-checkbox">
+              <input type="checkbox" id="wipe-vault-checkbox" class="toggle-checkbox-small">
+              <strong>Also wipe encrypted local vault and encryption key</strong>
+            </label>
+            <p class="setting-hint">
+              If checked, all saved drafts, revisions, and keys in <code>~/.local/share/tether</code> will be permanently destroyed.
+            </p>
+          </div>
+
+          <div id="uninstall-result-box" class="uninstall-result hidden" role="status" aria-live="polite">
+            <!-- Result feedback -->
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" id="confirm-uninstall-btn" class="btn btn-danger">Proceed with Uninstall</button>
+          <button type="button" id="cancel-uninstall-btn" class="btn btn-secondary">Cancel</button>
+        </div>
+      </div>
     </div>
   </body>
 </html>

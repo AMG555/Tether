@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-purge-vault-data"
+description = "Enables the purge_vault_data command without any pre-configured scope."
+commands.allow = ["purge_vault_data"]
+
+[[permission]]
+identifier = "deny-purge-vault-data"
+description = "Denies the purge_vault_data command without any pre-configured scope."
+commands.deny = ["purge_vault_data"]

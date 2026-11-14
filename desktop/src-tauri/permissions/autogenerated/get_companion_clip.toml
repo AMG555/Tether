@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-companion-clip"
+description = "Enables the get_companion_clip command without any pre-configured scope."
+commands.allow = ["get_companion_clip"]
+
+[[permission]]
+identifier = "deny-get-companion-clip"
+description = "Denies the get_companion_clip command without any pre-configured scope."
+commands.deny = ["get_companion_clip"]

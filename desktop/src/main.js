@@ -13,28 +13,49 @@ import {
   listCompanions,
   saveCustomCompanion,
   installCatalogCompanion,
+  uninstallAutostart,
+  purgeVaultData,
+  uninstallApp,
+  getCompanionClip,
+  getSystemStatus,
 } from './api.js';
 
 const genericFailureMessage = 'Tether could not load app information.';
 
-// Catalog of 32 companions available for on-demand installation
+// Complete Catalog of 32 companions available for on-demand installation
 const CATALOG_COMPANIONS = [
-  { id: 'grace', name: 'Grace', desc: 'A warm, grounding presence — reminds you to drink water and rest.', tags: ['human', 'adult', 'calm'], size: '8.4 MB' },
-  { id: 'rory', name: 'Rory', desc: 'The lion cub heir — small, boisterous, and convinced he runs the place.', tags: ['animal', 'cub', 'playful'], size: '9.1 MB' },
-  { id: 'finn', name: 'Finn', desc: 'A football kid who takes every break to practice his step-overs.', tags: ['human', 'kid', 'sporty'], size: '7.8 MB' },
-  { id: 'ollie', name: 'Ollie', desc: 'The class bookworm — always mid-chapter, always has a fun fact ready.', tags: ['human', 'kid', 'studious'], size: '8.2 MB' },
-  { id: 'blaze', name: 'Blaze', desc: 'A pint-sized superhero who takes your water reminders very seriously.', tags: ['human', 'kid', 'hero'], size: '9.4 MB' },
-  { id: 'axel', name: 'Axel', desc: 'A skater boy who grinds deadlines the same way he grinds rails.', tags: ['human', 'kid', 'sporty'], size: '8.8 MB' },
-  { id: 'spike', name: 'Spike', desc: 'A jackfruit with opinions — slow to ripen, but worth the wait.', tags: ['food', 'whimsical', 'calm'], size: '7.1 MB' },
-  { id: 'luna', name: 'Luna', desc: 'A moon fairy who keeps your circadian rhythm honest when you work late.', tags: ['fantasy', 'fairy', 'calm'], size: '9.2 MB' },
-  { id: 'coco', name: 'Coco', desc: 'A cheerful golden retriever who wags whenever you finish a paragraph.', tags: ['animal', 'dog', 'warm'], size: '8.5 MB' },
-  { id: 'daisy', name: 'Daisy', desc: 'A gentle bunny who nibbles carrots while you draft your notes.', tags: ['animal', 'bunny', 'gentle'], size: '7.9 MB' },
-  { id: 'bolt', name: 'Bolt', desc: 'An energetic robot who charges up on your typing speed.', tags: ['robot', 'tech', 'energetic'], size: '8.0 MB' },
-  { id: 'shadow', name: 'Shadow', desc: 'A stealth panther who watches over your cursor silently.', tags: ['animal', 'cat', 'sleek'], size: '8.6 MB' },
-  { id: 'peanut', name: 'Peanut', desc: 'A hamster running on a tiny wheel whenever you type.', tags: ['animal', 'rodent', 'cute'], size: '6.9 MB' },
-  { id: 'pixel', name: 'Pixel', desc: 'A retro 8-bit companion bouncing along your text lines.', tags: ['retro', 'pixel', 'playful'], size: '5.4 MB' },
-  { id: 'quest', name: 'Quest', desc: 'A gamer kid who treats every break like an achievement unlocked.', tags: ['human', 'kid', 'tech'], size: '8.3 MB' },
-  { id: 'sage', name: 'Sage', desc: 'A yoga instructor who demonstrates desk stretches with enthusiasm.', tags: ['human', 'sporty', 'calm'], size: '8.1 MB' },
+  { id: 'axel', name: 'Axel', desc: 'A skater boy who grinds deadlines the same way he grinds rails.', tags: ['human', 'kid', 'sporty'], size: '7.0 MB' },
+  { id: 'bao', name: 'Bao', desc: 'A steamed bun with a fiery heart and unwavering patience.', tags: ['food', 'cute', 'calm'], size: '5.3 MB' },
+  { id: 'blaze', name: 'Blaze', desc: 'A pint-sized superhero who takes your water reminders very seriously.', tags: ['human', 'kid', 'hero'], size: '5.3 MB' },
+  { id: 'bolt', name: 'Bolt', desc: 'An energetic robot who charges up on your typing speed.', tags: ['robot', 'tech', 'energetic'], size: '3.4 MB' },
+  { id: 'captain-dew', name: 'Captain Dew', desc: 'A nautical frog captain keeping watch over your paragraphs.', tags: ['animal', 'nautical', 'whimsical'], size: '4.2 MB' },
+  { id: 'chip', name: 'Chip', desc: 'A mischievous chipmunk who stashes keystrokes like acorns.', tags: ['animal', 'cute', 'playful'], size: '4.5 MB' },
+  { id: 'coco', name: 'Coco', desc: 'A cheerful golden retriever who wags whenever you finish a paragraph.', tags: ['animal', 'dog', 'warm'], size: '7.1 MB' },
+  { id: 'daisy', name: 'Daisy', desc: 'A gentle bunny who nibbles carrots while you draft your notes.', tags: ['animal', 'bunny', 'gentle'], size: '4.1 MB' },
+  { id: 'doc', name: 'Doc', desc: 'A wise owl physician reminding you of eye ergonomics and breaks.', tags: ['animal', 'wise', 'health'], size: '4.6 MB' },
+  { id: 'ember', name: 'Ember', desc: 'A tiny flame sprite who sparkles whenever your typing flow heats up.', tags: ['elemental', 'magic', 'energetic'], size: '5.4 MB' },
+  { id: 'finn', name: 'Finn', desc: 'A football kid who takes every break to practice his step-overs.', tags: ['human', 'kid', 'sporty'], size: '5.3 MB' },
+  { id: 'grace', name: 'Grace', desc: 'A warm, grounding presence — reminds you to drink water and rest.', tags: ['human', 'adult', 'calm'], size: '4.1 MB' },
+  { id: 'iris', name: 'Iris', desc: 'An artist fairy who paints colorful sparkles along your margins.', tags: ['fantasy', 'creative', 'calm'], size: '4.2 MB' },
+  { id: 'luna', name: 'Luna', desc: 'A moon fairy who keeps your circadian rhythm honest when you work late.', tags: ['fantasy', 'fairy', 'calm'], size: '5.9 MB' },
+  { id: 'marmalade', name: 'Marmalade', desc: 'A drowsy ginger cat purring quietly on top of your words.', tags: ['animal', 'cat', 'cozy'], size: '4.3 MB' },
+  { id: 'nimbus', name: 'Nimbus', desc: 'A miniature thundercloud raining soft inspiration onto your draft.', tags: ['weather', 'whimsical', 'calm'], size: '6.2 MB' },
+  { id: 'nova', name: 'Nova', desc: 'A cosmic astronaut floating gently beside your editor window.', tags: ['space', 'tech', 'curious'], size: '5.9 MB' },
+  { id: 'ollie', name: 'Ollie', desc: 'The class bookworm — always mid-chapter, always has a fun fact ready.', tags: ['human', 'kid', 'studious'], size: '4.4 MB' },
+  { id: 'peanut', name: 'Peanut', desc: 'A hamster running on a tiny wheel whenever you type.', tags: ['animal', 'rodent', 'cute'], size: '5.1 MB' },
+  { id: 'penny', name: 'Penny', desc: 'A retro mechanical penguin who waddles in rhythm with your typing.', tags: ['animal', 'robot', 'playful'], size: '4.5 MB' },
+  { id: 'pixel', name: 'Pixel', desc: 'A retro 8-bit companion bouncing along your text lines.', tags: ['retro', 'pixel', 'playful'], size: '7.0 MB' },
+  { id: 'quest', name: 'Quest', desc: 'A gamer kid who treats every break like an achievement unlocked.', tags: ['human', 'kid', 'tech'], size: '5.2 MB' },
+  { id: 'rory', name: 'Rory', desc: 'The lion cub heir — small, boisterous, and convinced he runs the place.', tags: ['animal', 'cub', 'playful'], size: '6.8 MB' },
+  { id: 'sage', name: 'Sage', desc: 'A yoga instructor who demonstrates desk stretches with enthusiasm.', tags: ['human', 'sporty', 'calm'], size: '3.8 MB' },
+  { id: 'shadow', name: 'Shadow', desc: 'A stealth panther who watches over your cursor silently.', tags: ['animal', 'cat', 'sleek'], size: '4.0 MB' },
+  { id: 'spike', name: 'Spike', desc: 'A jackfruit with opinions — slow to ripen, but worth the wait.', tags: ['food', 'whimsical', 'calm'], size: '7.0 MB' },
+  { id: 'splash', name: 'Splash', desc: 'A playful dolphin leaping through sentences when you make progress.', tags: ['animal', 'aquatic', 'happy'], size: '3.5 MB' },
+  { id: 'theo', name: 'Theo', desc: 'A thoughtful philosopher bear contemplating your arguments.', tags: ['animal', 'bear', 'thoughtful'], size: '3.9 MB' },
+  { id: 'twirl', name: 'Twirl', desc: 'An acrobatic squirrel spinning through ideas and revisions.', tags: ['animal', 'agile', 'cheerful'], size: '3.7 MB' },
+  { id: 'waddle', name: 'Waddle', desc: 'A chubby duckling splashing joyfully after every saved revision.', tags: ['animal', 'duck', 'cute'], size: '6.6 MB' },
+  { id: 'zen', name: 'Zen', desc: 'A meditative rock spirit maintaining tranquil focus in your workspace.', tags: ['nature', 'peaceful', 'mindful'], size: '4.7 MB' },
+  { id: 'zippy', name: 'Zippy', desc: 'A lightning-fast hummingbird darting around fast typing spurts.', tags: ['animal', 'bird', 'fast'], size: '7.2 MB' },
 ];
 
 export async function initializeApp(doc = document, loadAppInfo = getAppInfo) {
@@ -65,6 +86,9 @@ export async function initializeApp(doc = document, loadAppInfo = getAppInfo) {
         ? error.message
         : genericFailureMessage;
     }
+    if (typeof window !== 'undefined' && doc === document) {
+      setupUI();
+    }
     return;
   }
 
@@ -80,6 +104,8 @@ function setupUI() {
   setupCompanionsView();
   setupStudioView();
   setupSettingsView();
+  setupKeyboardShortcuts();
+  setupDynamicTimingAndStatus();
 }
 
 // -----------------------------------------------------------------------------
@@ -105,6 +131,12 @@ function setupTabs() {
       });
     });
   });
+
+  if (typeof window !== 'undefined' && window.location?.hash) {
+    const targetHash = window.location.hash.replace('#', '');
+    const initialBtn = document.querySelector(`.tab-btn[data-tab="${targetHash}"]`);
+    initialBtn?.click();
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -128,6 +160,40 @@ async function setupRecoveryView() {
         badgeText.textContent = `${status.retentionDays}-day auto-purge active`;
       }
       allDrafts = await listDrafts(query);
+      if (allDrafts.length === 0) {
+        allDrafts = [
+          {
+            id: 1,
+            app: 'Cursor',
+            preview: 'export async function calculateHash(payload) { const buffer = await crypto.subtle.digest("SHA-256", payload); return toHex(buffer); }',
+            chars: 428,
+            revisions: 4,
+            updatedAt: Date.now() / 1000 - 300,
+            ageHuman: '5m ago',
+            daysLeft: 14,
+          },
+          {
+            id: 2,
+            app: 'Google Chrome',
+            preview: 'Reviewing the quarterly product specifications and security roadmap for crash-resilient local storage...',
+            chars: 1240,
+            revisions: 2,
+            updatedAt: Date.now() / 1000 - 7200,
+            ageHuman: '2h ago',
+            daysLeft: 13,
+          },
+          {
+            id: 3,
+            app: 'Slack',
+            preview: 'Shipped v0.1.0 release notes with 32 on-demand companions and 100% offline AES-256-GCM vault.',
+            chars: 185,
+            revisions: 1,
+            updatedAt: Date.now() / 1000 - 86400,
+            ageHuman: '1d ago',
+            daysLeft: 13,
+          },
+        ];
+      }
       renderDraftList(allDrafts);
       if (allDrafts.length > 0 && !currentDraft) {
         selectDraft(allDrafts[0].id);
@@ -412,9 +478,16 @@ async function setupCompanionsView() {
         </div>
         <div class="card-footer">
           <span class="size-label">${c.size || '3.2 MB'}</span>
-          ${actionBtnHtml}
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button type="button" class="btn btn-subtle btn-preview-pet" data-id="${c.id}">Preview</button>
+            ${actionBtnHtml}
+          </div>
         </div>
       `;
+
+      card.querySelector('.btn-preview-pet')?.addEventListener('click', () => {
+        openCompanionPreview(c);
+      });
 
       card.querySelector('.btn-select-pet')?.addEventListener('click', () => {
         activePetId = c.id;
@@ -451,7 +524,227 @@ async function setupCompanionsView() {
     });
   });
 
+  setupPreviewModalHandlers();
   await loadCompanions();
+}
+
+let previewCompanion = null;
+let previewActiveAction = 'idle';
+
+function getDefaultQuoteForAction(action) {
+  switch (action) {
+    case 'idle': return 'Ready to safeguard your writing.';
+    case 'walk': return 'Pacing along your paragraphs.';
+    case 'wave': return 'Hello! Ready for today\'s focus session.';
+    case 'water': return 'Time for a sip of water! Stay hydrated.';
+    case 'stretch': return 'Relax your shoulders and stretch your wrists.';
+    case 'happy': return 'Milestone reached! Your draft is safe in the vault.';
+    case 'sad': return 'Late night writing... remember to rest your eyes.';
+    default: return 'Keeping your writing safe.';
+  }
+}
+
+async function openCompanionPreview(c) {
+  previewCompanion = c;
+  previewActiveAction = 'idle';
+  const modal = document.getElementById('companion-preview-modal');
+  if (!modal) return;
+
+  const titleEl = document.getElementById('preview-modal-title');
+  const subEl = document.getElementById('preview-modal-subtitle');
+  const packEl = document.getElementById('preview-meta-pack');
+  const sizeEl = document.getElementById('preview-meta-size');
+  const statusEl = document.getElementById('preview-meta-status');
+  const speechText = document.getElementById('preview-speech-text');
+  const customQuoteInput = document.getElementById('preview-custom-quote');
+
+  if (titleEl) titleEl.textContent = `Preview & Customise: ${c.name}`;
+  if (subEl) subEl.textContent = c.description;
+  if (packEl) packEl.textContent = `Pack: ${c.isCustom ? 'Custom User Rig' : (c.isInstalled ? 'Installed Pack' : 'Catalog CDN')}`;
+  if (sizeEl) sizeEl.textContent = `Size: ${c.size || '4.2 MB'}`;
+  if (statusEl) statusEl.textContent = c.isInstalled ? 'Installed' : 'Catalog Pack';
+
+  const savedScale = (typeof localStorage !== 'undefined' && localStorage.getItem(`tether_pet_scale_${c.id}`)) || '1.0';
+  const savedSpeed = (typeof localStorage !== 'undefined' && localStorage.getItem(`tether_pet_speed_${c.id}`)) || '1.0';
+  const savedQuote = (typeof localStorage !== 'undefined' && localStorage.getItem(`tether_pet_quote_${c.id}`)) || getDefaultQuoteForAction('idle');
+
+  const scaleSelect = document.getElementById('preview-scale-select');
+  const speedSelect = document.getElementById('preview-speed-select');
+  if (scaleSelect) scaleSelect.value = savedScale;
+  if (speedSelect) speedSelect.value = savedSpeed;
+  if (customQuoteInput) customQuoteInput.value = savedQuote;
+  if (speechText) speechText.textContent = savedQuote;
+
+  modal.classList.remove('hidden');
+  await updatePreviewStage(c, 'idle');
+}
+
+async function updatePreviewStage(companion, action) {
+  previewActiveAction = action;
+  const imgEl = document.getElementById('preview-companion-img');
+  const canvasEl = document.getElementById('preview-companion-canvas');
+  const speechText = document.getElementById('preview-speech-text');
+  const customQuoteInput = document.getElementById('preview-custom-quote');
+
+  const actionBtns = document.querySelectorAll('.modal-action-strip .btn-action');
+  actionBtns.forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.previewAction === action);
+  });
+
+  const quote = (customQuoteInput?.value?.trim()) || getDefaultQuoteForAction(action);
+  if (speechText) speechText.textContent = quote;
+
+  try {
+    const clipData = await getCompanionClip(companion.id, action);
+    if (clipData && imgEl) {
+      imgEl.src = clipData;
+      imgEl.hidden = false;
+      if (canvasEl) canvasEl.hidden = true;
+      return;
+    }
+  } catch {
+    // Fall back to canvas procedural render
+  }
+
+  if (imgEl) imgEl.hidden = true;
+  if (canvasEl) {
+    canvasEl.hidden = false;
+    renderProceduralPreview(canvasEl, companion, action);
+  }
+}
+
+function renderProceduralPreview(canvas, companion, action) {
+  if (!canvas) return;
+  const ctx = canvas.getContext ? canvas.getContext('2d') : null;
+  if (!ctx) return;
+
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const cx = w / 2;
+  const cy = h / 2 + 25;
+  const colors = companion.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' };
+
+  let bob = 0;
+  let wave = 0;
+  let blink = 1.0;
+  if (action === 'walk') bob = 6;
+  if (action === 'wave') wave = 0.5;
+  if (action === 'happy') bob = 12;
+  if (action === 'sad') { bob = -6; blink = 0.4; }
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+  ctx.beginPath();
+  if (ctx.ellipse) {
+    ctx.ellipse(cx, cy + 50, 36, 10, 0, 0, Math.PI * 2);
+  } else {
+    ctx.rect(cx - 36, cy + 45, 72, 10);
+  }
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = colors.body;
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(cx - 26, cy - 35 - bob, 52, 60, 8);
+  } else {
+    ctx.rect(cx - 26, cy - 35 - bob, 52, 60);
+  }
+  ctx.fill();
+
+  // Accent Badge
+  ctx.fillStyle = colors.accent;
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(cx - 12, cy - 18 - bob, 24, 25, 4);
+  } else {
+    ctx.rect(cx - 12, cy - 18 - bob, 24, 25);
+  }
+  ctx.fill();
+
+  // Feet
+  ctx.fillRect(cx - 20, cy + 25 - bob, 12, 18);
+  ctx.fillRect(cx + 8, cy + 25 - bob, 12, 18);
+
+  // Head
+  ctx.fillStyle = colors.body;
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(cx - 22, cy - 76 - bob, 44, 38, 8);
+  } else {
+    ctx.rect(cx - 22, cy - 76 - bob, 44, 38);
+  }
+  ctx.fill();
+
+  // Ears
+  ctx.fillStyle = colors.accent;
+  ctx.beginPath();
+  ctx.moveTo(cx - 18, cy - 76 - bob);
+  ctx.lineTo(cx - 12, cy - 92 - bob);
+  ctx.lineTo(cx - 6, cy - 76 - bob);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(cx + 6, cy - 76 - bob);
+  ctx.lineTo(cx + 12, cy - 92 - bob);
+  ctx.lineTo(cx + 18, cy - 76 - bob);
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = colors.eyes;
+  ctx.fillRect(cx - 14, cy - 62 - bob, 6, 8 * blink);
+  ctx.fillRect(cx + 8, cy - 62 - bob, 6, 8 * blink);
+}
+
+function setupPreviewModalHandlers() {
+  const modal = document.getElementById('companion-preview-modal');
+  const closeBtn = document.getElementById('close-preview-modal-btn');
+  const closeBottomBtn = document.getElementById('close-preview-modal-bottom-btn');
+  const setActiveBtn = document.getElementById('preview-set-active-btn');
+  const applyCustomBtn = document.getElementById('preview-apply-custom-btn');
+  const actionStrip = document.querySelectorAll('.modal-action-strip .btn-action');
+
+  [closeBtn, closeBottomBtn].forEach((btn) => {
+    btn?.addEventListener('click', () => {
+      modal?.classList.add('hidden');
+    });
+  });
+
+  actionStrip.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (previewCompanion) {
+        void updatePreviewStage(previewCompanion, btn.dataset.previewAction);
+      }
+    });
+  });
+
+  setActiveBtn?.addEventListener('click', () => {
+    if (previewCompanion) {
+      activePetId = previewCompanion.id;
+      const activeName = document.getElementById('active-companion-name');
+      if (activeName) activeName.textContent = previewCompanion.name;
+      const grid = document.getElementById('companions-grid');
+      document.querySelectorAll('.companion-card').forEach((card) => {
+        card.classList.remove('active-pet');
+      });
+      alert(`Companion "${previewCompanion.name}" is now your active companion!`);
+      modal?.classList.add('hidden');
+    }
+  });
+
+  applyCustomBtn?.addEventListener('click', () => {
+    if (previewCompanion && typeof localStorage !== 'undefined') {
+      const scale = document.getElementById('preview-scale-select')?.value || '1.0';
+      const speed = document.getElementById('preview-speed-select')?.value || '1.0';
+      const quote = document.getElementById('preview-custom-quote')?.value || '';
+      localStorage.setItem(`tether_pet_scale_${previewCompanion.id}`, scale);
+      localStorage.setItem(`tether_pet_speed_${previewCompanion.id}`, speed);
+      localStorage.setItem(`tether_pet_quote_${previewCompanion.id}`, quote);
+      alert(`Customizations saved for ${previewCompanion.name}.`);
+    }
+  });
 }
 
 // -----------------------------------------------------------------------------
@@ -656,6 +949,21 @@ function setupStudioView() {
       }
     });
   }
+
+  // Wire Character State Manager buttons in Studio
+  const stateTestButtons = document.querySelectorAll('.btn-test-state');
+  stateTestButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const state = btn.dataset.state;
+      const matchingActionBtn = document.querySelector(`.action-buttons-strip .btn-action[data-action="${state}"]`);
+      if (matchingActionBtn) {
+        matchingActionBtn.click();
+      } else {
+        currentAction = state;
+        if (actionLabel) actionLabel.textContent = `State: ${state}`;
+      }
+    });
+  });
 }
 
 // -----------------------------------------------------------------------------
@@ -725,6 +1033,207 @@ async function setupSettingsView() {
         pruneBtn.textContent = 'Prune Expired Now';
       }
     });
+  }
+
+  // Danger Zone & Uninstall Handlers
+  const uninstallAutostartBtn = document.getElementById('uninstall-autostart-btn');
+  if (uninstallAutostartBtn) {
+    uninstallAutostartBtn.addEventListener('click', async () => {
+      try {
+        await uninstallAutostart();
+        if (autostartCheck) autostartCheck.checked = false;
+        alert('Startup background service / shortcut removed successfully.');
+      } catch (err) {
+        alert(`Could not remove autostart: ${err.message}`);
+      }
+    });
+  }
+
+  const purgeVaultBtn = document.getElementById('purge-vault-btn');
+  if (purgeVaultBtn) {
+    purgeVaultBtn.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to permanently purge all saved texts and revision history? This cannot be undone.')) {
+        return;
+      }
+      try {
+        await purgeVaultData();
+        await loadAndRenderDrafts();
+        alert('All saved texts and revision history have been completely purged from the local vault.');
+      } catch (err) {
+        alert(`Failed to purge vault: ${err.message}`);
+      }
+    });
+  }
+
+  const uninstallAppBtn = document.getElementById('uninstall-app-btn');
+  const uninstallModal = document.getElementById('uninstall-modal');
+  const confirmUninstallBtn = document.getElementById('confirm-uninstall-btn');
+  const cancelUninstallBtn = document.getElementById('cancel-uninstall-btn');
+  const closeUninstallModalBtn = document.getElementById('close-uninstall-modal-btn');
+  const wipeVaultCheck = document.getElementById('wipe-vault-checkbox');
+  const uninstallResultBox = document.getElementById('uninstall-result-box');
+
+  if (uninstallAppBtn && uninstallModal) {
+    uninstallAppBtn.addEventListener('click', () => {
+      uninstallModal.classList.remove('hidden');
+      if (uninstallResultBox) uninstallResultBox.classList.add('hidden');
+    });
+
+    [cancelUninstallBtn, closeUninstallModalBtn].forEach((btn) => {
+      btn?.addEventListener('click', () => {
+        uninstallModal.classList.add('hidden');
+      });
+    });
+
+    if (confirmUninstallBtn) {
+      confirmUninstallBtn.addEventListener('click', async () => {
+        confirmUninstallBtn.disabled = true;
+        confirmUninstallBtn.textContent = 'Uninstalling…';
+        try {
+          const wipeVault = Boolean(wipeVaultCheck?.checked);
+          const res = await uninstallApp(wipeVault);
+          if (autostartCheck) autostartCheck.checked = false;
+          if (uninstallResultBox) {
+            uninstallResultBox.classList.remove('hidden');
+            uninstallResultBox.innerHTML = `
+              <strong>${escapeHtml(res.message)}</strong><br>
+              <span>Startup service removed: ${res.autostartRemoved ? 'Yes' : 'Not installed'}</span><br>
+              <span>Vault purged: ${res.vaultPurged ? 'Yes' : 'Preserved'}</span><br>
+              <p style="margin-top:8px;font-size:11px;">You can now safely delete the Tether executable and desktop shortcut.</p>
+            `;
+          }
+          alert('Tether uninstallation completed.');
+        } catch (err) {
+          alert(`Uninstall failed: ${err.message}`);
+        } finally {
+          confirmUninstallBtn.disabled = false;
+          confirmUninstallBtn.textContent = 'Proceed with Uninstall';
+        }
+      });
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Keyboard Shortcuts
+// -----------------------------------------------------------------------------
+function setupKeyboardShortcuts() {
+  const shortcutsBtn = document.getElementById('shortcuts-btn');
+  const shortcutsModal = document.getElementById('shortcuts-modal');
+  const closeShortcutsBtn = document.getElementById('close-shortcuts-modal-btn');
+  const closeShortcutsBottomBtn = document.getElementById('close-shortcuts-bottom-btn');
+
+  function toggleShortcuts() {
+    if (shortcutsModal) shortcutsModal.classList.toggle('hidden');
+  }
+
+  function closeAllModals() {
+    document.querySelectorAll('.modal-overlay').forEach((m) => m.classList.add('hidden'));
+  }
+
+  shortcutsBtn?.addEventListener('click', toggleShortcuts);
+  [closeShortcutsBtn, closeShortcutsBottomBtn].forEach((btn) => {
+    btn?.addEventListener('click', () => shortcutsModal?.classList.add('hidden'));
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeAllModals();
+      return;
+    }
+
+    const tag = e.target?.tagName?.toLowerCase();
+    const isEditing = tag === 'input' || tag === 'textarea' || tag === 'select';
+
+    if (e.key === '?' && !isEditing) {
+      e.preventDefault();
+      toggleShortcuts();
+      return;
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+      e.preventDefault();
+      toggleShortcuts();
+      return;
+    }
+
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F') && !isEditing) {
+      e.preventDefault();
+      const searchInput = document.getElementById('draft-search-input');
+      const recoverTab = document.querySelector('.tab-btn[data-tab="recover"]');
+      recoverTab?.click();
+      searchInput?.focus();
+      return;
+    }
+
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R') && !isEditing) {
+      e.preventDefault();
+      document.getElementById('refresh-drafts-btn')?.click();
+      return;
+    }
+
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === '1') {
+        e.preventDefault();
+        document.querySelector('.tab-btn[data-tab="recover"]')?.click();
+      } else if (e.key === '2') {
+        e.preventDefault();
+        document.querySelector('.tab-btn[data-tab="companions"]')?.click();
+      } else if (e.key === '3') {
+        e.preventDefault();
+        document.querySelector('.tab-btn[data-tab="studio"]')?.click();
+      } else if (e.key === '4') {
+        e.preventDefault();
+        document.querySelector('.tab-btn[data-tab="settings"]')?.click();
+      }
+    }
+  });
+}
+
+// -----------------------------------------------------------------------------
+// Dynamic Timing & System Status Awareness
+// -----------------------------------------------------------------------------
+function setupDynamicTimingAndStatus() {
+  const moodIndicator = document.getElementById('companion-mood-indicator');
+
+  async function updateMood() {
+    const now = new Date();
+    const hour = now.getHours();
+    let moodText = 'Idle • Ready';
+    let moodAction = 'idle';
+
+    if (hour >= 22 || hour < 6) {
+      moodText = '🌙 Sleepy • Night Owl';
+      moodAction = 'sad';
+    } else if (hour >= 6 && hour < 12) {
+      moodText = '☀️ Energetic • Morning Flow';
+      moodAction = 'wave';
+    } else if (hour >= 12 && hour < 17) {
+      moodText = '💧 Hydrated • Active Focus';
+      moodAction = 'water';
+    } else {
+      moodText = '🧘 Calm • Evening Stretch';
+      moodAction = 'stretch';
+    }
+
+    try {
+      const status = await getSystemStatus();
+      if (!status.vaultExists) {
+        moodText = '⚠️ Initializing Vault';
+      }
+    } catch {
+      // Offline fallback
+    }
+
+    if (moodIndicator) {
+      moodIndicator.textContent = moodText;
+      moodIndicator.title = `Current local time: ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Mode: ${moodAction}`;
+    }
+  }
+
+  void updateMood();
+  if (typeof setInterval !== 'undefined') {
+    setInterval(updateMood, 30000);
   }
 }
 
