@@ -67,9 +67,9 @@ curl -fsSL https://raw.githubusercontent.com/AMG555/Tether/main/scripts/install.
 - 🔐 **Military-Grade Local Vault** — AES-256-GCM encryption at rest with HKDF-derived keys and SQLite WAL mode.
 - 🕒 **14-Day Rolling Retention** — Saved texts auto-prune after 14 days by default. Full control over retention windows.
 - 🖥️ **Tauri 2 Native Desktop App** — Modern, accessible desktop client with instant search, revision timeline, and one-click copy.
-- 🐾 **Floating Companion Overlay** — After activating a companion, a transparent always-on-top animated character appears on your desktop — draggable, state-cycling, and dismissable with one click.
+- 🐾 **Floating Companion Overlay** — After activating a companion, a transparent always-on-top animated character appears on your desktop — freely draggable anywhere on screen, state-cycling, and dismissable with one click.
 - 🎭 **32 Desktop Companions** — On-demand downloadable packs (CapCut-style asset streaming) keeping the initial installer under 4 MB.
-- 🎨 **Live Preview & State Engine** — Full control over `idle`, `walk`, `wave`, `water`, `stretch`, `happy`, and `sad` states with custom speech bubbles, scale, and playback speed.
+- 🎨 **Live Preview & State Engine** — Full control over `idle`, `walk`, `wave`, `water`, `stretch`, `happy`, `sad`, and `eyes` states with custom speech bubbles, scale, and playback speed.
 - ⏰ **Circadian & Battery Awareness** — Companions adapt mood and reminders to time of day and battery health.
 - ⌨️ **Global Hotkeys** — Instant access via `Ctrl+Alt+T`, with full in-app navigation (`Ctrl+1..4`, `Ctrl+F`, `Ctrl+R`, `?`).
 - 🌙 **Dark/Light Theme** — Defaults to a professional dark charcoal palette; toggle or follow OS preference.
@@ -89,7 +89,7 @@ Tether includes a native desktop application powered by **Tauri 2** and system w
 ### Key Desktop Capabilities
 
 1. **Saved Drafts & Revision History** — Search drafts across all applications, inspect revisions, see word counts, and copy back in one click (`Ctrl+C`).
-2. **Floating Companion Overlay** — Activate any companion to spawn a transparent, always-on-top overlay window on your desktop. The companion walks, waves, and reacts. Draggable by mouse. Dismissable from Settings.
+2. **Floating Companion Overlay** — Activate any companion to spawn a transparent, always-on-top overlay window on your desktop. The companion walks, waves, and reacts to live capture activity (shows event counts, reacts to recording start/stop). Freely draggable anywhere on screen by mouse or touch. Dismissable from Settings.
 3. **On-Demand Companion Downloads** — Browse 32 curated animated companions. Download only what you want directly to your local machine.
 4. **Interactive Character Preview** — Test every animation state, customize speech lines, adjust scale (80%–150%) and speed (0.7x–1.3x) before activating.
 5. **Studio Customizer** — Author bespoke characters from animated WebP clips or build procedural rigs with custom color palettes, proportions, and personality.
@@ -110,7 +110,7 @@ To keep the application download under 4 MB, Tether uses a lightweight on-demand
 | **Nature & Zen** | Nimbus, Splash, Zen, Sage | Ambient tranquility, deep thinking, eye relief prompts |
 | **Whimsical** | Captain Dew, Chip, Ember, Iris, Luna, Nova, Ollie, Peanut, Penny, Theo, Twirl, Waddle | Playful deskside companions with custom dialogue lines |
 
-Every companion includes animation clips: `idle`, `walk`, `wave`, `water`, `stretch`, `happy`, and `sad`.
+Every companion includes animation clips: `idle`, `walk`, `wave`, `water`, `stretch`, `happy`, `sad`, and `eyes`.
 
 ---
 
@@ -126,7 +126,8 @@ Manage each companion's emotional states and presence right inside the desktop a
   ├── Water     ──> Hydration nudge at programmed intervals
   ├── Stretch   ──> Posture and eye-strain micro-break cue
   ├── Happy     ──> Triggered when long typing drafts save safely
-  └── Sad       ──> Soft alert on unexpected application exit
+  ├── Sad       ──> Soft alert on unexpected application exit
+  └── Eyes      ──> Eye-break reminder — look away from the screen
 ```
 
 - **Live Speed & Scale Controls** — Tune playback speed from `0.7x` to `1.3x` and scale from `80%` to `150%`.
@@ -137,8 +138,10 @@ Manage each companion's emotional states and presence right inside the desktop a
 
 ## Dynamic Timing & System Status
 
-Tether monitors system health and circadian time passively:
+Tether monitors system health and circadian time passively, and the companion overlay reacts to live capture data in real time:
 
+- 🔴 **Live Capture Indicator** — A red dot appears on the companion's shoulder while recording is active. The companion jumps with excitement when capture starts and shows a bubble when it pauses.
+- 📊 **Event Count Reactions** — Every ~4 seconds the overlay polls capture status. When 10+ new keystrokes arrive since the last check, the companion surfaces the count (`📝 42 new events!`, `💾 3 drafts saved`, etc.). Clicking the companion every 3rd tap shows the live totals.
 - 🌅 **Morning Flow (06:00 – 12:00)** — Energized greetings, focusing on morning momentum.
 - 💧 **Hydration & Posture (12:00 – 17:00)** — Water reminders and ergonomics checks.
 - 🧘 **Evening Wind-Down (17:00 – 22:00)** — Soft stretch prompts as the workday ends.
