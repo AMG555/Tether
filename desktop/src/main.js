@@ -62,6 +62,39 @@ const CATALOG_COMPANIONS = [
   { id: 'zippy', name: 'Zippy', desc: 'A lightning-fast hummingbird darting around fast typing spurts.', tags: ['animal', 'bird', 'fast'], size: '7.2 MB' },
 ];
 
+// ─── Deterministic color palette from companion ID ────────────────────────────
+// 20 distinct body/accent pairs — each companion gets a stable unique look.
+const PALETTE = [
+  { body: '#2563eb', accent: '#c2331a' }, // blue / red
+  { body: '#d97706', accent: '#92400e' }, // amber / brown
+  { body: '#059669', accent: '#065f46' }, // emerald / dark green
+  { body: '#65a30d', accent: '#3f6212' }, // lime / dark lime
+  { body: '#7c3aed', accent: '#5b21b6' }, // violet / purple
+  { body: '#db2777', accent: '#9d174d' }, // pink / dark pink
+  { body: '#0891b2', accent: '#164e63' }, // cyan / dark cyan
+  { body: '#ea580c', accent: '#9a3412' }, // orange / dark orange
+  { body: '#4f46e5', accent: '#3730a3' }, // indigo / dark indigo
+  { body: '#0d9488', accent: '#134e4a' }, // teal / dark teal
+  { body: '#b45309', accent: '#78350f' }, // yellow-brown / dark brown
+  { body: '#be185d', accent: '#831843' }, // rose / dark rose
+  { body: '#1d4ed8', accent: '#1e3a8a' }, // royal blue / navy
+  { body: '#16a34a', accent: '#14532d' }, // green / dark green
+  { body: '#9333ea', accent: '#6b21a8' }, // purple / dark purple
+  { body: '#e11d48', accent: '#9f1239' }, // rose-red / crimson
+  { body: '#0369a1', accent: '#0c4a6e' }, // sky / dark sky
+  { body: '#ca8a04', accent: '#78350f' }, // yellow / amber-brown
+  { body: '#15803d', accent: '#14532d' }, // forest / dark forest
+  { body: '#7e22ce', accent: '#4c1d95' }, // violet-purple / indigo-dark
+];
+
+function colorFromId(id) {
+  // Simple djb2-style hash to pick a stable palette entry
+  let h = 5381;
+  for (let i = 0; i < id.length; i++) h = ((h << 5) + h) ^ id.charCodeAt(i);
+  const entry = PALETTE[Math.abs(h) % PALETTE.length];
+  return { body: entry.body, accent: entry.accent, eyes: '#14120f' };
+}
+
 export async function initializeApp(doc = document, loadAppInfo = getAppInfo) {
   const status = doc.getElementById('app-status');
   if (status) {
@@ -525,8 +558,10 @@ async function setupCompanionsView() {
           : `<button type="button" class="btn btn-secondary btn-select-pet" data-id="${c.id}">Activate</button>`)
         : `<button type="button" class="btn btn-primary btn-install-pet" data-id="${c.id}">Download</button>`;
 
-      // Pick a colour for the avatar based on the companion's colours or a hash
-      const avatarColors = c.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' };
+      // Generate a unique colour palette per companion so each card looks distinct.
+      // Installed built-ins already carry colors from commands.rs; catalog companions
+      // get a deterministic palette derived from their id.
+      const avatarColors = c.colors || colorFromId(c.id);
 
       card.innerHTML = `
         <div class="companion-card-avatar">
@@ -551,15 +586,16 @@ async function setupCompanionsView() {
         </div>
       `;
 
-      // Draw avatar: try real WebP first, fall back to procedural portrait
+      // Draw avatar: procedural first (never blank), then upgrade to WebP if available.
+      // We always try WebP for installed companions — avatarType:'procedural' just means
+      // "no clip pack yet", not "never check". If getCompanionClip returns null we keep
+      // the procedural render.
       const avatarCanvas = card.querySelector('.companion-avatar-canvas');
       if (avatarCanvas) {
-        // Start procedural immediately so card is never blank
         renderCompanionCardAvatar(avatarCanvas, avatarColors, c.name);
-        // Upgrade to WebP if the companion has a clip pack installed
-        if (c.isInstalled && c.avatarType !== 'procedural') {
+        if (c.isInstalled) {
           getCompanionClip(c.id, 'idle').then((dataUrl) => {
-            if (!dataUrl) return;
+            if (!dataUrl) return; // no clip pack — procedural stays
             const img = new Image();
             img.onload = () => {
               const ctx = avatarCanvas.getContext('2d');
@@ -567,7 +603,6 @@ async function setupCompanionsView() {
               const cw = avatarCanvas.width;
               const ch = avatarCanvas.height;
               ctx.clearRect(0, 0, cw, ch);
-              // Letterbox-fit the sprite frame into the card canvas
               const scale = Math.min(cw / img.width, ch / img.height);
               const dw = img.width * scale;
               const dh = img.height * scale;
@@ -1214,20 +1249,8 @@ function setupStudioView() {
     });
   }
 
-  // Wire Character State Manager buttons in Studio
-  const stateTestButtons = document.querySelectorAll('.btn-test-state');
-  stateTestButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const state = btn.dataset.state;
-      const matchingActionBtn = document.querySelector(`.action-buttons-strip .btn-action[data-action="${state}"]`);
-      if (matchingActionBtn) {
-        matchingActionBtn.click();
-      } else {
-        currentAction = state;
-        if (actionLabel) actionLabel.textContent = `State: ${state}`;
-      }
-    });
-  });
+  // ── Behaviors tab — dynamic action manager ───────────────────────────────
+  setupBehaviors(currentAction, actionLabel, actionButtons);
 
   // ── Studio inner tab bar ──────────────────────────────────────────────────
   const studioTabBtns = document.querySelectorAll('.studio-tab');
@@ -1491,6 +1514,163 @@ function setupStudioView() {
 }
 
 // -----------------------------------------------------------------------------
+// Behaviors — dynamic action manager
+// -----------------------------------------------------------------------------
+
+const DEFAULT_ACTIONS = [
+  { id: 'idle',    label: 'Idle',              quote: 'Ready to safeguard your writing.',       enabled: true,  builtin: true },
+  { id: 'walk',    label: 'Walking',            quote: 'Pacing along your paragraphs.',          enabled: true,  builtin: true },
+  { id: 'wave',    label: 'Wave / Greeting',    quote: 'Good morning! Ready for today\'s work.', enabled: true,  builtin: true },
+  { id: 'water',   label: 'Water / Health',     quote: 'Time for a sip of water! Stay hydrated.',enabled: true,  builtin: true },
+  { id: 'stretch', label: 'Stretch / Ergo',     quote: 'Relax your shoulders and stretch.',      enabled: true,  builtin: true },
+  { id: 'happy',   label: 'Celebrate',          quote: 'Milestone achieved! Autosave secured.',  enabled: true,  builtin: true },
+  { id: 'sad',     label: 'Sleepy / Night',     quote: 'Late night writing... rest your eyes.',  enabled: true,  builtin: true },
+];
+
+const BEHAVIORS_KEY = 'tether-behaviors';
+
+function loadBehaviors() {
+  try {
+    const raw = localStorage.getItem(BEHAVIORS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return DEFAULT_ACTIONS.map((a) => ({ ...a }));
+}
+
+function saveBehaviors(actions) {
+  try { localStorage.setItem(BEHAVIORS_KEY, JSON.stringify(actions)); } catch { /* ignore */ }
+}
+
+/** Returns the list of enabled action IDs — used by companion overlay WALK_STATES */
+export function getEnabledActions() {
+  return loadBehaviors().filter((a) => a.enabled).map((a) => a.id);
+}
+
+function setupBehaviors(currentAction, actionLabel, actionButtons) {
+  const grid = document.getElementById('behaviors-states-grid');
+  const countEl = document.getElementById('behaviors-action-count');
+  const addBtn = document.getElementById('add-action-btn');
+  const saveBtn = document.getElementById('save-behaviors-btn');
+  const resetBtn = document.getElementById('reset-behaviors-btn');
+
+  let actions = loadBehaviors();
+
+  function updateCount() {
+    const active = actions.filter((a) => a.enabled).length;
+    if (countEl) countEl.textContent = `${active} of ${actions.length} actions active`;
+  }
+
+  function renderGrid() {
+    if (!grid) return;
+    grid.innerHTML = '';
+    actions.forEach((action, idx) => {
+      const card = document.createElement('div');
+      card.className = `state-card${action.enabled ? '' : ' action-disabled'}`;
+      card.dataset.stateId = action.id;
+
+      card.innerHTML = `
+        <div class="state-card-header">
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;flex:1;">
+            <input type="checkbox" class="toggle-checkbox-small action-enabled-check"
+              ${action.enabled ? 'checked' : ''} title="Enable/disable this action">
+            <span class="state-badge">${escapeHtml(action.label || action.id)}</span>
+          </label>
+          <div style="display:flex;gap:4px;">
+            <button type="button" class="btn btn-tiny btn-test-state" data-state="${escapeHtml(action.id)}"
+              title="Trigger this action now on the overlay">▶ Test</button>
+            ${action.builtin ? '' : `<button type="button" class="btn btn-tiny btn-delete-action" data-idx="${idx}" title="Delete action" style="color:var(--signal);">✕</button>`}
+          </div>
+        </div>
+        <label class="state-field-label" style="margin-top:4px;">Speech quote</label>
+        <input type="text" class="input-text-compact action-quote-input"
+          value="${escapeHtml(action.quote || '')}" maxlength="100"
+          placeholder="What the companion says in this state…">
+        <span class="state-trigger-hint">${escapeHtml(action.id)}${action.builtin ? ' (built-in)' : ' (custom)'}</span>
+      `;
+
+      // Toggle enabled
+      card.querySelector('.action-enabled-check').addEventListener('change', (e) => {
+        actions[idx].enabled = e.target.checked;
+        card.classList.toggle('action-disabled', !e.target.checked);
+        updateCount();
+      });
+
+      // Quote edit
+      card.querySelector('.action-quote-input').addEventListener('input', (e) => {
+        actions[idx].quote = e.target.value;
+      });
+
+      // Test/trigger button
+      card.querySelector('.btn-test-state').addEventListener('click', () => {
+        // Fire state on stage canvas
+        const matchingBtn = document.querySelector(`.action-buttons-strip .btn-action[data-action="${action.id}"]`);
+        if (matchingBtn) {
+          matchingBtn.click();
+        } else if (actionLabel) {
+          if (currentAction !== undefined) actionLabel.textContent = `State: ${action.id}`;
+        }
+      });
+
+      // Delete (custom only)
+      card.querySelector('.btn-delete-action')?.addEventListener('click', () => {
+        if (confirm(`Delete action "${action.label || action.id}"?`)) {
+          actions.splice(idx, 1);
+          renderGrid();
+          updateCount();
+        }
+      });
+
+      grid.appendChild(card);
+    });
+    updateCount();
+  }
+
+  // Add custom action
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      const nameInput = document.getElementById('new-action-name');
+      const name = nameInput?.value?.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+      if (!name) return;
+      if (actions.some((a) => a.id === name)) {
+        alert(`Action "${name}" already exists.`);
+        return;
+      }
+      actions.push({ id: name, label: nameInput.value.trim(), quote: '', enabled: true, builtin: false });
+      if (nameInput) nameInput.value = '';
+      renderGrid();
+    });
+  }
+
+  // Save & apply
+  if (saveBtn) {
+    saveBtn.addEventListener('click', () => {
+      saveBehaviors(actions);
+      // Push updated action list to companion overlay via storage event
+      const enabledIds = actions.filter((a) => a.enabled).map((a) => a.id);
+      try { localStorage.setItem('tether-active-actions', JSON.stringify(enabledIds)); } catch { /* ignore */ }
+      // Also update quote map
+      const quotes = {};
+      actions.forEach((a) => { if (a.quote) quotes[a.id] = a.quote; });
+      try { localStorage.setItem('tether-action-quotes', JSON.stringify(quotes)); } catch { /* ignore */ }
+      saveBtn.textContent = '✓ Saved!';
+      setTimeout(() => { saveBtn.textContent = 'Save & Apply to Companion'; }, 2000);
+    });
+  }
+
+  // Reset to defaults
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      if (confirm('Reset all behaviors to defaults? Custom actions will be removed.')) {
+        actions = DEFAULT_ACTIONS.map((a) => ({ ...a }));
+        renderGrid();
+      }
+    });
+  }
+
+  renderGrid();
+}
+
+// -----------------------------------------------------------------------------
 // Settings
 // -----------------------------------------------------------------------------
 async function setupSettingsView() {
@@ -1559,11 +1739,20 @@ async function setupSettingsView() {
     });
   }
 
-  // Companion overlay controls
+  // Companion overlay toggle — same button hides then shows
   const hideCompanionBtn = document.getElementById('hide-companion-btn');
+  let companionVisible = true;
   if (hideCompanionBtn) {
     hideCompanionBtn.addEventListener('click', () => {
-      hideCompanionOverlay();
+      if (companionVisible) {
+        hideCompanionOverlay();
+        hideCompanionBtn.textContent = 'Show Companion';
+        companionVisible = false;
+      } else {
+        showCompanionOverlay();
+        hideCompanionBtn.textContent = 'Hide Companion';
+        companionVisible = true;
+      }
     });
   }
 

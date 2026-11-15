@@ -52,7 +52,27 @@ const H = canvas.height;  // 340
 
 // ─── State machine ────────────────────────────────────────────────────────────
 
-const WALK_STATES = ['idle', 'idle', 'walk', 'walk', 'wave', 'happy', 'water', 'stretch'];
+// Read enabled actions from main window's localStorage (set by Behaviors tab)
+function getWalkStates() {
+  try {
+    const raw = localStorage.getItem('tether-active-actions');
+    if (raw) {
+      const ids = JSON.parse(raw);
+      if (Array.isArray(ids) && ids.length > 0) return ids;
+    }
+  } catch { /* ignore */ }
+  return ['idle', 'idle', 'walk', 'walk', 'wave', 'happy', 'water', 'stretch'];
+}
+
+function getActionQuotes() {
+  try {
+    const raw = localStorage.getItem('tether-action-quotes');
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return {};
+}
+
+let WALK_STATES = getWalkStates();
 let currentState = 'idle';
 let nextStateTimer = 0;
 let walkDir = 1;         // 1 = right, -1 = left
@@ -109,18 +129,26 @@ loadSprite(companion.id, 'idle');
 
 // ─── State helpers ────────────────────────────────────────────────────────────
 
+const DEFAULT_QUOTES = {
+  idle: '', walk: '', wave: '👋 Hey there!', water: '💧 Stay hydrated!',
+  happy: '✨ Looking good!', stretch: '🧘 Stretch time!', sad: '😴 Rest your eyes…',
+};
+
 function pickNextState() {
+  // Re-read enabled actions every pick so Settings changes take effect immediately
+  WALK_STATES = getWalkStates();
+  if (WALK_STATES.length === 0) WALK_STATES = ['idle'];
+
   const idx = Math.floor(Math.random() * WALK_STATES.length);
   currentState = WALK_STATES[idx];
   walking = currentState === 'walk';
   nextStateTimer = performance.now() + (5000 + Math.random() * 7000);
   loadSprite(companion.id, currentState);
 
-  // Show a contextual speech bubble for certain states
-  if (currentState === 'water') showBubble('💧 Stay hydrated!', 3000);
-  else if (currentState === 'wave') showBubble('👋 Hey there!', 2500);
-  else if (currentState === 'happy') showBubble('✨ Looking good!', 2500);
-  else if (currentState === 'stretch') showBubble('🧘 Stretch time!', 2500);
+  // Show speech bubble — use custom quote if set, fall back to defaults
+  const quotes = getActionQuotes();
+  const text = quotes[currentState] || DEFAULT_QUOTES[currentState] || '';
+  if (text) showBubble(text, 2800);
 }
 
 pickNextState();

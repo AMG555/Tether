@@ -1229,6 +1229,14 @@ canvas#studio-canvas {
   margin-top: 14px;
 }
 
+/* Behaviors add-row */
+.behaviors-add-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  align-items: center;
+}
+
 .state-card {
   background: var(--paper);
   border: 1px solid var(--rule);
@@ -1237,6 +1245,15 @@ canvas#studio-canvas {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+/* Disabled state card */
+.state-card.action-disabled {
+  opacity: 0.45;
+}
+.state-card.action-disabled .state-badge {
+  text-decoration: line-through;
+  color: var(--ink-faint);
 }
 
 .state-card-header {

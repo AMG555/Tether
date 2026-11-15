@@ -423,83 +423,27 @@
           <div class="studio-tab-panel hidden" id="studio-panel-behaviors">
             <div class="studio-states-card">
               <div class="stage-header">
-                <span class="stage-label">Character State &amp; Mood Engine</span>
-                <span class="stage-status">7 Configurable Behaviors</span>
+                <span class="stage-label">Character Action &amp; Mood Engine</span>
+                <span id="behaviors-action-count" class="stage-status">7 actions active</span>
               </div>
               <p class="view-lede">
-                Fine-tune each character state, reminder dialogue, and automated triggers based on time and system status.
+                Enable or disable actions, customise speech quotes, add new custom actions. Changes apply to the active companion overlay immediately.
               </p>
 
-              <div class="states-grid" role="region" aria-label="Character states manager">
-                <div class="state-card" data-state-id="idle">
-                  <div class="state-card-header">
-                    <span class="state-badge">Idle</span>
-                    <button type="button" class="btn btn-tiny btn-test-state" data-state="idle">Trigger Now</button>
-                  </div>
-                  <label for="state-quote-idle" class="state-field-label">Speech Quote:</label>
-                  <input type="text" id="state-quote-idle" class="input-text-compact" value="Ready to safeguard your writing." maxlength="80">
-                  <span class="state-trigger-hint">Trigger: Default baseline loop</span>
-                </div>
+              <!-- Add custom action row -->
+              <div class="behaviors-add-row">
+                <input type="text" id="new-action-name" class="input-text-compact" placeholder="New action name (e.g. dance, coffee, focus…)" maxlength="32" style="flex:1;">
+                <button type="button" id="add-action-btn" class="btn btn-secondary">+ Add Action</button>
+              </div>
 
-                <div class="state-card" data-state-id="walk">
-                  <div class="state-card-header">
-                    <span class="state-badge">Walking</span>
-                    <button type="button" class="btn btn-tiny btn-test-state" data-state="walk">Trigger Now</button>
-                  </div>
-                  <label for="state-quote-walk" class="state-field-label">Speech Quote:</label>
-                  <input type="text" id="state-quote-walk" class="input-text-compact" value="Pacing along your paragraphs." maxlength="80">
-                  <span class="state-trigger-hint">Trigger: Active focus flow</span>
-                </div>
+              <!-- Dynamic states grid — rendered by JS -->
+              <div class="states-grid" id="behaviors-states-grid" role="region" aria-label="Character actions manager">
+                <!-- Populated by setupBehaviors() -->
+              </div>
 
-                <div class="state-card" data-state-id="wave">
-                  <div class="state-card-header">
-                    <span class="state-badge">Wave / Greeting</span>
-                    <button type="button" class="btn btn-tiny btn-test-state" data-state="wave">Trigger Now</button>
-                  </div>
-                  <label for="state-quote-wave" class="state-field-label">Speech Quote:</label>
-                  <input type="text" id="state-quote-wave" class="input-text-compact" value="Good morning! Ready for today's work." maxlength="80">
-                  <span class="state-trigger-hint">Trigger: Morning (06:00 - 12:00)</span>
-                </div>
-
-                <div class="state-card" data-state-id="water">
-                  <div class="state-card-header">
-                    <span class="state-badge">Water / Health</span>
-                    <button type="button" class="btn btn-tiny btn-test-state" data-state="water">Trigger Now</button>
-                  </div>
-                  <label for="state-quote-water" class="state-field-label">Speech Quote:</label>
-                  <input type="text" id="state-quote-water" class="input-text-compact" value="Time for a sip of water! Stay hydrated." maxlength="80">
-                  <span class="state-trigger-hint">Trigger: Continuous typing &gt; 45m</span>
-                </div>
-
-                <div class="state-card" data-state-id="stretch">
-                  <div class="state-card-header">
-                    <span class="state-badge">Stretch / Ergonomics</span>
-                    <button type="button" class="btn btn-tiny btn-test-state" data-state="stretch">Trigger Now</button>
-                  </div>
-                  <label for="state-quote-stretch" class="state-field-label">Speech Quote:</label>
-                  <input type="text" id="state-quote-stretch" class="input-text-compact" value="Relax your shoulders and stretch your wrists." maxlength="80">
-                  <span class="state-trigger-hint">Trigger: Evening (17:00 - 21:00)</span>
-                </div>
-
-                <div class="state-card" data-state-id="happy">
-                  <div class="state-card-header">
-                    <span class="state-badge">Celebrate</span>
-                    <button type="button" class="btn btn-tiny btn-test-state" data-state="happy">Trigger Now</button>
-                  </div>
-                  <label for="state-quote-happy" class="state-field-label">Speech Quote:</label>
-                  <input type="text" id="state-quote-happy" class="input-text-compact" value="Milestone achieved! Autosave secured." maxlength="80">
-                  <span class="state-trigger-hint">Trigger: Rapid typing burst / rescue</span>
-                </div>
-
-                <div class="state-card" data-state-id="sad">
-                  <div class="state-card-header">
-                    <span class="state-badge">Sleepy / Night</span>
-                    <button type="button" class="btn btn-tiny btn-test-state" data-state="sad">Trigger Now</button>
-                  </div>
-                  <label for="state-quote-sad" class="state-field-label">Speech Quote:</label>
-                  <input type="text" id="state-quote-sad" class="input-text-compact" value="Late night writing... remember to rest." maxlength="80">
-                  <span class="state-trigger-hint">Trigger: Night (22:00 - 06:00) or Battery &lt; 20%</span>
-                </div>
+              <div class="form-footer" style="margin-top:16px;">
+                <button type="button" id="save-behaviors-btn" class="btn btn-primary">Save &amp; Apply to Companion</button>
+                <button type="button" id="reset-behaviors-btn" class="btn btn-secondary">Reset to Defaults</button>
               </div>
             </div>
           </div><!-- /studio-panel-behaviors -->
