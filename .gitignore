@@ -21,5 +21,9 @@ ring.bin
 # Companion WebP clips — large animated binaries, downloaded on demand at runtime.
 # The manifest.json files (< 1 KB each) ARE tracked so Tauri's build-time resource
 # validation passes and the installed app knows which companions exist.
+# Exception: grace and rory are the two always-bundled companions whose clips must
+# ship inside the installer — their WebP files are committed and tracked.
 /assets/companions/**/*.webp
+!/assets/companions/grace/*.webp
+!/assets/companions/rory/*.webp
 /dist/

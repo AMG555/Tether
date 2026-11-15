@@ -26,10 +26,10 @@ import {
 
 const genericFailureMessage = 'Tether could not load app information.';
 
-// Complete Catalog of 32 companions available for on-demand installation
-// Grace and Rory are bundled with the installer (always installed).
-// Every entry here is a companion that must be explicitly downloaded — shown
-// in the grid as "Download" cards until the user installs them.
+// Complete Catalog of all 32 companions — all ship bundled with the installer.
+// This list is used as a UI fallback only: if list_companions() does not return
+// an entry (e.g. its manifest is missing on disk), these defaults fill the grid
+// so the user always sees all companions without a blank slot.
 const CATALOG_COMPANIONS = [
   { id: 'axel', name: 'Axel', desc: 'A skater boy who grinds deadlines the same way he grinds rails.', tags: ['human', 'kid', 'sporty'], size: '7.0 MB' },
   { id: 'bao', name: 'Bao', desc: 'A steamed bun with a fiery heart and unwavering patience.', tags: ['food', 'cute', 'calm'], size: '5.3 MB' },
