@@ -533,6 +533,11 @@ async function setupRecoveryView() {
 let installedCompanions = [];
 let activePetId = 'grace';
 
+// Cache of companion id → loaded HTMLImageElement for the idle WebP clip.
+// Populated lazily on first load; reused by renderGrid on every re-render so
+// the WebP character shows immediately instead of flashing the robot first.
+const _companionImgCache = {};
+
 async function setupCompanionsView() {
   const grid = document.getElementById('companions-grid');
   const filterChips = document.querySelectorAll('.filter-chip');
@@ -618,29 +623,33 @@ async function setupCompanionsView() {
         </div>
       `;
 
-      // Draw avatar: procedural first (never blank), then upgrade to WebP if available.
-      // Catalog (not-installed) companions get a distinct downloadable placeholder so
-      // they don't look identical to installed ones.
+      // Draw avatar — installed companions show real WebP character image.
+      // Uses a module-level image cache (_companionImgCache) so re-renders from
+      // renderGrid() draw the WebP immediately without a robot flash.
       const avatarCanvas = card.querySelector('.companion-avatar-canvas');
       if (avatarCanvas) {
         if (c.isInstalled) {
-          renderCompanionCardAvatar(avatarCanvas, avatarColors, c.name);
-          getCompanionClip(c.id, 'idle').then((dataUrl) => {
-            if (!dataUrl) return; // no clip pack — procedural stays
-            const img = new Image();
-            img.onload = () => {
-              const ctx = avatarCanvas.getContext('2d');
-              if (!ctx) return;
-              const cw = avatarCanvas.width;
-              const ch = avatarCanvas.height;
-              ctx.clearRect(0, 0, cw, ch);
-              const scale = Math.min(cw / img.width, ch / img.height);
-              const dw = img.width * scale;
-              const dh = img.height * scale;
-              ctx.drawImage(img, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
-            };
-            img.src = dataUrl;
-          }).catch(() => { /* keep procedural fallback */ });
+          const cachedImg = _companionImgCache[c.id];
+          if (cachedImg) {
+            // Already loaded — draw synchronously, no flash
+            drawWebpOnCard(avatarCanvas, cachedImg);
+          } else {
+            // Draw procedural placeholder while loading
+            renderCompanionCardAvatar(avatarCanvas, avatarColors, c.name);
+            getCompanionClip(c.id, 'idle').then((dataUrl) => {
+              if (!dataUrl) return; // no clip pack — procedural stays
+              const img = new Image();
+              img.onload = () => {
+                _companionImgCache[c.id] = img;
+                // Find the canvas in the live DOM (card may have been re-rendered)
+                const liveCanvas = document.querySelector(
+                  `.companion-avatar-canvas[data-companion-id="${CSS.escape(c.id)}"]`
+                );
+                if (liveCanvas) drawWebpOnCard(liveCanvas, img);
+              };
+              img.src = dataUrl;
+            }).catch(() => { /* keep procedural fallback */ });
+          }
         } else {
           renderCatalogPlaceholder(avatarCanvas, avatarColors, c.name);
         }
@@ -812,6 +821,24 @@ async function updatePreviewStage(companion, action) {
  * Uses a larger canvas (220×220) with centered composition.
  * Falls back gracefully if getContext is not available (SSR/tests).
  */
+
+/**
+ * Draws a preloaded WebP HTMLImageElement onto a companion card canvas,
+ * centred and scaled to fill the canvas while preserving aspect ratio.
+ */
+function drawWebpOnCard(canvas, img) {
+  if (!canvas || !img || img.naturalWidth === 0) return;
+  const ctx = canvas.getContext ? canvas.getContext('2d') : null;
+  if (!ctx) return;
+  const cw = canvas.width;
+  const ch = canvas.height;
+  ctx.clearRect(0, 0, cw, ch);
+  const scale = Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
+  const dw = img.naturalWidth * scale;
+  const dh = img.naturalHeight * scale;
+  ctx.drawImage(img, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+}
+
 function renderCompanionCardAvatar(canvas, colors, name) {
   if (!canvas) return;
   const ctx = canvas.getContext ? canvas.getContext('2d') : null;
