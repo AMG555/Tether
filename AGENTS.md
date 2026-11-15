@@ -56,5 +56,12 @@ Shipped pages: `gui/clip-studio.html`, `gui/clip-preview.html`, `assets/pet-stud
 ## ADRs
 Non-obvious decisions are in `docs/adr/`. Read the relevant ADR before changing storage (`0001`), crash safety (`0002`), encryption (`0003`), or draft reconstruction (`0004`).
 
+## Desktop app — non-obvious rules (`desktop/`)
+- **New Tauri `#[tauri::command]` functions must be registered in THREE places**: `commands.rs` (`#[tauri::command]` annotation), `lib.rs` (`invoke_handler!` macro), **and `build.rs`** (`AppManifest::commands(&[…])`). The `build.rs` list is what generates `allow-*` permissions for capabilities — omitting it causes a build-time panic with "Permission allow-X not found".
+- **Window list in `tauri.conf.json` is authoritative**. Do NOT also create windows in `.setup()` via `WebviewWindowBuilder` — Tauri creates them from config automatically. Duplicate creation causes the duplicate window to be destroyed, reducing the window count and triggering `ExitRequested`.
+- **All Tauri IPC must go through `desktop/src/api.js`**. Never use `window.__TAURI__` directly in any other JS file — the architecture test (`desktop/test/architecture.test.js`) scans for `__TAURI__` regex across all `.js` sources, **including comments**.
+- **`desktop/src-tauri/capabilities/main.json`** must have `windows: ["main"]` only and no `core:*` permissions — the shell-config test enforces this. Put companion-overlay permissions in a separate `companion-overlay.json` capability.
+- Run `cd desktop && npm test` for JS tests; `cargo test --manifest-path desktop/src-tauri/Cargo.toml` for Rust tests.
+
 ## Before shipping
 Read `CAPABILITY-MAP.md`, `CONSTRAINTS.md`, and any active `SPEC-*.md` before changing the desktop app. Do not weaken quality gates to make a check pass.
