@@ -1592,7 +1592,7 @@ canvas#studio-canvas {
 /* ── Desktop mockup shell ───────────────────────────────────────── */
 .preview-desktop-mockup {
   width: 420px;
-  height: 340px;
+  height: 360px;
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid var(--rule-strong);
@@ -1601,6 +1601,8 @@ canvas#studio-canvas {
   flex-direction: column;
   flex-shrink: 0;
   position: relative;
+  /* clip children but let companion stage overflow safely via z-index stacking */
+  isolation: isolate;
 }
 
 /* Wallpaper — dark space gradient with subtle star-like dots */
@@ -1611,7 +1613,8 @@ canvas#studio-canvas {
     radial-gradient(ellipse at 20% 30%, rgba(37, 99, 235, 0.18) 0%, transparent 60%),
     radial-gradient(ellipse at 80% 70%, rgba(124, 58, 237, 0.14) 0%, transparent 55%),
     linear-gradient(160deg, #0d1117 0%, #161b22 50%, #0f1923 100%);
-  overflow: hidden;
+  /* Allow companion to overflow upward beyond the wallpaper boundary */
+  overflow: visible;
 }
 
 /* Desktop icon grid in top-left of wallpaper */
@@ -1710,16 +1713,16 @@ canvas#studio-canvas {
 }
 
 .preview-companion-img--desktop {
-  width: 190px;
-  height: 230px;
+  width: 160px;
+  height: 200px;
   object-fit: contain;
   display: block;
   filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
 }
 
 .preview-companion-canvas--desktop {
-  width: 190px;
-  height: 230px;
+  width: 160px;
+  height: 200px;
   display: block;
 }
 

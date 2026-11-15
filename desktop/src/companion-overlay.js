@@ -120,9 +120,9 @@ function getActionQuotes() {
 let WALK_STATES = getWalkStates();
 let currentState = 'idle';
 let nextStateTimer = 0;
-let walkDir = 1;         // 1 = right, -1 = left
-let walkX = CHAR_MARGIN; // start at left edge
-let walkY = H;           // feet Y position (bottom of screen by default)
+let walkDir = 1;           // 1 = right, -1 = left
+let walkX = W / 2;         // start at horizontal centre so companion is visible immediately
+let walkY = H;             // feet Y position (bottom of screen by default)
 let walking = false;
 let pauseTimer = 0;
 let animTime = 0;
@@ -501,6 +501,10 @@ function stopAnim() {
     rafId = null;
   }
 }
+
+// Initialise hit-zone to the starting character position immediately so it is
+// grabbable before the first animation frame fires.
+updateHitZone();
 
 startAnim();
 

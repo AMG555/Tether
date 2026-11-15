@@ -85,6 +85,7 @@ extern "system" {
     fn GetForegroundWindow() -> Hwnd;
     fn GetWindowThreadProcessId(hwnd: Hwnd, pid: *mut u32) -> u32;
     fn GetKeyboardState(state: *mut u8) -> i32;
+    fn GetAsyncKeyState(vk: i32) -> i16;
     fn GetKeyboardLayout(thread_id: u32) -> Hkl;
     fn MapVirtualKeyExW(code: u32, map_type: u32, layout: Hkl) -> u32;
     fn ToUnicodeEx(
@@ -203,11 +204,26 @@ unsafe fn translate(info: &KbdLlHookStruct) -> Option<Event> {
     let vk = info.vk_code as usize;
     let app = frontmost_app();
 
-    // Shortcuts (Ctrl/Alt held) are commands, not prose. Capture them and you record
-    // Ctrl+V as "v" and corrupt every draft.
+    // `GetKeyboardState` is unreliable in a WH_KEYBOARD_LL callback because it reads the
+    // per-thread queue state, which may not yet reflect the hardware modifier state at
+    // hook-dispatch time. `GetAsyncKeyState` reads the actual hardware state and is the
+    // correct API for modifier detection inside a low-level hook.
+    //
+    // We still call `GetKeyboardState` to build the full 256-byte state buffer that
+    // `ToUnicodeEx` needs for Shift/CapsLock layout translation, but we override the
+    // Ctrl/Alt bytes in that buffer with the authoritative async values so that both the
+    // shortcut gate and the Unicode translation agree on the modifier state.
     let state_ptr = {
         let mut state = [0u8; 256];
         GetKeyboardState(state.as_mut_ptr());
+        // Override modifier bytes with hardware state so ToUnicodeEx resolves Shift
+        // correctly (e.g. Shift+2 → '@' instead of '2').
+        let shift_down = GetAsyncKeyState(VK_SHIFT as i32) as u16 & 0x8000 != 0;
+        let ctrl_down = GetAsyncKeyState(VK_CONTROL as i32) as u16 & 0x8000 != 0;
+        let alt_down = GetAsyncKeyState(VK_MENU as i32) as u16 & 0x8000 != 0;
+        state[VK_SHIFT] = if shift_down { 0x80 } else { 0x00 };
+        state[VK_CONTROL] = if ctrl_down { 0x80 } else { 0x00 };
+        state[VK_MENU] = if alt_down { 0x80 } else { 0x00 };
         state
     };
     let ctrl = state_ptr[VK_CONTROL] & 0x80 != 0;

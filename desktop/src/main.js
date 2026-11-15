@@ -531,7 +531,19 @@ async function setupRecoveryView() {
 // Companions (Roster & Downloadable Catalog)
 // -----------------------------------------------------------------------------
 let installedCompanions = [];
-let activePetId = 'grace';
+
+// Restore the active companion from localStorage so the pill and card highlight
+// survive a page reload. Falls back to 'grace' if nothing was ever saved.
+let activePetId = (() => {
+  try {
+    const raw = typeof localStorage !== 'undefined' && localStorage.getItem('tether-active-companion');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.id) return parsed.id;
+    }
+  } catch { /* ignore */ }
+  return 'grace';
+})();
 
 // Cache of companion id → loaded HTMLImageElement for the idle WebP clip.
 // Populated lazily on first load; reused by renderGrid on every re-render so
@@ -552,6 +564,11 @@ async function setupCompanionsView() {
         { id: 'rory', name: 'Rory', description: 'The lion cub heir — small and boisterous.', tags: ['animal', 'playful'], isInstalled: true },
       ];
     }
+    // Sync the active-companion-name pill with the persisted value now that we
+    // have the full companions list (which carries the display name).
+    const activeComp = installedCompanions.find((c) => c.id === activePetId);
+    const activeName = document.getElementById('active-companion-name');
+    if (activeName && activeComp) activeName.textContent = activeComp.name;
     renderGrid();
   }
 
@@ -731,6 +748,34 @@ async function setupCompanionsView() {
 
 let previewCompanion = null;
 let previewActiveAction = 'idle';
+// RAF handle for the animated preview canvas loop
+let _previewRafId = null;
+let _previewAnimTime = 0;
+let _previewLastTs = 0;
+
+function startPreviewAnim(canvas, companion, action) {
+  if (_previewRafId !== null) {
+    cancelAnimationFrame(_previewRafId);
+    _previewRafId = null;
+  }
+  _previewAnimTime = 0;
+  _previewLastTs = performance.now();
+  function tick(ts) {
+    const dt = Math.min(ts - _previewLastTs, 50);
+    _previewLastTs = ts;
+    _previewAnimTime += dt * 0.001;
+    renderProceduralPreview(canvas, companion, action, _previewAnimTime);
+    _previewRafId = requestAnimationFrame(tick);
+  }
+  _previewRafId = requestAnimationFrame(tick);
+}
+
+function stopPreviewAnim() {
+  if (_previewRafId !== null) {
+    cancelAnimationFrame(_previewRafId);
+    _previewRafId = null;
+  }
+}
 
 function getDefaultQuoteForAction(action) {
   switch (action) {
@@ -817,7 +862,9 @@ async function updatePreviewStage(companion, action) {
   if (imgEl) imgEl.hidden = true;
   if (canvasEl) {
     canvasEl.hidden = false;
-    renderProceduralPreview(canvasEl, companion, action);
+    // Stop any previous animation loop then start a fresh one for the new action
+    stopPreviewAnim();
+    startPreviewAnim(canvasEl, companion, action);
   }
 }
 
@@ -1048,7 +1095,7 @@ function renderCatalogPlaceholder(canvas, colors, name) {
   ctx.globalAlpha = 1;
 }
 
-function renderProceduralPreview(canvas, companion, action) {
+function renderProceduralPreview(canvas, companion, action, animTime = 0) {
   if (!canvas) return;
   const ctx = canvas.getContext ? canvas.getContext('2d') : null;
   if (!ctx) return;
@@ -1063,13 +1110,17 @@ function renderProceduralPreview(canvas, companion, action) {
   const cy = h - 50;
   const colors = companion.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' };
 
-  let bob = 0;
+  // Animate bob and wave using time so the character appears alive
+  const t = animTime;
+  let bob = Math.sin(t * 2.5) * 3;
   let wave = 0;
-  let blink = 1.0;
-  if (action === 'walk') bob = 6;
-  if (action === 'wave') wave = 0.5;
-  if (action === 'happy') bob = 12;
-  if (action === 'sad') { bob = -6; blink = 0.4; }
+  let blink = Math.sin(t * 0.7) > 0.96 ? 0.08 : 1.0;
+  if (action === 'walk') bob = Math.abs(Math.sin(t * 7)) * 7;
+  if (action === 'wave') { wave = Math.sin(t * 9) * 0.6; bob += Math.sin(t * 3) * 2; }
+  if (action === 'happy') { bob = Math.abs(Math.sin(t * 9)) * 14; wave = Math.sin(t * 13) * 0.45; }
+  if (action === 'sad') { bob = -Math.abs(Math.sin(t * 1.2)) * 4; blink = 0.3; }
+  if (action === 'stretch') { wave = -Math.abs(Math.sin(t * 1.5)) * 0.9; bob = Math.sin(t * 1.5) * 4; }
+  if (action === 'water') { bob = Math.sin(t * 3) * 2; }
 
   // Shadow
   ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
@@ -1104,6 +1155,25 @@ function renderProceduralPreview(canvas, companion, action) {
   // Feet
   ctx.fillRect(cx - 20, cy + 25 - bob, 12, 18);
   ctx.fillRect(cx + 8, cy + 25 - bob, 12, 18);
+
+  // Arms
+  ctx.save();
+  ctx.translate(cx - 26, cy - 20 - bob);
+  ctx.rotate(action === 'stretch' ? -1.4 : wave !== 0 ? -1.15 + wave : 0.18);
+  ctx.fillStyle = colors.body;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(-8, 0, 8, 22, 4); else ctx.rect(-8, 0, 8, 22);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(cx + 26, cy - 20 - bob);
+  ctx.rotate(action === 'stretch' ? 1.4 : wave !== 0 ? 1.1 - wave : -0.18);
+  ctx.fillStyle = colors.body;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(0, 0, 8, 22, 4); else ctx.rect(0, 0, 8, 22);
+  ctx.fill();
+  ctx.restore();
 
   // Head
   ctx.fillStyle = colors.body;
@@ -1145,6 +1215,7 @@ function setupPreviewModalHandlers() {
 
   [closeBtn, closeBottomBtn].forEach((btn) => {
     btn?.addEventListener('click', () => {
+      stopPreviewAnim();
       modal?.classList.add('hidden');
     });
   });
@@ -1157,17 +1228,64 @@ function setupPreviewModalHandlers() {
     });
   });
 
-  // Clicking the companion stage in the preview bounces through states like the real pet.
+  // ── Preview companion stage: drag + click ────────────────────────
   const previewStage = document.querySelector('.preview-companion-stage');
+  const wallpaper    = document.querySelector('.preview-desktop-wallpaper');
+
+  let _pdragActive = false;
+  let _pdragStartX = 0, _pdragStartY = 0;
+  let _pdragOrigRight = 20, _pdragOrigBottom = 0;  // px from edges (CSS right/bottom)
+
+  if (previewStage && wallpaper) {
+    previewStage.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      _pdragActive = true;
+      _pdragStartX = e.clientX;
+      _pdragStartY = e.clientY;
+      // Read current computed right/bottom offsets
+      const wp = wallpaper.getBoundingClientRect();
+      const sp = previewStage.getBoundingClientRect();
+      _pdragOrigRight  = wp.right  - sp.right;
+      _pdragOrigBottom = wp.bottom - sp.bottom;
+      previewStage.style.cursor = 'grabbing';
+      previewStage.style.transition = 'none';
+    });
+  }
+
+  document.addEventListener('mousemove', (e) => {
+    if (!_pdragActive || !previewStage || !wallpaper) return;
+    const dx = e.clientX - _pdragStartX;
+    const dy = e.clientY - _pdragStartY;
+    const wp = wallpaper.getBoundingClientRect();
+    const sp = previewStage.getBoundingClientRect();
+    // right decreases as mouse moves right (dx > 0); bottom decreases as mouse moves down (dy > 0)
+    const newRight  = Math.max(0, Math.min(wp.width  - sp.width,  _pdragOrigRight  - dx));
+    const newBottom = Math.max(0, Math.min(wp.height - sp.height, _pdragOrigBottom - dy));
+    previewStage.style.right  = `${newRight}px`;
+    previewStage.style.bottom = `${newBottom}px`;
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!_pdragActive) return;
+    _pdragActive = false;
+    if (previewStage) {
+      previewStage.style.cursor = 'grab';
+      previewStage.style.transition = 'transform 0.1s ease';
+    }
+  });
+
+  // Click (no drag) → cycle through states
   const PREVIEW_REACTIONS = ['wave', 'happy', 'water', 'stretch', 'idle'];
   let _previewReactionIdx = 0;
+  let _pdragMoved = false;
+  previewStage?.addEventListener('mousedown', () => { _pdragMoved = false; });
+  document.addEventListener('mousemove', () => { if (_pdragActive) _pdragMoved = true; });
+
   previewStage?.addEventListener('click', () => {
-    if (!previewCompanion) return;
+    if (_pdragMoved || !previewCompanion) return;
     const state = PREVIEW_REACTIONS[_previewReactionIdx % PREVIEW_REACTIONS.length];
     _previewReactionIdx++;
-    // Update the action strip highlight and load the new clip
     void updatePreviewStage(previewCompanion, state);
-    // Flash speech bubble text
     const speechText = document.getElementById('preview-speech-text');
     const bubbles = {
       wave: '👋 Hey there!', happy: '✨ Woohoo!', water: '💧 Drink some water!',
@@ -1182,7 +1300,7 @@ function setupPreviewModalHandlers() {
       const activeName = document.getElementById('active-companion-name');
       if (activeName) activeName.textContent = previewCompanion.name;
       document.querySelectorAll('.companion-card').forEach((card) => {
-        card.classList.remove('active-pet');
+        card.classList.toggle('active-pet', card.querySelector(`.companion-avatar-canvas[data-companion-id="${CSS.escape(previewCompanion.id)}"]`) !== null);
       });
 
       // Persist active companion for the overlay window
@@ -1190,12 +1308,14 @@ function setupPreviewModalHandlers() {
         localStorage.setItem('tether-active-companion', JSON.stringify({
           id: previewCompanion.id,
           name: previewCompanion.name,
+          avatarType: previewCompanion.avatarType || 'procedural',
           colors: previewCompanion.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' },
         }));
       }
 
-      // Show the companion overlay window via the IPC bridge
+      // Show the companion overlay window via the IPC bridge then re-render the grid
       showCompanionOverlay();
+      renderGrid();
 
       showToast(`"${previewCompanion.name}" is now your active companion!`, 'ok');
       modal?.classList.add('hidden');
@@ -2177,6 +2297,7 @@ function setupKeyboardShortcuts() {
   }
 
   function closeAllModals() {
+    stopPreviewAnim();
     document.querySelectorAll('.modal-overlay').forEach((m) => m.classList.add('hidden'));
   }
 
