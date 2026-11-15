@@ -528,10 +528,31 @@ async function setupCompanionsView() {
         </div>
       `;
 
-      // Draw avatar on the card canvas
+      // Draw avatar: try real WebP first, fall back to procedural portrait
       const avatarCanvas = card.querySelector('.companion-avatar-canvas');
       if (avatarCanvas) {
+        // Start procedural immediately so card is never blank
         renderCompanionCardAvatar(avatarCanvas, avatarColors, c.name);
+        // Upgrade to WebP if the companion has a clip pack installed
+        if (c.isInstalled && c.avatarType !== 'procedural') {
+          getCompanionClip(c.id, 'idle').then((dataUrl) => {
+            if (!dataUrl) return;
+            const img = new Image();
+            img.onload = () => {
+              const ctx = avatarCanvas.getContext('2d');
+              if (!ctx) return;
+              const cw = avatarCanvas.width;
+              const ch = avatarCanvas.height;
+              ctx.clearRect(0, 0, cw, ch);
+              // Letterbox-fit the sprite frame into the card canvas
+              const scale = Math.min(cw / img.width, ch / img.height);
+              const dw = img.width * scale;
+              const dh = img.height * scale;
+              ctx.drawImage(img, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+            };
+            img.src = dataUrl;
+          }).catch(() => { /* keep procedural fallback */ });
+        }
       }
 
       card.querySelector('.btn-preview-pet')?.addEventListener('click', () => {
@@ -1184,6 +1205,266 @@ function setupStudioView() {
       }
     });
   });
+
+  // ── Studio inner tab bar ──────────────────────────────────────────────────
+  const studioTabBtns = document.querySelectorAll('.studio-tab');
+  const studioTabPanels = document.querySelectorAll('.studio-tab-panel');
+  studioTabBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.studioTab;
+      studioTabBtns.forEach((b) => {
+        b.classList.toggle('active', b === btn);
+        b.setAttribute('aria-selected', String(b === btn));
+      });
+      studioTabPanels.forEach((p) => {
+        const isMatch = p.id === `studio-panel-${target}`;
+        p.classList.toggle('hidden', !isMatch);
+      });
+    });
+  });
+
+  // ── Clip Pack Import ──────────────────────────────────────────────────────
+  // In-memory staging: state → base64 data URL
+  const stagedClips = {};
+
+  // Populate target companion select
+  const clipTargetSelect = document.getElementById('clip-target-companion');
+  if (clipTargetSelect) {
+    listCompanions().then((companions) => {
+      companions.filter((c) => c.isInstalled || c.isCustom).forEach((c) => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        clipTargetSelect.appendChild(opt);
+      });
+    }).catch(() => {});
+  }
+
+  function setClipStatus(msg, ok = true) {
+    const el = document.getElementById('clip-import-status');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = `clip-status-pill ${ok ? 'clip-status-ok' : 'clip-status-err'}`;
+  }
+
+  function previewClipOnCanvas(canvas, dataUrl) {
+    if (!canvas) return;
+    const ctx2 = canvas.getContext('2d');
+    if (!ctx2) return;
+    const img = new Image();
+    img.onload = () => {
+      const cw = canvas.width;
+      const ch = canvas.height;
+      ctx2.clearRect(0, 0, cw, ch);
+      const scale = Math.min(cw / img.width, ch / img.height);
+      const dw = img.width * scale;
+      const dh = img.height * scale;
+      ctx2.drawImage(img, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+    };
+    img.src = dataUrl;
+  }
+
+  function markSlotLoaded(state, dataUrl) {
+    stagedClips[state] = dataUrl;
+    const slot = document.querySelector(`.clip-slot[data-state="${state}"]`);
+    if (!slot) return;
+    const dropZone = slot.querySelector('.clip-drop-zone');
+    const previewCanvas = slot.querySelector('.clip-preview-canvas');
+    const label = slot.querySelector('.clip-drop-label');
+    if (dropZone) dropZone.classList.add('clip-drop-loaded');
+    if (label) label.textContent = `✓ ${state}.webp loaded`;
+    previewClipOnCanvas(previewCanvas, dataUrl);
+    // Enable apply button if at least one clip is staged and a companion is selected
+    const applyBtn = document.getElementById('clip-apply-btn');
+    if (applyBtn && clipTargetSelect?.value) applyBtn.disabled = false;
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = () => reject(new Error('Could not read file'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Per-state drop zones and file inputs
+  document.querySelectorAll('.clip-drop-zone').forEach((zone) => {
+    const state = zone.dataset.state;
+    const fileInput = document.querySelector(`.clip-file-input[data-state="${state}"]`);
+
+    zone.addEventListener('click', () => fileInput?.click());
+    zone.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') fileInput?.click(); });
+
+    zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      const file = e.dataTransfer?.files?.[0];
+      if (!file) return;
+      if (!file.type.includes('webp') && !file.name.endsWith('.webp')) {
+        setClipStatus(`${file.name} is not a WebP file`, false);
+        return;
+      }
+      try {
+        const dataUrl = await readFileAsDataUrl(file);
+        markSlotLoaded(state, dataUrl);
+        setClipStatus(`${state}.webp staged`);
+      } catch {
+        setClipStatus('Could not read file', false);
+      }
+    });
+
+    if (fileInput) {
+      fileInput.addEventListener('change', async () => {
+        const file = fileInput.files?.[0];
+        if (!file) return;
+        try {
+          const dataUrl = await readFileAsDataUrl(file);
+          markSlotLoaded(state, dataUrl);
+          setClipStatus(`${state}.webp staged`);
+        } catch {
+          setClipStatus('Could not read file', false);
+        }
+        fileInput.value = '';
+      });
+    }
+  });
+
+  // ZIP import — reads a .zip and extracts files named <state>.webp
+  const zipInput = document.getElementById('clip-zip-input');
+  if (zipInput) {
+    zipInput.addEventListener('change', async () => {
+      const file = zipInput.files?.[0];
+      if (!file) return;
+      zipInput.value = '';
+      setClipStatus('Reading ZIP…');
+      try {
+        // Use the browser's DecompressionStream (Chromium 80+) on each entry.
+        // We read the zip as an ArrayBuffer and manually parse the local file headers
+        // (a minimal parser — no external library needed).
+        const buf = await file.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        const loaded = [];
+
+        // Walk ZIP local file headers: signature 0x04034b50
+        let i = 0;
+        while (i < bytes.length - 30) {
+          if (bytes[i] === 0x50 && bytes[i+1] === 0x4B && bytes[i+2] === 0x03 && bytes[i+3] === 0x04) {
+            const compressionMethod = bytes[i+8] | (bytes[i+9] << 8);
+            const compressedSize   = bytes[i+18] | (bytes[i+19] << 8) | (bytes[i+20] << 16) | (bytes[i+21] << 24);
+            const fileNameLen      = bytes[i+26] | (bytes[i+27] << 8);
+            const extraFieldLen    = bytes[i+28] | (bytes[i+29] << 8);
+            const fileNameBytes    = bytes.slice(i+30, i+30+fileNameLen);
+            const fileName         = new TextDecoder().decode(fileNameBytes);
+            const dataStart        = i + 30 + fileNameLen + extraFieldLen;
+            const compressedData   = bytes.slice(dataStart, dataStart + compressedSize);
+
+            const baseName = fileName.split('/').pop().split('\\').pop();
+            const stateMatch = baseName.match(/^([a-z]+)\.webp$/i);
+            if (stateMatch) {
+              const state = stateMatch[1].toLowerCase();
+              let rawBytes = compressedData;
+              if (compressionMethod === 8) {
+                // deflate — decompress
+                try {
+                  const ds = new DecompressionStream('deflate-raw');
+                  const writer = ds.writable.getWriter();
+                  const reader2 = ds.readable.getReader();
+                  writer.write(compressedData);
+                  writer.close();
+                  const chunks = [];
+                  let done = false;
+                  while (!done) {
+                    const { value, done: d } = await reader2.read();
+                    if (value) chunks.push(value);
+                    done = d;
+                  }
+                  const totalLen = chunks.reduce((s, c) => s + c.length, 0);
+                  rawBytes = new Uint8Array(totalLen);
+                  let offset2 = 0;
+                  for (const chunk of chunks) { rawBytes.set(chunk, offset2); offset2 += chunk.length; }
+                } catch {
+                  // skip — compression method not supported
+                  i = dataStart + compressedSize;
+                  continue;
+                }
+              }
+              const blob = new Blob([rawBytes], { type: 'image/webp' });
+              const dataUrl = await readFileAsDataUrl(blob);
+              markSlotLoaded(state, dataUrl);
+              loaded.push(state);
+            }
+            i = dataStart + compressedSize;
+          } else {
+            i++;
+          }
+        }
+
+        if (loaded.length > 0) {
+          setClipStatus(`ZIP imported: ${loaded.join(', ')}`);
+        } else {
+          setClipStatus('No <state>.webp files found in ZIP', false);
+        }
+      } catch (err) {
+        setClipStatus(`ZIP read failed: ${err.message}`, false);
+      }
+    });
+  }
+
+  // Apply staged clips to the selected companion
+  const clipApplyBtn = document.getElementById('clip-apply-btn');
+  if (clipApplyBtn) {
+    clipApplyBtn.addEventListener('click', async () => {
+      const targetId = clipTargetSelect?.value;
+      if (!targetId) {
+        setClipStatus('Select a companion first', false);
+        return;
+      }
+      const states = Object.keys(stagedClips);
+      if (states.length === 0) {
+        setClipStatus('No clips staged yet', false);
+        return;
+      }
+      clipApplyBtn.disabled = true;
+      clipApplyBtn.textContent = 'Applying…';
+      try {
+        // Save via saveCustomCompanion with model_data carrying the clip map as JSON
+        const modelData = JSON.stringify(
+          Object.fromEntries(states.map((s) => [s, stagedClips[s]]))
+        );
+        await saveCustomCompanion({
+          id: targetId,
+          name: targetId,
+          description: '',
+          tags: [],
+          avatarType: 'clips',
+          actions: states,
+          colors: null,
+          modelData,
+        });
+        setClipStatus(`${states.length} clip(s) applied to ${targetId} ✓`);
+        clipApplyBtn.textContent = '✓ Applied';
+        setTimeout(() => {
+          clipApplyBtn.textContent = 'Apply to Active Companion';
+          clipApplyBtn.disabled = false;
+        }, 2500);
+      } catch (err) {
+        setClipStatus(`Apply failed: ${err.message}`, false);
+        clipApplyBtn.disabled = false;
+        clipApplyBtn.textContent = 'Apply to Active Companion';
+      }
+    });
+  }
+
+  // Enable apply button when companion selection changes
+  if (clipTargetSelect) {
+    clipTargetSelect.addEventListener('change', () => {
+      const applyBtn = document.getElementById('clip-apply-btn');
+      if (applyBtn) applyBtn.disabled = Object.keys(stagedClips).length === 0;
+    });
+  }
 }
 
 // -----------------------------------------------------------------------------

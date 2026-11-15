@@ -95,7 +95,7 @@ jobs:
           node node_modules/@tauri-apps/cli/tauri.js build
           cd ..
 
-          NSIS_BIN="desktop/src-tauri/target/release/bundle/nsis/Tether_0.1.0_x64-setup.exe"
+          NSIS_BIN="desktop/src-tauri/target/release/bundle/nsis/Tether_0.1.6_x64-setup.exe"
           DESK_BIN="desktop/src-tauri/target/release/tether-desktop.exe"
 
           # ── Authenticode signing (runs only when certificate secrets are set) ──
@@ -132,7 +132,7 @@ jobs:
 
           # Copy the NSIS installer as the primary Windows download asset.
           if [ -f "$NSIS_BIN" ]; then
-            cp "$NSIS_BIN" "dist/Tether_0.1.0_x64-setup.exe"
+            cp "$NSIS_BIN" "dist/Tether_0.1.6_x64-setup.exe"
           fi
           # Also ship the raw tether-desktop.exe for users who prefer no installer.
           if [ -f "$DESK_BIN" ]; then

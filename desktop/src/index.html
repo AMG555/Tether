@@ -188,172 +188,314 @@
             <div>
               <h2 class="view-title">Companion Studio &amp; Character Creator</h2>
               <p class="view-lede">
-                Create custom companions with rigged animation, personal color themes, and actions.
+                Build custom companions from scratch or import WebP clip packs exported from Spine, Aseprite, DragonBones, or any animation tool.
               </p>
             </div>
           </div>
 
-          <div class="studio-layout">
-            <!-- Left: Interactive Canvas Stage -->
-            <div class="studio-stage-card">
+          <!-- Studio tab bar -->
+          <div class="studio-tabs" role="tablist" aria-label="Studio sections">
+            <button type="button" class="studio-tab active" data-studio-tab="attributes" role="tab" aria-selected="true">Character</button>
+            <button type="button" class="studio-tab" data-studio-tab="clips" role="tab" aria-selected="false">Clip Pack Import</button>
+            <button type="button" class="studio-tab" data-studio-tab="behaviors" role="tab" aria-selected="false">Behaviors</button>
+          </div>
+
+          <!-- ── Tab 1: Character attributes + live preview ── -->
+          <div class="studio-tab-panel" id="studio-panel-attributes">
+            <div class="studio-layout">
+              <!-- Left: Interactive Canvas Stage -->
+              <div class="studio-stage-card">
+                <div class="stage-header">
+                  <span class="stage-label">Live Preview</span>
+                  <span id="stage-action-label" class="stage-status">State: idle</span>
+                </div>
+                <div class="canvas-container">
+                  <canvas id="studio-canvas" width="400" height="340" aria-label="Interactive companion animation preview"></canvas>
+                </div>
+                <div class="action-buttons-strip" role="group" aria-label="Test animation actions">
+                  <button type="button" class="btn-action active" data-action="idle">Idle</button>
+                  <button type="button" class="btn-action" data-action="walk">Walk</button>
+                  <button type="button" class="btn-action" data-action="wave">Wave</button>
+                  <button type="button" class="btn-action" data-action="water">Water</button>
+                  <button type="button" class="btn-action" data-action="stretch">Stretch</button>
+                  <button type="button" class="btn-action" data-action="happy">Celebrate</button>
+                  <button type="button" class="btn-action" data-action="sad">Rest</button>
+                </div>
+              </div>
+
+              <!-- Right: Character Form -->
+              <div class="studio-form-card">
+                <h3 class="form-title">Character Attributes</h3>
+                <form id="companion-creator-form">
+                  <div class="form-group">
+                    <label for="char-name">Character Name</label>
+                    <input type="text" id="char-name" class="input-text" placeholder="e.g. Atlas, Spark, Neo" required maxlength="32">
+                  </div>
+
+                  <div class="form-group">
+                    <label for="char-desc">Description / Personality</label>
+                    <input type="text" id="char-desc" class="input-text" placeholder="e.g. A vigilant guardian reminding you of ergonomics" required maxlength="120">
+                  </div>
+
+                  <div class="form-group">
+                    <label for="char-tags">Tags (comma separated)</label>
+                    <input type="text" id="char-tags" class="input-text" placeholder="e.g. guardian, focus, calm">
+                  </div>
+
+                  <div class="form-group">
+                    <label for="char-model-type">Avatar Style</label>
+                    <select id="char-model-type" class="select-field">
+                      <option value="procedural">Procedural (built-in, no files needed)</option>
+                      <option value="clips">WebP Clip Pack (import below)</option>
+                    </select>
+                  </div>
+
+                  <div class="form-section-label">Procedural Colour Theme</div>
+                  <div class="form-row-colors">
+                    <div class="color-picker-item">
+                      <label for="char-color-body">Body</label>
+                      <input type="color" id="char-color-body" value="#2563eb">
+                    </div>
+                    <div class="color-picker-item">
+                      <label for="char-color-accent">Accent</label>
+                      <input type="color" id="char-color-accent" value="#c2331a">
+                    </div>
+                    <div class="color-picker-item">
+                      <label for="char-color-eyes">Eyes</label>
+                      <input type="color" id="char-color-eyes" value="#14120f">
+                    </div>
+                  </div>
+
+                  <div class="form-footer">
+                    <button type="submit" id="save-companion-btn" class="btn btn-primary">Save &amp; Set Active</button>
+                    <button type="button" id="reset-companion-btn" class="btn btn-secondary">Reset</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Tab 2: Clip Pack Import ── -->
+          <div class="studio-tab-panel hidden" id="studio-panel-clips">
+            <div class="clip-import-header">
+              <div>
+                <h3 class="form-title">Clip Pack Importer</h3>
+                <p class="view-lede">Import WebP animation frames exported from <strong>Spine</strong>, <strong>Aseprite</strong>, <strong>DragonBones</strong>, <strong>Adobe Animate</strong>, or any tool that exports WebP.<br>
+                  Each state needs one <code>.webp</code> file — an animated WebP (multi-frame) or a single still frame. Name must be <code>state.webp</code> (e.g. <code>idle.webp</code>).</p>
+              </div>
+              <div class="clip-import-actions">
+                <label class="btn btn-primary clip-import-zip-label" for="clip-zip-input" title="Import a zip containing all state WebP files at once">
+                  ⬆ Import ZIP Pack
+                </label>
+                <input type="file" id="clip-zip-input" class="sr-only" accept=".zip">
+                <button type="button" id="clip-apply-btn" class="btn btn-secondary" disabled>Apply to Active Companion</button>
+              </div>
+            </div>
+
+            <!-- Target companion selector -->
+            <div class="clip-target-row">
+              <label for="clip-target-companion" class="form-section-label">Target Companion:</label>
+              <select id="clip-target-companion" class="select-field select-narrow">
+                <option value="">— select companion —</option>
+              </select>
+              <span id="clip-import-status" class="clip-status-pill"></span>
+            </div>
+
+            <!-- Per-state clip slots -->
+            <div class="clip-slots-grid" id="clip-slots-grid" role="region" aria-label="Animation state clip slots">
+
+              <!-- idle -->
+              <div class="clip-slot" data-state="idle">
+                <div class="clip-slot-header">
+                  <span class="clip-state-badge">idle</span>
+                  <span class="clip-slot-hint">Default loop • required</span>
+                </div>
+                <div class="clip-drop-zone" data-state="idle" tabindex="0" role="button" aria-label="Drop idle.webp here or click to browse">
+                  <canvas class="clip-preview-canvas" width="96" height="96" aria-hidden="true"></canvas>
+                  <span class="clip-drop-label">Drop <code>idle.webp</code> here<br><small>or click to browse</small></span>
+                </div>
+                <input type="file" class="sr-only clip-file-input" data-state="idle" accept=".webp,image/webp">
+              </div>
+
+              <!-- walk -->
+              <div class="clip-slot" data-state="walk">
+                <div class="clip-slot-header">
+                  <span class="clip-state-badge">walk</span>
+                  <span class="clip-slot-hint">Screen walk loop</span>
+                </div>
+                <div class="clip-drop-zone" data-state="walk" tabindex="0" role="button" aria-label="Drop walk.webp here or click to browse">
+                  <canvas class="clip-preview-canvas" width="96" height="96" aria-hidden="true"></canvas>
+                  <span class="clip-drop-label">Drop <code>walk.webp</code> here<br><small>or click to browse</small></span>
+                </div>
+                <input type="file" class="sr-only clip-file-input" data-state="walk" accept=".webp,image/webp">
+              </div>
+
+              <!-- wave -->
+              <div class="clip-slot" data-state="wave">
+                <div class="clip-slot-header">
+                  <span class="clip-state-badge">wave</span>
+                  <span class="clip-slot-hint">Morning greeting</span>
+                </div>
+                <div class="clip-drop-zone" data-state="wave" tabindex="0" role="button" aria-label="Drop wave.webp here or click to browse">
+                  <canvas class="clip-preview-canvas" width="96" height="96" aria-hidden="true"></canvas>
+                  <span class="clip-drop-label">Drop <code>wave.webp</code> here<br><small>or click to browse</small></span>
+                </div>
+                <input type="file" class="sr-only clip-file-input" data-state="wave" accept=".webp,image/webp">
+              </div>
+
+              <!-- water -->
+              <div class="clip-slot" data-state="water">
+                <div class="clip-slot-header">
+                  <span class="clip-state-badge">water</span>
+                  <span class="clip-slot-hint">Hydration reminder</span>
+                </div>
+                <div class="clip-drop-zone" data-state="water" tabindex="0" role="button" aria-label="Drop water.webp here or click to browse">
+                  <canvas class="clip-preview-canvas" width="96" height="96" aria-hidden="true"></canvas>
+                  <span class="clip-drop-label">Drop <code>water.webp</code> here<br><small>or click to browse</small></span>
+                </div>
+                <input type="file" class="sr-only clip-file-input" data-state="water" accept=".webp,image/webp">
+              </div>
+
+              <!-- stretch -->
+              <div class="clip-slot" data-state="stretch">
+                <div class="clip-slot-header">
+                  <span class="clip-state-badge">stretch</span>
+                  <span class="clip-slot-hint">Ergonomics / break</span>
+                </div>
+                <div class="clip-drop-zone" data-state="stretch" tabindex="0" role="button" aria-label="Drop stretch.webp here or click to browse">
+                  <canvas class="clip-preview-canvas" width="96" height="96" aria-hidden="true"></canvas>
+                  <span class="clip-drop-label">Drop <code>stretch.webp</code> here<br><small>or click to browse</small></span>
+                </div>
+                <input type="file" class="sr-only clip-file-input" data-state="stretch" accept=".webp,image/webp">
+              </div>
+
+              <!-- happy -->
+              <div class="clip-slot" data-state="happy">
+                <div class="clip-slot-header">
+                  <span class="clip-state-badge">happy</span>
+                  <span class="clip-slot-hint">Celebrate / milestone</span>
+                </div>
+                <div class="clip-drop-zone" data-state="happy" tabindex="0" role="button" aria-label="Drop happy.webp here or click to browse">
+                  <canvas class="clip-preview-canvas" width="96" height="96" aria-hidden="true"></canvas>
+                  <span class="clip-drop-label">Drop <code>happy.webp</code> here<br><small>or click to browse</small></span>
+                </div>
+                <input type="file" class="sr-only clip-file-input" data-state="happy" accept=".webp,image/webp">
+              </div>
+
+              <!-- sad -->
+              <div class="clip-slot" data-state="sad">
+                <div class="clip-slot-header">
+                  <span class="clip-state-badge">sad</span>
+                  <span class="clip-slot-hint">Night / low energy</span>
+                </div>
+                <div class="clip-drop-zone" data-state="sad" tabindex="0" role="button" aria-label="Drop sad.webp here or click to browse">
+                  <canvas class="clip-preview-canvas" width="96" height="96" aria-hidden="true"></canvas>
+                  <span class="clip-drop-label">Drop <code>sad.webp</code> here<br><small>or click to browse</small></span>
+                </div>
+                <input type="file" class="sr-only clip-file-input" data-state="sad" accept=".webp,image/webp">
+              </div>
+
+              <!-- eyes (optional still) -->
+              <div class="clip-slot" data-state="eyes">
+                <div class="clip-slot-header">
+                  <span class="clip-state-badge">eyes</span>
+                  <span class="clip-slot-hint">Close-up / blink — optional</span>
+                </div>
+                <div class="clip-drop-zone" data-state="eyes" tabindex="0" role="button" aria-label="Drop eyes.webp here or click to browse">
+                  <canvas class="clip-preview-canvas" width="96" height="96" aria-hidden="true"></canvas>
+                  <span class="clip-drop-label">Drop <code>eyes.webp</code> here<br><small>or click to browse</small></span>
+                </div>
+                <input type="file" class="sr-only clip-file-input" data-state="eyes" accept=".webp,image/webp">
+              </div>
+
+            </div><!-- /clip-slots-grid -->
+          </div><!-- /studio-panel-clips -->
+
+          <!-- ── Tab 3: Behaviors ── -->
+          <div class="studio-tab-panel hidden" id="studio-panel-behaviors">
+            <div class="studio-states-card">
               <div class="stage-header">
-                <span class="stage-label">Action Preview Stage</span>
-                <span id="stage-action-label" class="stage-status">State: idle</span>
+                <span class="stage-label">Character State &amp; Mood Engine</span>
+                <span class="stage-status">7 Configurable Behaviors</span>
               </div>
-              <div class="canvas-container">
-                <canvas id="studio-canvas" width="400" height="340" aria-label="Interactive companion animation preview"></canvas>
-              </div>
-              <div class="action-buttons-strip" role="group" aria-label="Test animation actions">
-                <button type="button" class="btn-action active" data-action="idle">Idle</button>
-                <button type="button" class="btn-action" data-action="walk">Walk</button>
-                <button type="button" class="btn-action" data-action="wave">Wave</button>
-                <button type="button" class="btn-action" data-action="water">Water</button>
-                <button type="button" class="btn-action" data-action="stretch">Stretch</button>
-                <button type="button" class="btn-action" data-action="happy">Celebrate</button>
-                <button type="button" class="btn-action" data-action="sad">Rest</button>
-              </div>
-            </div>
+              <p class="view-lede">
+                Fine-tune each character state, reminder dialogue, and automated triggers based on time and system status.
+              </p>
 
-            <!-- Right: Character Customizer Form -->
-            <div class="studio-form-card">
-              <h3 class="form-title">Character Attributes</h3>
-              <form id="companion-creator-form">
-                <div class="form-group">
-                  <label for="char-name">Character Name</label>
-                  <input type="text" id="char-name" class="input-text" placeholder="e.g. Atlas, Spark, Neo" required maxlength="32">
-                </div>
-
-                <div class="form-group">
-                  <label for="char-desc">Description / Personality</label>
-                  <input type="text" id="char-desc" class="input-text" placeholder="e.g. A vigilant guardian reminding you of ergonomics" required maxlength="120">
-                </div>
-
-                <div class="form-group">
-                  <label for="char-tags">Tags (comma separated)</label>
-                  <input type="text" id="char-tags" class="input-text" placeholder="e.g. guardian, focus, calm">
-                </div>
-
-                <div class="form-group">
-                  <label for="char-model-type">Avatar Style</label>
-                  <select id="char-model-type" class="select-field">
-                    <option value="procedural">Procedural Rigged Avatar (Low-Power)</option>
-                    <option value="sprite">2D Animated Sprite</option>
-                    <option value="model">Custom Model / GLB Import</option>
-                  </select>
-                </div>
-
-                <div class="form-row-colors">
-                  <div class="color-picker-item">
-                    <label for="char-color-body">Body</label>
-                    <input type="color" id="char-color-body" value="#2563eb">
+              <div class="states-grid" role="region" aria-label="Character states manager">
+                <div class="state-card" data-state-id="idle">
+                  <div class="state-card-header">
+                    <span class="state-badge">Idle</span>
+                    <button type="button" class="btn btn-tiny btn-test-state" data-state="idle">Trigger Now</button>
                   </div>
-                  <div class="color-picker-item">
-                    <label for="char-color-accent">Accent</label>
-                    <input type="color" id="char-color-accent" value="#c2331a">
+                  <label for="state-quote-idle" class="state-field-label">Speech Quote:</label>
+                  <input type="text" id="state-quote-idle" class="input-text-compact" value="Ready to safeguard your writing." maxlength="80">
+                  <span class="state-trigger-hint">Trigger: Default baseline loop</span>
+                </div>
+
+                <div class="state-card" data-state-id="walk">
+                  <div class="state-card-header">
+                    <span class="state-badge">Walking</span>
+                    <button type="button" class="btn btn-tiny btn-test-state" data-state="walk">Trigger Now</button>
                   </div>
-                  <div class="color-picker-item">
-                    <label for="char-color-eyes">Eyes</label>
-                    <input type="color" id="char-color-eyes" value="#14120f">
+                  <label for="state-quote-walk" class="state-field-label">Speech Quote:</label>
+                  <input type="text" id="state-quote-walk" class="input-text-compact" value="Pacing along your paragraphs." maxlength="80">
+                  <span class="state-trigger-hint">Trigger: Active focus flow</span>
+                </div>
+
+                <div class="state-card" data-state-id="wave">
+                  <div class="state-card-header">
+                    <span class="state-badge">Wave / Greeting</span>
+                    <button type="button" class="btn btn-tiny btn-test-state" data-state="wave">Trigger Now</button>
                   </div>
+                  <label for="state-quote-wave" class="state-field-label">Speech Quote:</label>
+                  <input type="text" id="state-quote-wave" class="input-text-compact" value="Good morning! Ready for today's work." maxlength="80">
+                  <span class="state-trigger-hint">Trigger: Morning (06:00 - 12:00)</span>
                 </div>
 
-                <div class="form-footer">
-                  <button type="submit" id="save-companion-btn" class="btn btn-primary">Save &amp; Set Active</button>
-                  <button type="button" id="reset-companion-btn" class="btn btn-secondary">Reset</button>
+                <div class="state-card" data-state-id="water">
+                  <div class="state-card-header">
+                    <span class="state-badge">Water / Health</span>
+                    <button type="button" class="btn btn-tiny btn-test-state" data-state="water">Trigger Now</button>
+                  </div>
+                  <label for="state-quote-water" class="state-field-label">Speech Quote:</label>
+                  <input type="text" id="state-quote-water" class="input-text-compact" value="Time for a sip of water! Stay hydrated." maxlength="80">
+                  <span class="state-trigger-hint">Trigger: Continuous typing &gt; 45m</span>
                 </div>
-              </form>
-            </div>
-          </div>
 
-          <!-- Character State & Mood Engine -->
-          <div class="studio-states-card">
-            <div class="stage-header">
-              <span class="stage-label">Character State &amp; Mood Engine</span>
-              <span class="stage-status">7 Configurable Behaviors</span>
-            </div>
-            <p class="view-lede">
-              Fine-tune each character state, reminder dialogue, and automated triggers based on time and system status.
-            </p>
-            
-            <div class="states-grid" role="region" aria-label="Character states manager">
-              <!-- State 1: Idle -->
-              <div class="state-card" data-state-id="idle">
-                <div class="state-card-header">
-                  <span class="state-badge">Idle</span>
-                  <button type="button" class="btn btn-tiny btn-test-state" data-state="idle">Trigger Now</button>
+                <div class="state-card" data-state-id="stretch">
+                  <div class="state-card-header">
+                    <span class="state-badge">Stretch / Ergonomics</span>
+                    <button type="button" class="btn btn-tiny btn-test-state" data-state="stretch">Trigger Now</button>
+                  </div>
+                  <label for="state-quote-stretch" class="state-field-label">Speech Quote:</label>
+                  <input type="text" id="state-quote-stretch" class="input-text-compact" value="Relax your shoulders and stretch your wrists." maxlength="80">
+                  <span class="state-trigger-hint">Trigger: Evening (17:00 - 21:00)</span>
                 </div>
-                <label for="state-quote-idle" class="state-field-label">Speech Quote:</label>
-                <input type="text" id="state-quote-idle" class="input-text-compact" value="Ready to safeguard your writing." maxlength="80">
-                <span class="state-trigger-hint">Trigger: Default baseline loop</span>
-              </div>
 
-              <!-- State 2: Walk -->
-              <div class="state-card" data-state-id="walk">
-                <div class="state-card-header">
-                  <span class="state-badge">Walking</span>
-                  <button type="button" class="btn btn-tiny btn-test-state" data-state="walk">Trigger Now</button>
+                <div class="state-card" data-state-id="happy">
+                  <div class="state-card-header">
+                    <span class="state-badge">Celebrate</span>
+                    <button type="button" class="btn btn-tiny btn-test-state" data-state="happy">Trigger Now</button>
+                  </div>
+                  <label for="state-quote-happy" class="state-field-label">Speech Quote:</label>
+                  <input type="text" id="state-quote-happy" class="input-text-compact" value="Milestone achieved! Autosave secured." maxlength="80">
+                  <span class="state-trigger-hint">Trigger: Rapid typing burst / rescue</span>
                 </div>
-                <label for="state-quote-walk" class="state-field-label">Speech Quote:</label>
-                <input type="text" id="state-quote-walk" class="input-text-compact" value="Pacing along your paragraphs." maxlength="80">
-                <span class="state-trigger-hint">Trigger: Active focus flow</span>
-              </div>
 
-              <!-- State 3: Wave -->
-              <div class="state-card" data-state-id="wave">
-                <div class="state-card-header">
-                  <span class="state-badge">Wave / Greeting</span>
-                  <button type="button" class="btn btn-tiny btn-test-state" data-state="wave">Trigger Now</button>
+                <div class="state-card" data-state-id="sad">
+                  <div class="state-card-header">
+                    <span class="state-badge">Sleepy / Night</span>
+                    <button type="button" class="btn btn-tiny btn-test-state" data-state="sad">Trigger Now</button>
+                  </div>
+                  <label for="state-quote-sad" class="state-field-label">Speech Quote:</label>
+                  <input type="text" id="state-quote-sad" class="input-text-compact" value="Late night writing... remember to rest." maxlength="80">
+                  <span class="state-trigger-hint">Trigger: Night (22:00 - 06:00) or Battery &lt; 20%</span>
                 </div>
-                <label for="state-quote-wave" class="state-field-label">Speech Quote:</label>
-                <input type="text" id="state-quote-wave" class="input-text-compact" value="Good morning! Ready for today's work." maxlength="80">
-                <span class="state-trigger-hint">Trigger: Morning (06:00 - 12:00)</span>
-              </div>
-
-              <!-- State 4: Water / Hydration -->
-              <div class="state-card" data-state-id="water">
-                <div class="state-card-header">
-                  <span class="state-badge">Water / Health</span>
-                  <button type="button" class="btn btn-tiny btn-test-state" data-state="water">Trigger Now</button>
-                </div>
-                <label for="state-quote-water" class="state-field-label">Speech Quote:</label>
-                <input type="text" id="state-quote-water" class="input-text-compact" value="Time for a sip of water! Stay hydrated." maxlength="80">
-                <span class="state-trigger-hint">Trigger: Continuous typing &gt; 45m</span>
-              </div>
-
-              <!-- State 5: Stretch -->
-              <div class="state-card" data-state-id="stretch">
-                <div class="state-card-header">
-                  <span class="state-badge">Stretch / Ergonomics</span>
-                  <button type="button" class="btn btn-tiny btn-test-state" data-state="stretch">Trigger Now</button>
-                </div>
-                <label for="state-quote-stretch" class="state-field-label">Speech Quote:</label>
-                <input type="text" id="state-quote-stretch" class="input-text-compact" value="Relax your shoulders and stretch your wrists." maxlength="80">
-                <span class="state-trigger-hint">Trigger: Evening (17:00 - 21:00)</span>
-              </div>
-
-              <!-- State 6: Celebrate / Happy -->
-              <div class="state-card" data-state-id="happy">
-                <div class="state-card-header">
-                  <span class="state-badge">Celebrate</span>
-                  <button type="button" class="btn btn-tiny btn-test-state" data-state="happy">Trigger Now</button>
-                </div>
-                <label for="state-quote-happy" class="state-field-label">Speech Quote:</label>
-                <input type="text" id="state-quote-happy" class="input-text-compact" value="Milestone achieved! Autosave secured." maxlength="80">
-                <span class="state-trigger-hint">Trigger: Rapid typing burst / rescue</span>
-              </div>
-
-              <!-- State 7: Sleepy / Rest -->
-              <div class="state-card" data-state-id="sad">
-                <div class="state-card-header">
-                  <span class="state-badge">Sleepy / Night</span>
-                  <button type="button" class="btn btn-tiny btn-test-state" data-state="sad">Trigger Now</button>
-                </div>
-                <label for="state-quote-sad" class="state-field-label">Speech Quote:</label>
-                <input type="text" id="state-quote-sad" class="input-text-compact" value="Late night writing... remember to rest." maxlength="80">
-                <span class="state-trigger-hint">Trigger: Night (22:00 - 06:00) or Battery &lt; 20%</span>
               </div>
             </div>
-          </div>
+          </div><!-- /studio-panel-behaviors -->
+
         </section>
 
         <!-- View 4: Settings -->

@@ -792,6 +792,210 @@ main {
 }
 
 /* ─── Studio view ────────────────────────────────────────────────────────────*/
+
+/* Sub-tabs inside Studio panel */
+.studio-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 0;
+}
+
+.studio-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  color: var(--ink-soft);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+.studio-tab:hover { color: var(--ink); }
+.studio-tab.active {
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom-color: var(--signal);
+}
+
+.studio-tab-panel { display: block; }
+.studio-tab-panel.hidden { display: none; }
+
+/* Clip Pack Import panel */
+.clip-import-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--rule);
+  flex-wrap: wrap;
+}
+
+.clip-import-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.clip-import-zip-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  border: 1px solid var(--rule-strong);
+  background: var(--paper-raised);
+  color: var(--ink);
+  transition: background 0.1s, border-color 0.1s;
+  white-space: nowrap;
+}
+.clip-import-zip-label:hover { background: var(--paper-float); }
+
+.clip-target-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.form-section-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.clip-status-pill {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.clip-status-pill:empty { display: none; }
+.clip-status-ok {
+  color: var(--ok);
+  border-color: var(--ok);
+  background: var(--ok-wash);
+}
+.clip-status-err {
+  color: var(--signal);
+  border-color: var(--signal);
+  background: var(--signal-wash);
+}
+
+/* Clip slots 2-col grid */
+.clip-slots-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.clip-slot {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.clip-slot-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: var(--paper-sunk);
+  border-bottom: 1px solid var(--rule);
+}
+
+.clip-state-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+}
+
+.clip-slot-hint {
+  font-size: 10px;
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
+/* Drop zone */
+.clip-drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 8px;
+  min-height: 110px;
+  cursor: pointer;
+  border: 2px dashed var(--rule-strong);
+  border-radius: 0;
+  transition: border-color 0.12s, background 0.12s;
+  text-align: center;
+  position: relative;
+}
+.clip-drop-zone:hover,
+.clip-drop-zone:focus-visible {
+  border-color: var(--signal);
+  background: var(--signal-wash);
+  outline: none;
+}
+.clip-drop-zone.drag-over {
+  border-color: var(--signal);
+  background: var(--signal-wash);
+}
+.clip-drop-zone.clip-drop-loaded {
+  border-style: solid;
+  border-color: var(--ok);
+  background: var(--ok-wash);
+}
+.clip-drop-zone.clip-drop-loaded .clip-drop-label { display: none; }
+
+.clip-preview-canvas {
+  display: none;
+  border-radius: 2px;
+  image-rendering: pixelated;
+  max-width: 96px;
+  max-height: 96px;
+}
+.clip-drop-loaded .clip-preview-canvas {
+  display: block;
+}
+
+.clip-drop-label {
+  font-size: 11px;
+  color: var(--ink-faint);
+  line-height: 1.4;
+  pointer-events: none;
+}
+.clip-drop-label code {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-soft);
+}
+.clip-drop-label small {
+  font-size: 10px;
+  color: var(--ink-faint);
+}
+
 .studio-layout {
   display: grid;
   grid-template-columns: 420px 1fr;
