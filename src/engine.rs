@@ -286,7 +286,7 @@ impl Engine {
 
         // Session bookkeeping. A focus change (or a keystroke from a different app) ends the
         // previous session and commits it, so drafts never bleed across apps.
-        let boundary = {
+        {
             let mut guard = self.session.lock().unwrap_or_else(|e| e.into_inner());
             let switch = match guard.as_ref() {
                 None => true,
@@ -301,15 +301,12 @@ impl Engine {
                 }
                 let mut guard = self.session.lock().unwrap_or_else(|e| e.into_inner());
                 *guard = Some(Session::new(app.clone(), safe_ev.ts));
-                false
             } else {
                 if guard.is_none() {
                     *guard = Some(Session::new(app.clone(), safe_ev.ts));
                 }
-                true
             }
-        };
-        let _ = boundary;
+        }
 
         if let Ok(mut guard) = self.session.lock() {
             if let Some(s) = guard.as_mut() {

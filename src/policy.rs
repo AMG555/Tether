@@ -103,7 +103,6 @@ pub const BLOCKED_HOSTS: &[&str] = &[
     "kraken.com",
     "wise.com",
     "stripe.com",
-    "wise.com",
     "1password.com",
     "bitwarden.com",
     "lastpass.com",

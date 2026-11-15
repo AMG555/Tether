@@ -430,6 +430,23 @@ export async function hideCompanionOverlay() {
 }
 
 /**
+ * Toggles OS-level cursor passthrough on the companion overlay.
+ * Pass `true` to let clicks fall through (default after show).
+ * Pass `false` temporarily while performing a native drag.
+ * @param {boolean} ignore
+ * @returns {Promise<void>}
+ */
+export async function setCompanionPassthrough(ignore) {
+  const invoke = getInvoker();
+  if (!invoke) return;
+  try {
+    await invoke('set_companion_passthrough', { ignore });
+  } catch {
+    // Best-effort.
+  }
+}
+
+/**
  * Starts a native OS drag on the companion overlay window.
  * @returns {Promise<void>}
  */

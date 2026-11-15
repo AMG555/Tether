@@ -24,7 +24,7 @@ Choose a featherlight native **Desktop GUI** (Tauri 2) with 32 downloadable comp
 
 <br>
 
-**[📥 Install](#-direct-download--instant-setup) · [🗑️ Uninstall](#️-clean-uninstallation) · [Highlights](#highlights) · [Desktop App](#desktop-application--gui) · [32 Companions](#32-companion-characters--on-demand-packs) · [Studio](#character-studio--state-engine) · [Privacy](#privacy-the-part-that-matters) · [Architecture](#architecture)**
+**[📥 Install](#-direct-download--instant-setup) · [Highlights](#highlights) · [Desktop App](#desktop-application--gui) · [32 Companions](#32-companion-characters--on-demand-packs) · [Studio](#character-studio--state-engine) · [Privacy](#privacy-the-part-that-matters) · [Architecture](#architecture)**
 
 <br>
 
@@ -38,7 +38,7 @@ Choose a featherlight native **Desktop GUI** (Tauri 2) with 32 downloadable comp
 
 ### Option 1: Standalone Installer (Windows)
 
-**[⬇️ Download Tether_0.1.7_x64-setup.exe (~1.6 MB)](https://github.com/AMG555/Tether/releases/latest/download/Tether_0.1.7_x64-setup.exe)** — Windows 10/11 · no account · no internet required after install
+**[⬇️ Download Tether for Windows (~1.6 MB)](https://github.com/AMG555/Tether/releases/latest/download/Tether_x64-setup.exe)** — Windows 10/11 · no account · no internet required after install
 
 Double-click the installer. Done. Tether appears in your Start Menu and runs at login.
 
@@ -57,29 +57,6 @@ irm https://raw.githubusercontent.com/AMG555/Tether/main/scripts/install.ps1 | i
 ```sh
 curl -fsSL https://raw.githubusercontent.com/AMG555/Tether/main/scripts/install.sh | sh
 ```
-
----
-
-## 🗑️ Clean Uninstallation
-
-Tether respects your machine. When you uninstall, everything is cleaned up completely.
-
-### Option 1: From the Desktop App (1-click)
-
-Open **Settings** tab (`Ctrl+4`) → scroll to **Danger Zone** → click **Uninstall Tether**.  
-Check **Purge all encrypted vault data** to also wipe saved texts, keys, and companion files.
-
-### Option 2: 1-Line PowerShell Uninstall
-
-```powershell
-irm https://raw.githubusercontent.com/AMG555/Tether/main/scripts/uninstall.ps1 | iex
-```
-
-### Option 3: Windows Settings
-
-**Windows Settings → Apps → Installed apps → Tether → Uninstall**
-
-The uninstaller removes the startup shortcut, unhooks background capture, and optionally purges all encrypted local records.
 
 ---
 
@@ -104,17 +81,8 @@ The uninstaller removes the startup shortcut, unhooks background capture, and op
 
 Tether includes a native desktop application powered by **Tauri 2** and system webviews — accessible, responsive on high-DPI displays, and zero resource waste.
 
-````carousel
 ![Desktop Text Recovery](shots/desktop-recover.png)
-<!-- slide -->
-![Companions Catalog](shots/desktop-companions.png)
-<!-- slide -->
-![Companion Preview & Customizer](shots/desktop-preview.png)
-<!-- slide -->
-![Character Studio & State Engine](shots/desktop-studio.png)
-<!-- slide -->
 ![System Settings & Clean Uninstall](shots/desktop-settings.png)
-````
 
 ### Key Desktop Capabilities
 
@@ -213,8 +181,6 @@ node node_modules/@tauri-apps/cli/tauri.js build
 ---
 
 ## How Capture Works
-
-![Crash Recovery Mechanics](shots/clips.png)
 
 | Storage Layer | Durability & Scope | Latency |
 |---|---|---|

@@ -22,7 +22,7 @@ use std::path::{Path, PathBuf};
 
 use rusqlite::{params, Connection, OptionalExtension};
 
-use crate::crypto::{self, SecretKey, NONCE_LEN, SALT_LEN};
+use crate::crypto::{self, SecretKey, SALT_LEN};
 use crate::policy::Policy;
 use crate::recover::Draft;
 
@@ -608,8 +608,6 @@ pub fn set_dir_private(_path: &Path) -> std::io::Result<()> {
 // On Windows the data directory inherits the user's profile ACL, which already excludes
 // other non-admin users. Hardening admins out requires an explicit DACL rewrite; that is
 // tracked in docs/limitations.md rather than silently half-done here.
-
-pub const DEFAULT_NONCE_LEN: usize = NONCE_LEN;
 
 #[cfg(test)]
 mod tests {

@@ -108,9 +108,11 @@ export async function initializeApp(doc = document, loadAppInfo = getAppInfo) {
     const nameEl = doc.getElementById('app-name');
     const verEl = doc.getElementById('app-version');
     const platEl = doc.getElementById('app-platform');
+    const footerVerEl = doc.getElementById('footer-version');
     if (nameEl) nameEl.textContent = info.name;
     if (verEl) verEl.textContent = info.version;
     if (platEl) platEl.textContent = info.platform;
+    if (footerVerEl) footerVerEl.textContent = `v${info.version}`;
 
     if (status) {
       status.dataset.state = 'ready';
@@ -616,13 +618,12 @@ async function setupCompanionsView() {
       `;
 
       // Draw avatar: procedural first (never blank), then upgrade to WebP if available.
-      // We always try WebP for installed companions — avatarType:'procedural' just means
-      // "no clip pack yet", not "never check". If getCompanionClip returns null we keep
-      // the procedural render.
+      // Catalog (not-installed) companions get a distinct downloadable placeholder so
+      // they don't look identical to installed ones.
       const avatarCanvas = card.querySelector('.companion-avatar-canvas');
       if (avatarCanvas) {
-        renderCompanionCardAvatar(avatarCanvas, avatarColors, c.name);
         if (c.isInstalled) {
+          renderCompanionCardAvatar(avatarCanvas, avatarColors, c.name);
           getCompanionClip(c.id, 'idle').then((dataUrl) => {
             if (!dataUrl) return; // no clip pack — procedural stays
             const img = new Image();
@@ -639,6 +640,8 @@ async function setupCompanionsView() {
             };
             img.src = dataUrl;
           }).catch(() => { /* keep procedural fallback */ });
+        } else {
+          renderCatalogPlaceholder(avatarCanvas, avatarColors, c.name);
         }
       }
 
@@ -656,6 +659,7 @@ async function setupCompanionsView() {
           localStorage.setItem('tether-active-companion', JSON.stringify({
             id: c.id,
             name: c.name,
+            avatarType: c.avatarType || 'procedural',
             colors: c.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' },
           }));
         }
@@ -905,6 +909,112 @@ function renderCompanionCardAvatar(canvas, colors, name) {
   ctx.fill();
 }
 
+/**
+ * Renders a stylised "downloadable" placeholder for catalog companions.
+ * Uses the companion's deterministic color palette so each one looks distinct,
+ * but shows a ghost/silhouette form + download indicator to communicate
+ * "not yet installed".
+ */
+function renderCatalogPlaceholder(canvas, colors, name) {
+  if (!canvas) return;
+  const ctx = canvas.getContext ? canvas.getContext('2d') : null;
+  if (!ctx) return;
+
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const bg  = colors.body   || '#2563eb';
+  const acc = colors.accent || '#c2331a';
+
+  // Subtle tinted background
+  ctx.fillStyle = bg + '1a'; // very transparent
+  ctx.fillRect(0, 0, w, h);
+
+  const cx = w / 2;
+  const sc = w / 160;
+
+  // Ghost silhouette — same robot shape but desaturated/translucent
+  ctx.globalAlpha = 0.28;
+
+  // Legs
+  ctx.fillStyle = acc;
+  const cy = h * 0.56;
+  ctx.fillRect(cx - 22 * sc, cy + 36 * sc, 16 * sc, 24 * sc);
+  ctx.fillRect(cx + 6 * sc,  cy + 36 * sc, 16 * sc, 24 * sc);
+
+  // Body
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.roundRect(cx - 32 * sc, cy - 48 * sc, 64 * sc, 88 * sc, 10 * sc);
+  ctx.fill();
+
+  // Chest badge
+  ctx.fillStyle = acc;
+  ctx.beginPath();
+  ctx.roundRect(cx - 14 * sc, cy - 24 * sc, 28 * sc, 32 * sc, 5 * sc);
+  ctx.fill();
+
+  // Head
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.roundRect(cx - 28 * sc, cy - 102 * sc, 56 * sc, 48 * sc, 10 * sc);
+  ctx.fill();
+
+  // Ears
+  ctx.fillStyle = acc;
+  ctx.beginPath();
+  ctx.moveTo(cx - 24 * sc, cy - 102 * sc);
+  ctx.lineTo(cx - 16 * sc, cy - 122 * sc);
+  ctx.lineTo(cx - 8 * sc,  cy - 102 * sc);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + 8 * sc,  cy - 102 * sc);
+  ctx.lineTo(cx + 16 * sc, cy - 122 * sc);
+  ctx.lineTo(cx + 24 * sc, cy - 102 * sc);
+  ctx.fill();
+
+  ctx.globalAlpha = 1;
+
+  // Download arrow icon — centered over the silhouette
+  const arrowSize = 28 * sc;
+  const arrowX = cx;
+  const arrowY = cy - 20 * sc;
+
+  // Circle background for the arrow
+  ctx.fillStyle = bg + 'cc';
+  ctx.beginPath();
+  ctx.arc(arrowX, arrowY, arrowSize * 0.72, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Arrow shaft
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 3 * sc;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(arrowX, arrowY - arrowSize * 0.42);
+  ctx.lineTo(arrowX, arrowY + arrowSize * 0.22);
+  ctx.stroke();
+
+  // Arrow head
+  ctx.beginPath();
+  ctx.moveTo(arrowX - arrowSize * 0.3, arrowY);
+  ctx.lineTo(arrowX, arrowY + arrowSize * 0.42);
+  ctx.lineTo(arrowX + arrowSize * 0.3, arrowY);
+  ctx.stroke();
+
+  // Companion name initial in the top-left as a monogram
+  const initials = name ? name.charAt(0).toUpperCase() : '?';
+  ctx.fillStyle = bg;
+  ctx.font = `bold ${Math.round(14 * sc)}px -apple-system, Segoe UI, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.globalAlpha = 0.55;
+  ctx.fillText(initials, cx, h * 0.88);
+  ctx.globalAlpha = 1;
+}
+
 function renderProceduralPreview(canvas, companion, action) {
   if (!canvas) return;
   const ctx = canvas.getContext ? canvas.getContext('2d') : null;
@@ -1012,6 +1122,25 @@ function setupPreviewModalHandlers() {
         void updatePreviewStage(previewCompanion, btn.dataset.previewAction);
       }
     });
+  });
+
+  // Clicking the companion stage in the preview bounces through states like the real pet.
+  const previewStage = document.querySelector('.preview-companion-stage');
+  const PREVIEW_REACTIONS = ['wave', 'happy', 'water', 'stretch', 'idle'];
+  let _previewReactionIdx = 0;
+  previewStage?.addEventListener('click', () => {
+    if (!previewCompanion) return;
+    const state = PREVIEW_REACTIONS[_previewReactionIdx % PREVIEW_REACTIONS.length];
+    _previewReactionIdx++;
+    // Update the action strip highlight and load the new clip
+    void updatePreviewStage(previewCompanion, state);
+    // Flash speech bubble text
+    const speechText = document.getElementById('preview-speech-text');
+    const bubbles = {
+      wave: '👋 Hey there!', happy: '✨ Woohoo!', water: '💧 Drink some water!',
+      stretch: '🧘 Stretch time!', idle: 'Ready to safeguard your writing.',
+    };
+    if (speechText) speechText.textContent = bubbles[state] || '';
   });
 
   setActiveBtn?.addEventListener('click', () => {
@@ -1844,10 +1973,14 @@ async function setupSettingsView() {
       pruneBtn.disabled = true;
       pruneBtn.textContent = 'Pruning…';
       try {
-        const days = parseInt(retentionSelect?.value || '14', 10);
+        // If the select is on 'custom', read the numeric input; fall back to config default.
+        const rawVal = retentionSelect?.value;
+        const days = rawVal === 'custom' || !rawVal
+          ? (parseInt(retentionCustomInput?.value || '14', 10) || 14)
+          : (parseInt(rawVal, 10) || 14);
         const count = await pruneVault(days);
         await loadAndRenderDrafts();
-        showToast(`Pruned ${count} expired drafts (>${days} days). Space reclaimed.`, 'ok');
+        showToast(`Pruned ${count} expired draft${count === 1 ? '' : 's'} (older than ${days} days). Space reclaimed.`, 'ok');
       } catch (err) {
         showToast(`Prune failed: ${err.message}`, 'error');
       } finally {

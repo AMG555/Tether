@@ -508,6 +508,7 @@ pub fn run() -> Result<(), tauri::Error> {
             commands::show_main_window,
             commands::show_companion_overlay,
             commands::hide_companion_overlay,
+            commands::set_companion_passthrough,
             commands::start_companion_drag,
             commands::get_capture_status,
         ])

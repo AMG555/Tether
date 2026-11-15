@@ -783,6 +783,8 @@ main {
 
 .companion-avatar-canvas {
   display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .companion-avatar-initials {
@@ -889,7 +891,7 @@ main {
   border-top: 1px solid var(--rule);
   gap: 8px;
   background: var(--paper-sunk);
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 .card-footer .btn {
@@ -1682,15 +1684,20 @@ canvas#studio-canvas {
   pointer-events: none;
 }
 
-/* Companion sits at the bottom-right of the wallpaper, like a real overlay */
+/* Companion sits at the bottom-left of the wallpaper, matching real overlay start position */
 .preview-companion-stage {
   position: absolute;
   bottom: 0;
-  right: 12px;
+  left: 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+.preview-companion-stage:active {
+  transform: scale(0.96) translateY(2px);
 }
 
 .preview-companion-img--desktop {
@@ -1930,15 +1937,19 @@ kbd {
 
 @media (max-width: 768px) {
   .masthead { padding: 0 14px; flex-wrap: wrap; height: auto; padding-block: 10px; gap: 8px; }
-  .nav-tabs { width: 100%; overflow-x: auto; padding-bottom: 2px; }
+  .nav-tabs { width: 100%; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .nav-tabs::-webkit-scrollbar { display: none; }
   .tab-btn { white-space: nowrap; padding: 5px 10px; }
   main { padding: 16px; }
   .companions-grid { grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 10px; }
   .metadata-grid { grid-template-columns: repeat(2, 1fr); }
   .path-text { grid-column: 1 / -1; }
+  .settings-card { padding: 14px; }
 }
 
 @media (max-width: 640px) {
+  .masthead-actions { gap: 4px; }
+  .btn-shortcuts { display: none; } /* hide shortcuts button — accessible via ? key */
   .setting-item { flex-direction: column; align-items: flex-start; gap: 8px; }
   .setting-item .select-narrow, .setting-item .btn { width: 100%; }
   .retention-controls { align-items: flex-start; width: 100%; }
@@ -1946,12 +1957,14 @@ kbd {
   .retention-custom-wrap { width: 100%; }
   .retention-custom-input { flex: 1; width: auto; }
   .detail-header { flex-direction: column; align-items: flex-start; gap: 10px; }
-  .detail-actions { width: 100%; }
+  .detail-actions { width: 100%; display: flex; gap: 8px; }
   .detail-actions .btn { flex: 1; }
   .detail-meta-bar { flex-wrap: wrap; gap: 8px; }
   .meta-item-label { margin-left: 0; }
   .footer { flex-direction: column; gap: 4px; text-align: center; padding: 10px 16px; }
   .companions-grid { grid-template-columns: repeat(2, 1fr); }
+  .card-footer { flex-direction: row; flex-wrap: wrap; }
+  .active-pet-pill { font-size: 11px; }
 }
 
 @media (max-width: 480px) {
@@ -1959,4 +1972,7 @@ kbd {
   .metadata-grid { grid-template-columns: 1fr; }
   .companions-grid { grid-template-columns: 1fr; }
   .form-row-colors { grid-template-columns: 1fr 1fr; gap: 8px; }
+  main { padding: 12px; }
+  .screen-header { margin-bottom: 12px; padding-bottom: 10px; }
+  .view-masthead { margin-bottom: 10px; gap: 10px; }
 }

@@ -103,7 +103,7 @@ pub struct SystemStatusInfo {
 
 fn to_base64(data: &[u8]) -> String {
     const CHARSET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity((data.len() + 2) / 3 * 4);
+    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
     for chunk in data.chunks(3) {
         let b0 = chunk[0] as u32;
         let b1 = chunk.get(1).map(|&b| b as u32).unwrap_or(0);
@@ -350,77 +350,70 @@ pub fn set_autostart(enabled: bool) -> Result<bool, String> {
 
 #[tauri::command]
 pub fn list_companions() -> Result<Vec<CompanionItem>, String> {
-    let mut list = vec![
-        CompanionItem {
-            id: "grace".into(),
-            name: "Grace".into(),
-            description: "A warm, grounding presence — reminds you to drink water and rest.".into(),
-            tags: vec!["human".into(), "adult".into(), "calm".into()],
-            is_custom: false,
-            is_installed: true,
-            avatar_type: "procedural".into(),
-            actions: vec![
-                "idle".into(),
-                "walk".into(),
-                "wave".into(),
-                "water".into(),
-                "stretch".into(),
-            ],
-            colors: Some(CompanionColors {
-                body: "#2563eb".into(),
-                accent: "#c2331a".into(),
-                eyes: "#14120f".into(),
-            }),
-        },
-        CompanionItem {
-            id: "rory".into(),
-            name: "Rory".into(),
-            description: "The lion cub heir — small, boisterous, and convinced he runs the place."
-                .into(),
-            tags: vec!["animal".into(), "cub".into(), "playful".into()],
-            is_custom: false,
-            is_installed: true,
-            avatar_type: "procedural".into(),
-            actions: vec!["idle".into(), "walk".into(), "happy".into(), "wave".into()],
-            colors: Some(CompanionColors {
-                body: "#d97706".into(),
-                accent: "#b45309".into(),
-                eyes: "#14120f".into(),
-            }),
-        },
-        CompanionItem {
-            id: "finn".into(),
-            name: "Finn".into(),
-            description: "A football kid who takes every break to practice his step-overs.".into(),
-            tags: vec!["human".into(), "kid".into(), "sporty".into()],
-            is_custom: false,
-            is_installed: true,
-            avatar_type: "procedural".into(),
-            actions: vec!["idle".into(), "walk".into(), "stretch".into(), "happy".into()],
-            colors: Some(CompanionColors {
-                body: "#059669".into(),
-                accent: "#047857".into(),
-                eyes: "#14120f".into(),
-            }),
-        },
-        CompanionItem {
-            id: "spike".into(),
-            name: "Spike".into(),
-            description: "A jackfruit with opinions — slow to ripen, but worth the wait.".into(),
-            tags: vec!["food".into(), "whimsical".into(), "calm".into()],
-            is_custom: false,
-            is_installed: true,
-            avatar_type: "procedural".into(),
-            actions: vec!["idle".into(), "wave".into(), "stretch".into()],
-            colors: Some(CompanionColors {
-                body: "#65a30d".into(),
-                accent: "#4d7c0f".into(),
-                eyes: "#14120f".into(),
-            }),
-        },
-    ];
+    let mut seen_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut list: Vec<CompanionItem> = Vec::new();
 
-    // Read user custom companions from disk
+    // 1. Read bundled companion packs from assets/companions/ (relative to the exe).
+    //    Every companion that ships with the app has a manifest.json there with
+    //    avatarType:"clips" — use those as the authoritative installed companions.
+    let bundled_dir = bundled_companions_dir();
+    if let Ok(entries) = std::fs::read_dir(&bundled_dir) {
+        let mut bundled: Vec<CompanionItem> = entries
+            .flatten()
+            .filter_map(|e| {
+                let manifest = e.path().join("manifest.json");
+                let content = std::fs::read_to_string(manifest).ok()?;
+                let mut item = serde_json::from_str::<CompanionItem>(&content).ok()?;
+                item.is_installed = true;  // bundled == always installed
+                Some(item)
+            })
+            .collect();
+        // Sort by name so the grid order is deterministic.
+        bundled.sort_by(|a, b| a.name.cmp(&b.name));
+        for item in bundled {
+            seen_ids.insert(item.id.clone());
+            list.push(item);
+        }
+    }
+
+    // 2. Fall back to procedural stubs for any of the four original builtins
+    //    that might be missing from the bundled dir (e.g. a dev environment
+    //    where assets/ wasn't copied next to the binary).
+    let fallbacks = [
+        ("grace", "Grace", "A warm, grounding presence — reminds you to drink water and rest.",
+         vec!["human","adult","calm"], vec!["idle","walk","wave","water","stretch"],
+         "#2563eb", "#c2331a"),
+        ("rory", "Rory", "The lion cub heir — small, boisterous, and convinced he runs the place.",
+         vec!["animal","cub","playful"], vec!["idle","walk","happy","wave"],
+         "#d97706", "#b45309"),
+        ("finn", "Finn", "A football kid who takes every break to practice his step-overs.",
+         vec!["human","kid","sporty"], vec!["idle","walk","stretch","happy"],
+         "#059669", "#047857"),
+        ("spike", "Spike", "A jackfruit with opinions — slow to ripen, but worth the wait.",
+         vec!["food","whimsical","calm"], vec!["idle","wave","stretch"],
+         "#65a30d", "#4d7c0f"),
+    ];
+    for (id, name, desc, tags, actions, body, accent) in &fallbacks {
+        if !seen_ids.contains(*id) {
+            list.push(CompanionItem {
+                id: (*id).into(),
+                name: (*name).into(),
+                description: (*desc).into(),
+                tags: tags.iter().map(|s| (*s).into()).collect(),
+                is_custom: false,
+                is_installed: true,
+                avatar_type: "procedural".into(),
+                actions: actions.iter().map(|s| (*s).into()).collect(),
+                colors: Some(CompanionColors {
+                    body: (*body).into(),
+                    accent: (*accent).into(),
+                    eyes: "#14120f".into(),
+                }),
+            });
+        }
+    }
+
+    // 3. User-installed custom companions from the data directory.
     let custom_dir = tether::default_data_dir().join("companions");
     if let Ok(entries) = std::fs::read_dir(custom_dir) {
         for entry in entries.flatten() {
@@ -428,7 +421,10 @@ pub fn list_companions() -> Result<Vec<CompanionItem>, String> {
             if manifest_path.exists() {
                 if let Ok(content) = std::fs::read_to_string(manifest_path) {
                     if let Ok(item) = serde_json::from_str::<CompanionItem>(&content) {
-                        list.push(item);
+                        if !seen_ids.contains(&item.id) {
+                            seen_ids.insert(item.id.clone());
+                            list.push(item);
+                        }
                     }
                 }
             }
@@ -436,6 +432,35 @@ pub fn list_companions() -> Result<Vec<CompanionItem>, String> {
     }
 
     Ok(list)
+}
+
+/// Returns the directory that contains bundled companion packs.
+///
+/// Resolution order (first that exists wins):
+///   1. Sibling `assets/companions/` next to the running executable — covers
+///      production Tauri bundles where the NSIS installer places the app files.
+///   2. Workspace-relative `assets/companions/` — covers `cargo run` / dev builds
+///      where the exe lives deep inside `target/`.
+fn bundled_companions_dir() -> PathBuf {
+    if let Ok(exe) = std::env::current_exe() {
+        let exe_dir = exe.parent().unwrap_or_else(|| std::path::Path::new("."));
+
+        // 1. Sibling of the exe — covers the real app binary in target/debug/ or
+        //    the installed NSIS bundle where the exe sits next to assets/.
+        let p = exe_dir.join("assets/companions");
+        if p.is_dir() {
+            return p;
+        }
+
+        // 2. One level up — covers test binaries in target/debug/deps/ where
+        //    assets/ lives at target/debug/assets/ (one directory above deps/).
+        let p = exe_dir.join("../assets/companions");
+        if p.is_dir() {
+            return p;
+        }
+    }
+    // 3. Working-directory-relative path — covers `cargo run` from the workspace root.
+    PathBuf::from("assets/companions")
 }
 
 #[tauri::command]
@@ -905,7 +930,7 @@ pub fn get_companion_clip(id: String, action: String) -> Result<Option<String>, 
 
     let search_roots = [
         tether::default_data_dir().join("companions").join(&clean_id),
-        PathBuf::from("assets/companions").join(&clean_id),
+        bundled_companions_dir().join(&clean_id),
     ];
 
     for root in &search_roots {
@@ -932,40 +957,43 @@ pub fn show_main_window(window: tauri::Window) -> Result<(), String> {
     window.set_focus().map_err(|e| e.to_string())
 }
 
-/// Shows the companion overlay window, positioning it at the bottom-right of the
-/// primary monitor (above the Windows taskbar) on first show.
-/// After the initial placement the user can drag it anywhere.
+/// Shows the companion overlay window, covering the full primary monitor so the
+/// companion can walk across the whole desktop.  The window is fully transparent
+/// except for the character itself; click-through is handled in JS via hit-testing.
 #[tauri::command]
 pub fn show_companion_overlay(app: tauri::AppHandle) -> Result<(), String> {
-    use tauri::{Manager as _, PhysicalPosition};
+    use tauri::{Manager as _, PhysicalPosition, PhysicalSize};
     let w = app
         .get_webview_window("companion-overlay")
         .ok_or("companion-overlay window not found")?;
 
-    // Position at bottom-right of the primary monitor, 24 px from the right edge
-    // and 48 px above the taskbar, but only on first show.  We detect "never shown"
-    // by checking whether the window is currently invisible — the overlay starts hidden.
-    // After first placement the user may drag it anywhere; subsequent shows respect
-    // their chosen position.
-    if !w.is_visible().unwrap_or(true) {
-        if let Ok(Some(monitor)) = app.primary_monitor() {
-            let size = monitor.size();
-            let scale = monitor.scale_factor();
-            // Monitor size is in physical pixels; convert window logical size to physical.
-            let win_w_phys = (320.0 * scale) as u32;
-            let win_h_phys = (340.0 * scale) as u32;
-            // Place 24 logical px from the right, 56 logical px from the bottom
-            // (clears a 48px taskbar on most Windows configurations).
-            let margin_right = (24.0 * scale) as u32;
-            let margin_bottom = (56.0 * scale) as u32;
-            let x = size.width.saturating_sub(win_w_phys + margin_right) as i32;
-            let y = size.height.saturating_sub(win_h_phys + margin_bottom) as i32;
-            let _ = w.set_position(PhysicalPosition::new(x, y));
-        }
+    // Always size and position the overlay to the primary monitor so it covers
+    // the full desktop — even after a resolution change or multi-monitor switch.
+    if let Ok(Some(monitor)) = app.primary_monitor() {
+        let pos  = monitor.position();
+        let size = monitor.size();
+        let _ = w.set_size(PhysicalSize::new(size.width, size.height));
+        let _ = w.set_position(PhysicalPosition::new(pos.x, pos.y));
     }
+
+    // Make the transparent area truly click-through at the OS level.
+    // The overlay JS re-enables cursor events only during an active drag.
+    let _ = w.set_ignore_cursor_events(true);
 
     // Show without stealing keyboard focus — the overlay is purely visual.
     w.show().map_err(|e| e.to_string())
+}
+
+/// Toggles OS-level cursor passthrough on the companion overlay window.
+/// Pass `ignore = true` to let all clicks fall through (default after show).
+/// Pass `ignore = false` temporarily during a mouse drag so the native OS drag fires.
+#[tauri::command]
+pub fn set_companion_passthrough(app: tauri::AppHandle, ignore: bool) -> Result<(), String> {
+    use tauri::Manager as _;
+    let w = app
+        .get_webview_window("companion-overlay")
+        .ok_or("companion-overlay window not found")?;
+    w.set_ignore_cursor_events(ignore).map_err(|e| e.to_string())
 }
 
 /// Hides the companion overlay window.  Called from the main window via IPC.
@@ -1096,6 +1124,25 @@ mod tests {
     fn get_companion_clip_returns_none_for_missing() {
         let clip = get_companion_clip("nonexistent-companion-xyz".into(), "idle".into()).unwrap();
         assert!(clip.is_none());
+    }
+
+    #[test]
+    fn get_companion_clip_returns_data_url_for_bundled_grace() {
+        // This test verifies that the bundled_companions_dir() resolution finds the
+        // real grace/idle.webp shipped with the app.  It runs against the debug build
+        // where assets/companions/ is copied next to the exe by the build script.
+        let clip = get_companion_clip("grace".into(), "idle".into()).unwrap();
+        assert!(
+            clip.is_some(),
+            "grace/idle.webp must be found — bundled_companions_dir() path resolution failed"
+        );
+        let url = clip.unwrap();
+        assert!(
+            url.starts_with("data:image/webp;base64,"),
+            "clip must be a webp data URL, got: {}",
+            &url[..url.len().min(60)]
+        );
+        assert!(url.len() > 100, "data URL must have real content, not empty base64");
     }
 
     // ── verify_checksum unit tests ────────────────────────────────────────────

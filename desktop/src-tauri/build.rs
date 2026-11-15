@@ -23,6 +23,7 @@ fn main() {
             "show_main_window",
             "show_companion_overlay",
             "hide_companion_overlay",
+            "set_companion_passthrough",
             "start_companion_drag",
             "get_capture_status",
         ]),

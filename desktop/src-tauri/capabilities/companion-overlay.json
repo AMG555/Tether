@@ -1,8 +1,9 @@
 {
   "identifier": "companion-overlay",
-  "description": "Companion overlay window — only needs to drag itself",
+  "description": "Companion overlay window — drag and cursor-passthrough toggle",
   "windows": ["companion-overlay"],
   "permissions": [
-    "allow-start-companion-drag"
+    "allow-start-companion-drag",
+    "allow-set-companion-passthrough"
   ]
 }

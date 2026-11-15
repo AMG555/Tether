@@ -1,6 +1,6 @@
 /**
  * companion-overlay.js
- * Runs inside the transparent companion-overlay window (320×340).
+ * Runs inside the transparent companion-overlay window (full-screen).
  *
  * Rendering priority:
  *   1. WebP sprite frames from installed companion pack (via IPC)
@@ -9,10 +9,15 @@
  * Walk behaviour: companion auto-walks across the bottom of the screen
  * left → right then right → left. User can drag it to any position.
  *
+ * Click-through: the overlay is permanently OS-transparent (setIgnoreCursorEvents=true).
+ * When the user mousedowns over the character bounding box, we briefly disable
+ * passthrough (setCompanionPassthrough(false)) so the native OS drag can fire,
+ * then restore passthrough on mouseup.
+ *
  * All Tauri IPC calls must go through api.js (architecture rule).
  */
 
-import { startCompanionDrag, getCompanionClip } from './api.js';
+import { startCompanionDrag, getCompanionClip, setCompanionPassthrough } from './api.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -21,6 +26,9 @@ const WALK_PAUSE_MS  = 5000;     // pause at edge before turning
 const IDLE_PAUSE_CHANCE = 0.003; // per-frame chance to pause mid-walk
 const SPRITE_FPS     = 12;       // WebP sprite playback rate
 const CHAR_SCALE     = 1.55;     // global scale for procedural character (bigger!)
+const CHAR_MARGIN    = 56;       // px from each edge — walk boundary
+const CHAR_WIDTH     = 80;       // approximate half-width of character for hit-testing
+const CHAR_HEIGHT    = 220;      // approximate full height for hit-testing
 
 // ─── Companion data ───────────────────────────────────────────────────────────
 
@@ -47,8 +55,40 @@ let companion = loadActiveCompanion();
 
 const canvas = document.getElementById('companion-canvas');
 const ctx = canvas.getContext('2d');
-const W = canvas.width;   // 320
-const H = canvas.height;  // 340
+
+// Logical dimensions — always CSS pixels.  All draw code uses these.
+let W = window.innerWidth;
+let H = window.innerHeight;
+
+// Size the canvas backing store to the physical pixel resolution.
+// IMPORTANT: assigning canvas.width resets the context to identity transform,
+// so we must re-apply the DPR scale immediately after every resize.
+// We store the last applied DPR so we never accidentally double-scale.
+let _appliedDpr = 1;
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.round(window.innerWidth * dpr);
+  const h = Math.round(window.innerHeight * dpr);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  if (canvas.width !== w || canvas.height !== h) {
+    // Assigning width/height resets the context — scale is lost.
+    canvas.width  = w;
+    canvas.height = h;
+    // Re-apply DPR scale so all draw calls use logical (CSS) coordinates.
+    ctx.scale(dpr, dpr);
+    _appliedDpr = dpr;
+  }
+}
+resizeCanvas();
+
+window.addEventListener('resize', () => {
+  resizeCanvas();
+  // Keep walkX inside new bounds after a resize
+  if (typeof walkX !== 'undefined') {
+    walkX = Math.max(CHAR_MARGIN, Math.min(W - CHAR_MARGIN, walkX));
+  }
+});
 
 // ─── State machine ────────────────────────────────────────────────────────────
 
@@ -76,7 +116,7 @@ let WALK_STATES = getWalkStates();
 let currentState = 'idle';
 let nextStateTimer = 0;
 let walkDir = 1;         // 1 = right, -1 = left
-let walkX = W / 2;
+let walkX = CHAR_MARGIN; // start at bottom-left, walk toward right
 let walking = false;
 let pauseTimer = 0;
 let animTime = 0;
@@ -117,11 +157,17 @@ async function loadSprite(companionId, state) {
       const img = new Image();
       img.src = dataUrl;
       await new Promise((res) => { img.onload = res; img.onerror = res; });
-      spriteCache[key] = img;
-      return img;
+      if (img.naturalWidth > 0) {
+        // Only cache a successful load — a zero-size image means the decode failed.
+        spriteCache[key] = img;
+        return img;
+      }
     }
   } catch { /* fall through */ }
-  spriteCache[key] = null;
+  // Never permanently cache null — a companion might have clips even if
+  // avatarType isn't set (old localStorage entry without the field).
+  // Clearing the loading flag allows a retry on the next state transition.
+  delete spriteLoading[key];
   return null;
 }
 
@@ -183,15 +229,14 @@ function renderFrame(timestamp) {
       nextStateTimer = performance.now() + 3000;
     } else {
       walkX += walkDir * WALK_SPEED_PX;
-      const margin = 36;
-      if (walkX > W - margin) {
-        walkX = W - margin;
+      if (walkX > W - CHAR_MARGIN) {
+        walkX = W - CHAR_MARGIN;
         walkDir = -1;
         walking = false;
         pauseTimer = timestamp + WALK_PAUSE_MS;
         currentState = 'idle';
-      } else if (walkX < margin) {
-        walkX = margin;
+      } else if (walkX < CHAR_MARGIN) {
+        walkX = CHAR_MARGIN;
         walkDir = 1;
         walking = false;
         pauseTimer = timestamp + WALK_PAUSE_MS;
@@ -232,7 +277,8 @@ function renderFrame(timestamp) {
 
 function drawBubble() {
   const bx = walkX;
-  const by = H - 240 + springY; // above character
+  const charFeetY = H - 28;      // matches baseY in drawProceduralCompanion
+  const by = charFeetY - CHAR_HEIGHT + 60 + springY; // float above companion's head
   const pad = 10;
   ctx.font = 'bold 13px -apple-system, Segoe UI, sans-serif';
   const tw = ctx.measureText(bubbleText).width;
@@ -271,6 +317,10 @@ function drawBubble() {
   ctx.restore();
 }
 
+// Target height for the companion in logical CSS pixels.
+// Matches the procedural character height so clip/procedural look the same size.
+const COMPANION_TARGET_H = 220;
+
 function drawCompanion() {
   const spriteKey = `${companion.id}:${currentState}`;
   const img = spriteCache[spriteKey];
@@ -279,7 +329,14 @@ function drawCompanion() {
   if (img) {
     const iw = img.naturalWidth;
     const ih = img.naturalHeight;
-    const scale = Math.min(W / iw, H / ih, 1.4);
+    if (iw === 0 || ih === 0) {
+      // Image loaded with zero dimensions — treat as missing, draw procedural
+      drawProceduralCompanion(shouldFlip);
+      return;
+    }
+    // Scale so the companion renders at COMPANION_TARGET_H pixels tall,
+    // preserving aspect ratio.  Never exceed half the screen width.
+    const scale = Math.min(COMPANION_TARGET_H / ih, (W * 0.5) / iw);
     const dw = iw * scale;
     const dh = ih * scale;
     const dx = walkX - dw / 2;
@@ -289,7 +346,7 @@ function drawCompanion() {
     ctx.drawImage(img, dx, dy, dw, dh);
     ctx.restore();
   } else {
-    if (!(spriteKey in spriteCache) && !spriteLoading[spriteKey]) {
+    if (!spriteLoading[spriteKey]) {
       loadSprite(companion.id, currentState);
     }
     drawProceduralCompanion(shouldFlip);
@@ -470,20 +527,74 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) stopAnim(); else startAnim();
 });
 
-// ─── Drag to reposition ───────────────────────────────────────────────────────
+// ─── Hit-test helper: is the click near the companion character? ──────────────
+// Because the canvas fills the whole screen, we must only act on events that
+// land within the companion's bounding box — not anywhere on the transparent
+// overlay.  Other clicks pass through to the desktop (Tauri transparent window).
 
-canvas.addEventListener('mousedown', () => {
-  startCompanionDrag();
+function isOverCompanion(x, y) {
+  const charLeft  = walkX - CHAR_WIDTH;
+  const charRight = walkX + CHAR_WIDTH;
+  const charTop   = H - CHAR_HEIGHT;
+  const charBot   = H;
+  return x >= charLeft && x <= charRight && y >= charTop && y <= charBot;
+}
+
+// ─── Drag to reposition ───────────────────────────────────────────────────────
+// The overlay is OS-transparent (cursor passthrough = true) by default.
+// To initiate a native window drag we must briefly disable passthrough so the
+// OS sees the mousedown, then restore it on mouseup.
+
+canvas.addEventListener('mousedown', (e) => {
+  if (isOverCompanion(e.clientX, e.clientY)) {
+    canvas.style.cursor = 'grabbing';
+    // Disable passthrough so the OS-level drag is received by this window.
+    setCompanionPassthrough(false).then(() => startCompanionDrag());
+  }
 });
 
-// ─── Double-click: trigger a happy bounce ────────────────────────────────────
+canvas.addEventListener('mouseup', () => {
+  canvas.style.cursor = '';
+  // Restore OS click-through so clicks on the transparent area pass through.
+  setCompanionPassthrough(true);
+});
 
-canvas.addEventListener('dblclick', () => {
+canvas.addEventListener('mousemove', (e) => {
+  canvas.style.cursor = isOverCompanion(e.clientX, e.clientY) ? 'grab' : '';
+});
+
+// ─── Single click: live pet reactions ────────────────────────────────────────
+// Rotate through distinct reactions so every click feels different.
+const CLICK_REACTIONS = [
+  { state: 'wave',    bubble: '👋 Hey there!',       spring: -8,  dur: 3000 },
+  { state: 'happy',   bubble: '✨ You noticed me!',   spring: -14, dur: 3500 },
+  { state: 'water',   bubble: '💧 Drink some water!', spring: -6,  dur: 3000 },
+  { state: 'stretch', bubble: '🧘 Time to stretch!',  spring: -5,  dur: 3000 },
+  { state: 'happy',   bubble: '😄 Click me again!',   spring: -12, dur: 2500 },
+];
+let _clickReactionIdx = 0;
+
+canvas.addEventListener('click', (e) => {
+  if (!isOverCompanion(e.clientX, e.clientY)) return;
+  const reaction = CLICK_REACTIONS[_clickReactionIdx % CLICK_REACTIONS.length];
+  _clickReactionIdx++;
+  currentState = reaction.state;
+  walking = false;
+  springVY = reaction.spring;
+  nextStateTimer = performance.now() + reaction.dur;
+  showBubble(reaction.bubble, reaction.dur - 200);
+  loadSprite(companion.id, reaction.state);
+});
+
+// ─── Double-click: extra big happy bounce ────────────────────────────────────
+
+canvas.addEventListener('dblclick', (e) => {
+  if (!isOverCompanion(e.clientX, e.clientY)) return;
   currentState = 'happy';
   walking = false;
-  springVY = -14;
+  springVY = -20;
   nextStateTimer = performance.now() + 4000;
-  showBubble('✨ Yay!', 2000);
+  showBubble('🎉 Woohoo!!', 2500);
   loadSprite(companion.id, 'happy');
 });
 

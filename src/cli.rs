@@ -5,7 +5,7 @@
 //! the thing that actually keeps you safe on day one. Every command works offline and
 //! every command that prints draft text says so before printing.
 
-use std::io::{self, BufRead, Write};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -747,13 +747,8 @@ fn cmd_backup(home: &Option<PathBuf>, path: &Path) -> Result<(), Box<dyn std::er
         "it is useless without your key file ({}). Back both up, separately.",
         dir.join(KEY_FILE).display()
     );
-    if dir.join(KEY_FILE).exists() {
-        nothing();
-    }
     Ok(())
 }
-
-fn nothing() {}
 
 fn cmd_export(
     home: &Option<PathBuf>,
@@ -1141,14 +1136,4 @@ pub fn install_sigint(stop: Arc<AtomicBool>) {
     // Windows: the hook thread owns the message loop; Ctrl-C closes it via the console
     // handler that SetConsoleCtrlHandler installs in the tray build.
     let _ = stop;
-}
-
-/// Used by tests and the future tray UI: build a Vault without touching argv.
-pub fn open_for_test(dir: &Path, key: &SecretKey) -> Result<Vault, Box<dyn std::error::Error>> {
-    Ok(Vault::open(dir, key)?)
-}
-
-fn _stdin_hint() {
-    let stdin = io::stdin();
-    let _ = stdin.lock().lines();
 }

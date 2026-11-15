@@ -26,12 +26,13 @@
         "label": "companion-overlay",
         "url": "companion-overlay.html",
         "title": "Tether Companion",
-        "width": 320,
-        "height": 340,
+        "width": 1920,
+        "height": 1080,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,
         "skipTaskbar": true,
+        "resizable": false,
         "visible": false
       }
     ]
@@ -40,7 +41,9 @@
     "active": true,
     "targets": ["nsis"],
     "icon": ["icons/icon.ico"],
-    "resources": {},
+    "resources": {
+      "../../assets/companions": "assets/companions"
+    },
     "windows": {
       "nsis": {
         "installMode": "currentUser",

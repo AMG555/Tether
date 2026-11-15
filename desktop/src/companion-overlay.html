@@ -9,22 +9,23 @@
     html, body {
       background: transparent !important;
       overflow: hidden;
-      width: 320px;
-      height: 340px;
+      width: 100vw;
+      height: 100vh;
       -webkit-app-region: no-drag;
     }
     canvas {
       display: block;
+      width: 100vw;
+      height: 100vh;
       background: transparent;
-      cursor: grab;
+      /* Only the bottom strip is interactive — the rest is click-through */
+      pointer-events: none;
     }
-    canvas:active {
-      cursor: grabbing;
-    }
+    /* Re-enable pointer events on the companion itself via JS */
   </style>
 </head>
 <body>
-  <canvas id="companion-canvas" width="320" height="340"></canvas>
+  <canvas id="companion-canvas"></canvas>
   <script type="module" src="./companion-overlay.js"></script>
 </body>
 </html>
