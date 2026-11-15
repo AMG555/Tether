@@ -216,8 +216,8 @@ mod clipboard_poller_mac {
             let cls_name = c"NSPasteboard";
             let sel_gen = c"generalPasteboard";
             let sel_str = c"stringForType:";
-            let sel_pt = c"NSPasteboardTypeString";   // type name as string class
-            // Build the NSString for the pasteboard type.
+            let sel_pt = c"NSPasteboardTypeString"; // type name as string class
+                                                    // Build the NSString for the pasteboard type.
             let nss_cls = objc_getClass(c"NSString".as_ptr());
             if nss_cls.is_null() {
                 return None;
@@ -391,7 +391,11 @@ pub fn run() -> Result<(), tauri::Error> {
             let started = if key_file.exists() {
                 match commands::open_local_vault() {
                     Ok(vault) => {
-                        match tether::engine::Engine::new(vault, 4096, tether::policy::Policy::default()) {
+                        match tether::engine::Engine::new(
+                            vault,
+                            4096,
+                            tether::policy::Policy::default(),
+                        ) {
                             Ok(engine) => {
                                 // Replay anything in the crash buffer before accepting new input.
                                 let _ = engine.recover();
@@ -511,6 +515,8 @@ pub fn run() -> Result<(), tauri::Error> {
             commands::set_companion_passthrough,
             commands::start_companion_drag,
             commands::get_capture_status,
+            commands::get_active_companion,
+            commands::set_active_companion,
         ])
         .build(tauri::generate_context!())?
         .run(|app, event| {

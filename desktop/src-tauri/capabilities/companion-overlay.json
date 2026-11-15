@@ -4,6 +4,8 @@
   "windows": ["companion-overlay"],
   "permissions": [
     "allow-start-companion-drag",
-    "allow-set-companion-passthrough"
+    "allow-set-companion-passthrough",
+    "allow-get-companion-clip",
+    "allow-get-active-companion"
   ]
 }

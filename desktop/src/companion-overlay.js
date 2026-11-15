@@ -17,7 +17,7 @@
  * All Tauri IPC calls must go through api.js (architecture rule).
  */
 
-import { getCompanionClip } from './api.js';
+import { getCompanionClip, getActiveCompanion } from './api.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -36,21 +36,23 @@ const COMPANION_TARGET_H = 220;   // render height in logical CSS pixels
 const DEFAULT_COMPANION = {
   id: 'grace',
   name: 'Grace',
+  avatarType: 'procedural',
   colors: { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' },
 };
 
-function loadActiveCompanion() {
+// companion starts as the default and is replaced asynchronously once IPC loads.
+let companion = { ...DEFAULT_COMPANION };
+
+// Load the active companion from the shared file via IPC (through api.js).
+// This is the only reliable cross-WebView source of truth — localStorage is
+// isolated per WebView and cannot be shared between the main window and overlay.
+async function loadActiveCompanionFromIPC() {
   try {
-    const raw = localStorage.getItem('tether-active-companion');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.id) return parsed;
-    }
-  } catch { /* ignore */ }
+    const state = await getActiveCompanion();
+    if (state && state.id) return state;
+  } catch { /* non-fatal — fall back to default */ }
   return DEFAULT_COMPANION;
 }
-
-let companion = loadActiveCompanion();
 
 // ─── Canvas + hit-zone setup ──────────────────────────────────────────────────
 
@@ -615,8 +617,10 @@ hitZone.addEventListener('dblclick', () => {
 
 // ─── Reload companion when activated from main window ────────────────────────
 
-function reloadCompanion() {
-  companion = loadActiveCompanion();
+async function reloadCompanion() {
+  const next = await loadActiveCompanionFromIPC();
+  if (next.id === companion.id) return; // nothing changed
+  companion = next;
   // Clear sprite cache for old companion
   Object.keys(spriteCache).forEach((k) => {
     if (!k.startsWith(companion.id + ':')) delete spriteCache[k];
@@ -630,8 +634,15 @@ function reloadCompanion() {
   pickNextState();
 }
 
-window.addEventListener('companion-activated', reloadCompanion);
-
-window.addEventListener('storage', (e) => {
-  if (e.key === 'tether-active-companion') reloadCompanion();
+// Initial async load — replace the default Grace with the persisted companion.
+loadActiveCompanionFromIPC().then((state) => {
+  companion = state;
+  // Pre-warm sprites so the companion appears without a robot flash on first frame.
+  loadSprite(companion.id, 'idle');
+  loadSprite(companion.id, 'walk');
 });
+
+// Poll for companion changes every 2 s.  localStorage events do not fire
+// cross-window inside Tauri's isolated WebViews, so polling the shared IPC
+// file is the only cross-window signalling mechanism available.
+setInterval(reloadCompanion, 2000);

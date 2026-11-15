@@ -22,6 +22,8 @@ import {
   showCompanionOverlay,
   hideCompanionOverlay,
   getCaptureStatus,
+  getActiveCompanion,
+  setActiveCompanion,
 } from './api.js';
 
 const genericFailureMessage = 'Tether could not load app information.';
@@ -532,18 +534,11 @@ async function setupRecoveryView() {
 // -----------------------------------------------------------------------------
 let installedCompanions = [];
 
-// Restore the active companion from localStorage so the pill and card highlight
-// survive a page reload. Falls back to 'grace' if nothing was ever saved.
-let activePetId = (() => {
-  try {
-    const raw = typeof localStorage !== 'undefined' && localStorage.getItem('tether-active-companion');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.id) return parsed.id;
-    }
-  } catch { /* ignore */ }
-  return 'grace';
-})();
+// activePetId starts as 'grace' and is immediately overwritten from the IPC
+// layer once setupCompanionsView loads. Using IPC (not localStorage) is the
+// only reliable way for two separate Tauri WebView windows to share state —
+// each WebView has its own isolated localStorage.
+let activePetId = 'grace';
 
 // Cache of companion id → loaded HTMLImageElement for the idle WebP clip.
 // Populated lazily on first load; reused by renderGrid on every re-render so
@@ -556,6 +551,13 @@ async function setupCompanionsView() {
   let currentFilter = 'all';
 
   async function loadCompanions() {
+    // Load the persisted active companion from disk via IPC — this is the
+    // shared source of truth that both the main window and the overlay use.
+    try {
+      const saved = await getActiveCompanion();
+      if (saved && saved.id) activePetId = saved.id;
+    } catch { /* non-fatal — keep default */ }
+
     try {
       installedCompanions = await listCompanions();
     } catch {
@@ -564,8 +566,8 @@ async function setupCompanionsView() {
         { id: 'rory', name: 'Rory', description: 'The lion cub heir — small and boisterous.', tags: ['animal', 'playful'], isInstalled: true },
       ];
     }
-    // Sync the active-companion-name pill with the persisted value now that we
-    // have the full companions list (which carries the display name).
+    // Sync the active-companion-name pill now that we have both the persisted id
+    // and the full companions list (which carries the display name).
     const activeComp = installedCompanions.find((c) => c.id === activePetId);
     const activeName = document.getElementById('active-companion-name');
     if (activeName && activeComp) activeName.textContent = activeComp.name;
@@ -686,15 +688,15 @@ async function setupCompanionsView() {
         const activeName = document.getElementById('active-companion-name');
         if (activeName) activeName.textContent = c.name;
 
-        // Persist active companion for the overlay window
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem('tether-active-companion', JSON.stringify({
-            id: c.id,
-            name: c.name,
-            avatarType: c.avatarType || 'procedural',
-            colors: c.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' },
-          }));
-        }
+        // Persist via IPC so the companion-overlay window (separate WebView,
+        // isolated localStorage) can read the choice via get_active_companion.
+        const companionState = {
+          id: c.id,
+          name: c.name,
+          avatarType: c.avatarType || 'procedural',
+          colors: c.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' },
+        };
+        void setActiveCompanion(companionState);
 
         // Show the companion overlay window via the IPC bridge
         showCompanionOverlay();
@@ -829,6 +831,11 @@ async function openCompanionPreview(c) {
   }
 
   modal.classList.remove('hidden');
+
+  // Reset companion stage position to bottom-right corner on each open
+  const stage = modal.querySelector('.preview-companion-stage');
+  if (stage) { stage.style.right = '16px'; stage.style.bottom = '0px'; }
+
   await updatePreviewStage(c, 'idle');
 }
 
@@ -1232,9 +1239,12 @@ function setupPreviewModalHandlers() {
   const previewStage = document.querySelector('.preview-companion-stage');
   const wallpaper    = document.querySelector('.preview-desktop-wallpaper');
 
+  // Track companion position as {right, bottom} offsets from the wallpaper edges.
+  // Using right/bottom instead of left/top so the companion naturally hugs the
+  // bottom-right corner on first open (matching the real overlay behaviour).
   let _pdragActive = false;
   let _pdragStartX = 0, _pdragStartY = 0;
-  let _pdragOrigRight = 20, _pdragOrigBottom = 0;  // px from edges (CSS right/bottom)
+  let _pdragOrigRight = 16, _pdragOrigBottom = 0;
 
   if (previewStage && wallpaper) {
     previewStage.addEventListener('mousedown', (e) => {
@@ -1242,13 +1252,10 @@ function setupPreviewModalHandlers() {
       _pdragActive = true;
       _pdragStartX = e.clientX;
       _pdragStartY = e.clientY;
-      // Read current computed right/bottom offsets
-      const wp = wallpaper.getBoundingClientRect();
-      const sp = previewStage.getBoundingClientRect();
-      _pdragOrigRight  = wp.right  - sp.right;
-      _pdragOrigBottom = wp.bottom - sp.bottom;
+      // Read current right/bottom from inline style (set by previous drags).
+      _pdragOrigRight  = parseFloat(previewStage.style.right)  || 16;
+      _pdragOrigBottom = parseFloat(previewStage.style.bottom) || 0;
       previewStage.style.cursor = 'grabbing';
-      previewStage.style.transition = 'none';
     });
   }
 
@@ -1257,10 +1264,13 @@ function setupPreviewModalHandlers() {
     const dx = e.clientX - _pdragStartX;
     const dy = e.clientY - _pdragStartY;
     const wp = wallpaper.getBoundingClientRect();
-    const sp = previewStage.getBoundingClientRect();
-    // right decreases as mouse moves right (dx > 0); bottom decreases as mouse moves down (dy > 0)
-    const newRight  = Math.max(0, Math.min(wp.width  - sp.width,  _pdragOrigRight  - dx));
-    const newBottom = Math.max(0, Math.min(wp.height - sp.height, _pdragOrigBottom - dy));
+    // Stage display size from CSS (not canvas logical pixels)
+    const stageW = previewStage.offsetWidth;
+    const stageH = previewStage.offsetHeight;
+    // Moving right (dx > 0) → right offset decreases.
+    // Moving down  (dy > 0) → bottom offset decreases.
+    const newRight  = Math.max(-stageW * 0.3, Math.min(wp.width  - stageW * 0.7, _pdragOrigRight  - dx));
+    const newBottom = Math.max(-stageH * 0.3, Math.min(wp.height - stageH * 0.3, _pdragOrigBottom - dy));
     previewStage.style.right  = `${newRight}px`;
     previewStage.style.bottom = `${newBottom}px`;
   });
@@ -1268,10 +1278,7 @@ function setupPreviewModalHandlers() {
   document.addEventListener('mouseup', () => {
     if (!_pdragActive) return;
     _pdragActive = false;
-    if (previewStage) {
-      previewStage.style.cursor = 'grab';
-      previewStage.style.transition = 'transform 0.1s ease';
-    }
+    if (previewStage) previewStage.style.cursor = 'grab';
   });
 
   // Click (no drag) → cycle through states
@@ -1303,20 +1310,19 @@ function setupPreviewModalHandlers() {
         card.classList.toggle('active-pet', card.querySelector(`.companion-avatar-canvas[data-companion-id="${CSS.escape(previewCompanion.id)}"]`) !== null);
       });
 
-      // Persist active companion for the overlay window
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('tether-active-companion', JSON.stringify({
-          id: previewCompanion.id,
-          name: previewCompanion.name,
-          avatarType: previewCompanion.avatarType || 'procedural',
-          colors: previewCompanion.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' },
-        }));
-      }
+      // Persist via IPC — shared between both WebView windows.
+      void setActiveCompanion({
+        id: previewCompanion.id,
+        name: previewCompanion.name,
+        avatarType: previewCompanion.avatarType || 'procedural',
+        colors: previewCompanion.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' },
+      });
 
       // Show the companion overlay window via the IPC bridge then re-render the grid
       showCompanionOverlay();
       renderGrid();
 
+      stopPreviewAnim();
       showToast(`"${previewCompanion.name}" is now your active companion!`, 'ok');
       modal?.classList.add('hidden');
     }

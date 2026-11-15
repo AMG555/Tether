@@ -476,3 +476,40 @@ export async function getCaptureStatus() {
   }
 }
 
+
+/**
+ * @typedef {{ id: string, name: string, avatarType: string, colors: { body: string, accent: string, eyes: string } }} ActiveCompanionState
+ */
+
+/**
+ * Returns the active companion from the shared on-disk state.
+ * Both the main window and the companion-overlay window call this so they
+ * share one source of truth instead of each window's isolated localStorage.
+ * @returns {Promise<ActiveCompanionState>}
+ */
+export async function getActiveCompanion() {
+  const invoke = getInvoker();
+  if (!invoke) {
+    return { id: 'grace', name: 'Grace', avatarType: 'procedural', colors: { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' } };
+  }
+  try {
+    return await invoke('get_active_companion');
+  } catch {
+    return { id: 'grace', name: 'Grace', avatarType: 'procedural', colors: { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' } };
+  }
+}
+
+/**
+ * Persists the active companion choice to disk.
+ * @param {ActiveCompanionState} state
+ * @returns {Promise<void>}
+ */
+export async function setActiveCompanion(state) {
+  const invoke = getInvoker();
+  if (!invoke) return;
+  try {
+    await invoke('set_active_companion', { state });
+  } catch {
+    // Best-effort — if disk write fails the UI still works via the in-memory value.
+  }
+}

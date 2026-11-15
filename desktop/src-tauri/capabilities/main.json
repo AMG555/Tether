@@ -25,6 +25,8 @@
     "allow-show-main-window",
     "allow-show-companion-overlay",
     "allow-hide-companion-overlay",
-    "allow-get-capture-status"
+    "allow-get-capture-status",
+    "allow-get-active-companion",
+    "allow-set-active-companion"
   ]
 }

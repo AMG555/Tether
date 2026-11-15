@@ -26,6 +26,8 @@ fn main() {
             "set_companion_passthrough",
             "start_companion_drag",
             "get_capture_status",
+            "get_active_companion",
+            "set_active_companion",
         ]),
     ))
     .expect("failed to configure the Tauri command allowlist");

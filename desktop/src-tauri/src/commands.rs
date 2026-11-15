@@ -364,7 +364,7 @@ pub fn list_companions() -> Result<Vec<CompanionItem>, String> {
                 let manifest = e.path().join("manifest.json");
                 let content = std::fs::read_to_string(manifest).ok()?;
                 let mut item = serde_json::from_str::<CompanionItem>(&content).ok()?;
-                item.is_installed = true;  // bundled == always installed
+                item.is_installed = true; // bundled == always installed
                 Some(item)
             })
             .collect();
@@ -382,70 +382,294 @@ pub fn list_companions() -> Result<Vec<CompanionItem>, String> {
     //    are a last-resort safety net so the grid is never empty.
     #[allow(clippy::type_complexity)]
     let fallbacks: &[(&str, &str, &str, &[&str], &[&str], &str, &str)] = &[
-        ("grace",       "Grace",       "A warm, grounding presence — she will remind you to drink water and rest.",
-         &["human","adult","calm"],            &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#2563eb", "#c2331a"),
-        ("rory",        "Rory",        "The lion cub heir — small, boisterous, and convinced he runs the place.",
-         &["animal","cub","playful"],           &["idle","walk","happy","wave","water","stretch","sad","eyes"], "#d97706", "#b45309"),
-        ("axel",        "Axel",        "A skater boy who grinds deadlines the same way he grinds rails.",
-         &["human","kid","sporty"],             &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#7c3aed", "#6d28d9"),
-        ("bao",         "Bao",         "A steamed bun with a fiery heart and unwavering patience.",
-         &["food","cute","calm"],               &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#dc2626", "#b91c1c"),
-        ("blaze",       "Blaze",       "A pint-sized superhero who takes your water reminders very seriously.",
-         &["human","kid","hero"],               &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#ea580c", "#c2410c"),
-        ("bolt",        "Bolt",        "An energetic robot who charges up on your typing speed.",
-         &["robot","tech","energetic"],         &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#0284c7", "#0369a1"),
-        ("captain-dew", "Captain Dew", "A water superhero whose only power is showing up every time you forget to hydrate.",
-         &["human","hero","water"],             &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#0891b2", "#0e7490"),
-        ("chip",        "Chip",        "A mischievous chipmunk who stashes keystrokes like acorns.",
-         &["animal","cute","playful"],          &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#92400e", "#78350f"),
-        ("coco",        "Coco",        "A cheerful golden retriever who wags whenever you finish a paragraph.",
-         &["animal","dog","warm"],              &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#b45309", "#92400e"),
-        ("daisy",       "Daisy",       "A gentle bunny who nibbles carrots while you draft your notes.",
-         &["animal","bunny","gentle"],          &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#db2777", "#be185d"),
-        ("doc",         "Doc",         "A wise owl physician reminding you of eye ergonomics and breaks.",
-         &["animal","wise","health"],           &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#4f46e5", "#4338ca"),
-        ("ember",       "Ember",       "A tiny flame sprite who sparkles whenever your typing flow heats up.",
-         &["elemental","magic","energetic"],    &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#ef4444", "#dc2626"),
-        ("finn",        "Finn",        "A football kid who takes every break to practice his step-overs.",
-         &["human","kid","sporty"],             &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#059669", "#047857"),
-        ("iris",        "Iris",        "An artist fairy who paints colorful sparkles along your margins.",
-         &["fantasy","creative","calm"],        &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#7c3aed", "#6d28d9"),
-        ("luna",        "Luna",        "A moon fairy who keeps your circadian rhythm honest when you work late.",
-         &["fantasy","fairy","calm"],           &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#1d4ed8", "#1e40af"),
-        ("marmalade",   "Marmalade",   "A drowsy ginger cat purring quietly on top of your words.",
-         &["animal","cat","cozy"],              &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#c2410c", "#9a3412"),
-        ("nimbus",      "Nimbus",      "A miniature thundercloud raining soft inspiration onto your draft.",
-         &["weather","whimsical","calm"],       &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#4b5563", "#374151"),
-        ("nova",        "Nova",        "A cosmic astronaut floating gently beside your editor window.",
-         &["space","tech","curious"],           &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#6d28d9", "#5b21b6"),
-        ("ollie",       "Ollie",       "The class bookworm — always mid-chapter, always has a fun fact ready.",
-         &["human","kid","studious"],           &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#0369a1", "#075985"),
-        ("peanut",      "Peanut",      "A hamster running on a tiny wheel whenever you type.",
-         &["animal","rodent","cute"],           &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#92400e", "#78350f"),
-        ("penny",       "Penny",       "A retro mechanical penguin who waddles in rhythm with your typing.",
-         &["animal","robot","playful"],         &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#0e7490", "#155e75"),
-        ("pixel",       "Pixel",       "A retro 8-bit companion bouncing along your text lines.",
-         &["retro","pixel","playful"],          &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#7c3aed", "#6d28d9"),
-        ("quest",       "Quest",       "A gamer kid who treats every break like an achievement unlocked.",
-         &["human","kid","tech"],               &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#1d4ed8", "#1e40af"),
-        ("sage",        "Sage",        "A yoga instructor who demonstrates desk stretches with enthusiasm.",
-         &["human","sporty","calm"],            &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#065f46", "#064e3b"),
-        ("shadow",      "Shadow",      "A stealth panther who watches over your cursor silently.",
-         &["animal","cat","sleek"],             &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#1f2937", "#111827"),
-        ("spike",       "Spike",       "A jackfruit with opinions — slow to ripen, but worth the wait.",
-         &["food","whimsical","calm"],          &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#65a30d", "#4d7c0f"),
-        ("splash",      "Splash",      "A playful dolphin leaping through sentences when you make progress.",
-         &["animal","aquatic","happy"],         &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#0891b2", "#0e7490"),
-        ("theo",        "Theo",        "A thoughtful philosopher bear contemplating your arguments.",
-         &["animal","bear","thoughtful"],       &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#78350f", "#6b2d0f"),
-        ("twirl",       "Twirl",       "An acrobatic squirrel spinning through ideas and revisions.",
-         &["animal","agile","cheerful"],        &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#b45309", "#92400e"),
-        ("waddle",      "Waddle",      "A chubby duckling splashing joyfully after every saved revision.",
-         &["animal","duck","cute"],             &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#0369a1", "#075985"),
-        ("zen",         "Zen",         "A meditative rock spirit maintaining tranquil focus in your workspace.",
-         &["nature","peaceful","mindful"],      &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#064e3b", "#065f46"),
-        ("zippy",       "Zippy",       "A lightning-fast hummingbird darting around fast typing spurts.",
-         &["animal","bird","fast"],             &["idle","walk","wave","water","stretch","happy","sad","eyes"], "#b45309", "#92400e"),
+        (
+            "grace",
+            "Grace",
+            "A warm, grounding presence — she will remind you to drink water and rest.",
+            &["human", "adult", "calm"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#2563eb",
+            "#c2331a",
+        ),
+        (
+            "rory",
+            "Rory",
+            "The lion cub heir — small, boisterous, and convinced he runs the place.",
+            &["animal", "cub", "playful"],
+            &["idle", "walk", "happy", "wave", "water", "stretch", "sad", "eyes"],
+            "#d97706",
+            "#b45309",
+        ),
+        (
+            "axel",
+            "Axel",
+            "A skater boy who grinds deadlines the same way he grinds rails.",
+            &["human", "kid", "sporty"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#7c3aed",
+            "#6d28d9",
+        ),
+        (
+            "bao",
+            "Bao",
+            "A steamed bun with a fiery heart and unwavering patience.",
+            &["food", "cute", "calm"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#dc2626",
+            "#b91c1c",
+        ),
+        (
+            "blaze",
+            "Blaze",
+            "A pint-sized superhero who takes your water reminders very seriously.",
+            &["human", "kid", "hero"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#ea580c",
+            "#c2410c",
+        ),
+        (
+            "bolt",
+            "Bolt",
+            "An energetic robot who charges up on your typing speed.",
+            &["robot", "tech", "energetic"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#0284c7",
+            "#0369a1",
+        ),
+        (
+            "captain-dew",
+            "Captain Dew",
+            "A water superhero whose only power is showing up every time you forget to hydrate.",
+            &["human", "hero", "water"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#0891b2",
+            "#0e7490",
+        ),
+        (
+            "chip",
+            "Chip",
+            "A mischievous chipmunk who stashes keystrokes like acorns.",
+            &["animal", "cute", "playful"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#92400e",
+            "#78350f",
+        ),
+        (
+            "coco",
+            "Coco",
+            "A cheerful golden retriever who wags whenever you finish a paragraph.",
+            &["animal", "dog", "warm"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#b45309",
+            "#92400e",
+        ),
+        (
+            "daisy",
+            "Daisy",
+            "A gentle bunny who nibbles carrots while you draft your notes.",
+            &["animal", "bunny", "gentle"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#db2777",
+            "#be185d",
+        ),
+        (
+            "doc",
+            "Doc",
+            "A wise owl physician reminding you of eye ergonomics and breaks.",
+            &["animal", "wise", "health"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#4f46e5",
+            "#4338ca",
+        ),
+        (
+            "ember",
+            "Ember",
+            "A tiny flame sprite who sparkles whenever your typing flow heats up.",
+            &["elemental", "magic", "energetic"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#ef4444",
+            "#dc2626",
+        ),
+        (
+            "finn",
+            "Finn",
+            "A football kid who takes every break to practice his step-overs.",
+            &["human", "kid", "sporty"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#059669",
+            "#047857",
+        ),
+        (
+            "iris",
+            "Iris",
+            "An artist fairy who paints colorful sparkles along your margins.",
+            &["fantasy", "creative", "calm"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#7c3aed",
+            "#6d28d9",
+        ),
+        (
+            "luna",
+            "Luna",
+            "A moon fairy who keeps your circadian rhythm honest when you work late.",
+            &["fantasy", "fairy", "calm"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#1d4ed8",
+            "#1e40af",
+        ),
+        (
+            "marmalade",
+            "Marmalade",
+            "A drowsy ginger cat purring quietly on top of your words.",
+            &["animal", "cat", "cozy"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#c2410c",
+            "#9a3412",
+        ),
+        (
+            "nimbus",
+            "Nimbus",
+            "A miniature thundercloud raining soft inspiration onto your draft.",
+            &["weather", "whimsical", "calm"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#4b5563",
+            "#374151",
+        ),
+        (
+            "nova",
+            "Nova",
+            "A cosmic astronaut floating gently beside your editor window.",
+            &["space", "tech", "curious"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#6d28d9",
+            "#5b21b6",
+        ),
+        (
+            "ollie",
+            "Ollie",
+            "The class bookworm — always mid-chapter, always has a fun fact ready.",
+            &["human", "kid", "studious"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#0369a1",
+            "#075985",
+        ),
+        (
+            "peanut",
+            "Peanut",
+            "A hamster running on a tiny wheel whenever you type.",
+            &["animal", "rodent", "cute"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#92400e",
+            "#78350f",
+        ),
+        (
+            "penny",
+            "Penny",
+            "A retro mechanical penguin who waddles in rhythm with your typing.",
+            &["animal", "robot", "playful"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#0e7490",
+            "#155e75",
+        ),
+        (
+            "pixel",
+            "Pixel",
+            "A retro 8-bit companion bouncing along your text lines.",
+            &["retro", "pixel", "playful"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#7c3aed",
+            "#6d28d9",
+        ),
+        (
+            "quest",
+            "Quest",
+            "A gamer kid who treats every break like an achievement unlocked.",
+            &["human", "kid", "tech"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#1d4ed8",
+            "#1e40af",
+        ),
+        (
+            "sage",
+            "Sage",
+            "A yoga instructor who demonstrates desk stretches with enthusiasm.",
+            &["human", "sporty", "calm"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#065f46",
+            "#064e3b",
+        ),
+        (
+            "shadow",
+            "Shadow",
+            "A stealth panther who watches over your cursor silently.",
+            &["animal", "cat", "sleek"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#1f2937",
+            "#111827",
+        ),
+        (
+            "spike",
+            "Spike",
+            "A jackfruit with opinions — slow to ripen, but worth the wait.",
+            &["food", "whimsical", "calm"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#65a30d",
+            "#4d7c0f",
+        ),
+        (
+            "splash",
+            "Splash",
+            "A playful dolphin leaping through sentences when you make progress.",
+            &["animal", "aquatic", "happy"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#0891b2",
+            "#0e7490",
+        ),
+        (
+            "theo",
+            "Theo",
+            "A thoughtful philosopher bear contemplating your arguments.",
+            &["animal", "bear", "thoughtful"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#78350f",
+            "#6b2d0f",
+        ),
+        (
+            "twirl",
+            "Twirl",
+            "An acrobatic squirrel spinning through ideas and revisions.",
+            &["animal", "agile", "cheerful"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#b45309",
+            "#92400e",
+        ),
+        (
+            "waddle",
+            "Waddle",
+            "A chubby duckling splashing joyfully after every saved revision.",
+            &["animal", "duck", "cute"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#0369a1",
+            "#075985",
+        ),
+        (
+            "zen",
+            "Zen",
+            "A meditative rock spirit maintaining tranquil focus in your workspace.",
+            &["nature", "peaceful", "mindful"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#064e3b",
+            "#065f46",
+        ),
+        (
+            "zippy",
+            "Zippy",
+            "A lightning-fast hummingbird darting around fast typing spurts.",
+            &["animal", "bird", "fast"],
+            &["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"],
+            "#b45309",
+            "#92400e",
+        ),
     ];
     for (id, name, desc, tags, actions, body, accent) in fallbacks {
         if !seen_ids.contains(*id) {
@@ -648,12 +872,7 @@ pub fn install_catalog_companion(id: String) -> Result<CompanionItem, String> {
 
             // Download checksums.txt.
             let cs_ok = std::process::Command::new("curl.exe")
-                .args([
-                    "-fSL",
-                    checksums_url,
-                    "-o",
-                    temp_checksums.to_str().unwrap_or_default(),
-                ])
+                .args(["-fSL", checksums_url, "-o", temp_checksums.to_str().unwrap_or_default()])
                 .status()
                 .map(|s| s.success())
                 .unwrap_or(false);
@@ -668,9 +887,7 @@ pub fn install_catalog_companion(id: String) -> Result<CompanionItem, String> {
             let checksums_text = std::fs::read_to_string(&temp_checksums)
                 .map_err(|e| format!("cannot read checksums: {e}"))?;
             let expected_filename = format!("companion-{clean_id}.zip");
-            if let Err(e) =
-                verify_checksum(&zip_bytes, &checksums_text, &expected_filename)
-            {
+            if let Err(e) = verify_checksum(&zip_bytes, &checksums_text, &expected_filename) {
                 cleanup();
                 return Err(e);
             }
@@ -718,12 +935,7 @@ pub fn install_catalog_companion(id: String) -> Result<CompanionItem, String> {
 
             // Download checksums.txt.
             let cs_ok = std::process::Command::new("curl")
-                .args([
-                    "-fSL",
-                    checksums_url,
-                    "-o",
-                    temp_checksums.to_str().unwrap_or_default(),
-                ])
+                .args(["-fSL", checksums_url, "-o", temp_checksums.to_str().unwrap_or_default()])
                 .status()
                 .map(|s| s.success())
                 .unwrap_or(false);
@@ -738,9 +950,7 @@ pub fn install_catalog_companion(id: String) -> Result<CompanionItem, String> {
             let checksums_text = std::fs::read_to_string(&temp_checksums)
                 .map_err(|e| format!("cannot read checksums: {e}"))?;
             let expected_filename = format!("companion-{clean_id}.zip");
-            if let Err(e) =
-                verify_checksum(&zip_bytes, &checksums_text, &expected_filename)
-            {
+            if let Err(e) = verify_checksum(&zip_bytes, &checksums_text, &expected_filename) {
                 cleanup();
                 return Err(e);
             }
@@ -811,11 +1021,7 @@ pub fn install_catalog_companion(id: String) -> Result<CompanionItem, String> {
 ///
 /// Returns `Ok(())` if the digest matches, `Err(message)` otherwise.  Keeping this as
 /// a pure function (no I/O) makes it unit-testable without touching the network.
-pub fn verify_checksum(
-    data: &[u8],
-    checksums_txt: &str,
-    filename: &str,
-) -> Result<(), String> {
+pub fn verify_checksum(data: &[u8], checksums_txt: &str, filename: &str) -> Result<(), String> {
     // Find the expected digest for this filename.
     let expected_hex = checksums_txt
         .lines()
@@ -1017,14 +1223,13 @@ pub fn show_main_window(window: tauri::Window) -> Result<(), String> {
 #[tauri::command]
 pub fn show_companion_overlay(app: tauri::AppHandle) -> Result<(), String> {
     use tauri::{Manager as _, PhysicalPosition, PhysicalSize};
-    let w = app
-        .get_webview_window("companion-overlay")
-        .ok_or("companion-overlay window not found")?;
+    let w =
+        app.get_webview_window("companion-overlay").ok_or("companion-overlay window not found")?;
 
     // Always size and position the overlay to the primary monitor so it covers
     // the full desktop — even after a resolution change or multi-monitor switch.
     if let Ok(Some(monitor)) = app.primary_monitor() {
-        let pos  = monitor.position();
+        let pos = monitor.position();
         let size = monitor.size();
         let _ = w.set_size(PhysicalSize::new(size.width, size.height));
         let _ = w.set_position(PhysicalPosition::new(pos.x, pos.y));
@@ -1044,9 +1249,8 @@ pub fn show_companion_overlay(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn set_companion_passthrough(app: tauri::AppHandle, ignore: bool) -> Result<(), String> {
     use tauri::Manager as _;
-    let w = app
-        .get_webview_window("companion-overlay")
-        .ok_or("companion-overlay window not found")?;
+    let w =
+        app.get_webview_window("companion-overlay").ok_or("companion-overlay window not found")?;
     w.set_ignore_cursor_events(ignore).map_err(|e| e.to_string())
 }
 
@@ -1054,9 +1258,8 @@ pub fn set_companion_passthrough(app: tauri::AppHandle, ignore: bool) -> Result<
 #[tauri::command]
 pub fn hide_companion_overlay(app: tauri::AppHandle) -> Result<(), String> {
     use tauri::Manager as _;
-    let w = app
-        .get_webview_window("companion-overlay")
-        .ok_or("companion-overlay window not found")?;
+    let w =
+        app.get_webview_window("companion-overlay").ok_or("companion-overlay window not found")?;
     w.hide().map_err(|e| e.to_string())
 }
 
@@ -1111,6 +1314,52 @@ pub fn get_system_status() -> Result<SystemStatusInfo, String> {
         vault_exists: dir.join("vault.db").exists(),
         vault_path: dir.display().to_string(),
     })
+}
+
+/// Serialised form of the active companion stored in the data directory.
+/// Both the main window and the companion overlay read/write through this
+/// so they share one source of truth instead of each window's isolated localStorage.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActiveCompanionState {
+    pub id: String,
+    pub name: String,
+    pub avatar_type: String,
+    pub colors: CompanionColors,
+}
+
+/// Returns the currently active companion from the shared state file.
+/// Falls back to Grace (the default) if the file is missing or malformed.
+#[tauri::command]
+pub fn get_active_companion() -> ActiveCompanionState {
+    let path = tether::default_data_dir().join("active-companion.json");
+    if let Ok(raw) = std::fs::read_to_string(&path) {
+        if let Ok(state) = serde_json::from_str::<ActiveCompanionState>(&raw) {
+            if !state.id.is_empty() {
+                return state;
+            }
+        }
+    }
+    ActiveCompanionState {
+        id: "grace".into(),
+        name: "Grace".into(),
+        avatar_type: "procedural".into(),
+        colors: CompanionColors {
+            body: "#2563eb".into(),
+            accent: "#c2331a".into(),
+            eyes: "#14120f".into(),
+        },
+    }
+}
+
+/// Persists the active companion choice to disk so both the main window and the
+/// companion overlay can read it via IPC instead of relying on isolated localStorage.
+#[tauri::command]
+pub fn set_active_companion(state: ActiveCompanionState) -> Result<(), String> {
+    let dir = tether::default_data_dir();
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let json = serde_json::to_string(&state).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join("active-companion.json"), json).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
