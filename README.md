@@ -38,7 +38,7 @@ Choose a featherlight native **Desktop GUI** (Tauri 2) with 32 downloadable comp
 
 ### Option 1: Standalone Installer (Windows)
 
-**[⬇️ Download Tether_0.1.7_x64-setup.exe (~1.5 MB)](https://github.com/AMG555/Tether/releases/latest/download/Tether_0.1.7_x64-setup.exe)** — Windows 10/11 · no account · no internet required after install
+**[⬇️ Download Tether_0.1.6_x64-setup.exe (~1.6 MB)](https://github.com/AMG555/Tether/releases/latest/download/Tether_0.1.6_x64-setup.exe)** — Windows 10/11 · no account · no internet required after install
 
 Double-click the installer. Done. Tether appears in your Start Menu and runs at login.
 
@@ -190,7 +190,7 @@ cargo build --release
 # Desktop GUI installer
 cd desktop && npm install
 node node_modules/@tauri-apps/cli/tauri.js build
-# → desktop/src-tauri/target/release/bundle/nsis/Tether_0.1.7_x64-setup.exe
+# → desktop/src-tauri/target/release/bundle/nsis/Tether_<version>_x64-setup.exe
 ```
 
 ---
