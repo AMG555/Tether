@@ -14,22 +14,27 @@
  * position in CSS (updated after every render frame) and captures mouse events.
  * Drag updates walkX/walkY directly in JS — no native window drag, no IPC needed.
  *
+ * Reactive status: getCaptureStatus is polled every STATUS_POLL_MS ms.  When
+ * capturing is active the companion shows a live "brain working" reaction and
+ * the speech bubble surfaces real event counts.
+ *
  * All Tauri IPC calls must go through api.js (architecture rule).
  */
 
-import { getCompanionClip, getActiveCompanion } from './api.js';
+import { getCompanionClip, getActiveCompanion, getCaptureStatus } from './api.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const WALK_SPEED_PX   = 2.2;      // pixels per frame (faster, more lively)
-const WALK_PAUSE_MS   = 4000;     // pause at edge before turning
+const WALK_SPEED_PX     = 2.2;    // pixels per frame (faster, more lively)
+const WALK_PAUSE_MS     = 4000;   // pause at edge before turning
 const IDLE_PAUSE_CHANCE = 0.002;  // per-frame chance to pause mid-walk
-const SPRITE_FPS      = 12;       // WebP sprite playback rate
-const CHAR_SCALE      = 1.55;     // global scale for procedural character
-const CHAR_MARGIN     = 60;       // px from each horizontal edge — walk boundary
-const CHAR_WIDTH      = 80;       // approximate half-width for hit-testing
-const CHAR_HEIGHT     = 220;      // approximate full height for hit-testing
+const CHAR_SCALE        = 1.55;   // global scale for procedural character
+const CHAR_MARGIN       = 60;     // px from each horizontal edge — walk boundary
+const CHAR_WIDTH        = 80;     // approximate half-width for hit-testing
+const CHAR_HEIGHT       = 220;    // approximate full height for hit-testing
 const COMPANION_TARGET_H = 220;   // render height in logical CSS pixels
+const STATUS_POLL_MS    = 4000;   // how often to poll getCaptureStatus (ms)
+const DRAG_RESUME_MS    = 2000;   // ms after drop before auto-walk resumes
 
 // ─── Companion data ───────────────────────────────────────────────────────────
 
@@ -101,21 +106,23 @@ function updateHitZone() {
 // ─── State machine ────────────────────────────────────────────────────────────
 
 function getWalkStates() {
-  try {
-    const raw = localStorage.getItem('tether-active-actions');
-    if (raw) {
-      const ids = JSON.parse(raw);
-      if (Array.isArray(ids) && ids.length > 0) return ids;
+  // Use the actions list from the IPC-loaded companion data so the state machine
+  // picks only actions that have been enabled for this companion.
+  // companion.actions comes from the manifest.json / fallback list via commands.rs.
+  if (companion.actions && companion.actions.length > 0) {
+    // Weight idle and walk more heavily so they appear naturally in the mix.
+    const weighted = [];
+    for (const a of companion.actions) {
+      if (a === 'idle' || a === 'walk') { weighted.push(a, a); } else { weighted.push(a); }
     }
-  } catch { /* ignore */ }
+    return weighted;
+  }
   return ['idle', 'idle', 'walk', 'walk', 'wave', 'happy', 'water', 'stretch'];
 }
 
 function getActionQuotes() {
-  try {
-    const raw = localStorage.getItem('tether-action-quotes');
-    if (raw) return JSON.parse(raw);
-  } catch { /* ignore */ }
+  // Quote overrides live in localStorage only in the main window where the user
+  // types them.  The overlay can't share that store, so we just use the defaults.
   return {};
 }
 
@@ -141,18 +148,87 @@ let bubbleText = '';
 let bubbleAlpha = 0;
 let bubbleTimer = 0;
 
+// Reactive capture-status state
+let _captureStatus = { capturing: false, eventsSeen: 0, draftsSaved: 0 };
+let _lastEventsSeen = 0;    // detect new events between polls
+let _statusIndicator = '';  // emoji/text shown on the character when capturing
+let _dragResumeAt = 0;      // timestamp after which auto-walk re-enables post-drag
+
 function showBubble(text, durationMs = 3000) {
   bubbleText = text;
   bubbleAlpha = 1;
   bubbleTimer = performance.now() + durationMs;
 }
 
-// ─── WebP sprite cache ────────────────────────────────────────────────────────
+// ─── Reactive status polling ──────────────────────────────────────────────────
 
-/** @type {Record<string, HTMLImageElement | null>} */
+async function pollCaptureStatus() {
+  try {
+    const s = await getCaptureStatus();
+    if (!s) return;
+
+    const wasCapturing = _captureStatus.capturing;
+    _captureStatus = s;
+
+    // New events arrived since last poll → companion reacts
+    if (s.eventsSeen > _lastEventsSeen && s.eventsSeen - _lastEventsSeen >= 10) {
+      const delta = s.eventsSeen - _lastEventsSeen;
+      const msgs = [
+        `📝 ${delta} new events!`,
+        `🧠 Thinking hard… ${s.eventsSeen} events`,
+        `⚡ ${delta} keystrokes captured`,
+        `💾 ${s.draftsSaved} drafts saved`,
+      ];
+      showBubble(msgs[Math.floor(Math.random() * msgs.length)], 3000);
+      springVY = -7;
+    }
+    _lastEventsSeen = s.eventsSeen;
+
+    // Companion just started capturing → celebrate
+    if (!wasCapturing && s.capturing) {
+      currentState = 'happy';
+      walking = false;
+      nextStateTimer = performance.now() + 3000;
+      springVY = -12;
+      showBubble('🔴 Recording started!', 2500);
+      loadSprite(companion.id, 'happy');
+    }
+
+    // Companion just stopped capturing → note it
+    if (wasCapturing && !s.capturing) {
+      showBubble('⏹️ Capture paused', 2000);
+    }
+
+    // Set the indicator dot shown on the character body
+    _statusIndicator = s.capturing ? '🔴' : '';
+  } catch { /* non-fatal */ }
+}
+
+// Start polling immediately and every STATUS_POLL_MS thereafter.
+pollCaptureStatus();
+setInterval(pollCaptureStatus, STATUS_POLL_MS);
+
+// ─── Animated WebP sprite engine ─────────────────────────────────────────────
+//
+// ctx.drawImage(img) always stamps the current frame of a live DOM <img> element.
+// The browser advances animated-WebP frames internally on its own clock, so each
+// RAF we simply draw the same <img> and get the correct frame for free.
+// All sprite <img> elements are appended off-screen (position:fixed, left:-9999px)
+// so the browser keeps their animation clock running.
+
+/** @type {Record<string, HTMLImageElement>} key = `${companionId}:${state}` */
 const spriteCache = {};
 /** @type {Record<string, boolean>} */
 const spriteLoading = {};
+
+/** Hidden container that keeps sprite <img> elements alive in the DOM. */
+const spriteContainer = (() => {
+  const el = document.createElement('div');
+  el.setAttribute('aria-hidden', 'true');
+  el.style.cssText = 'position:fixed;left:-9999px;top:0;width:0;height:0;overflow:hidden;';
+  document.body.appendChild(el);
+  return el;
+})();
 
 async function loadSprite(companionId, state) {
   const key = `${companionId}:${state}`;
@@ -163,11 +239,17 @@ async function loadSprite(companionId, state) {
     const dataUrl = await getCompanionClip(companionId, state);
     if (dataUrl) {
       const img = new Image();
+      // Insert into DOM *before* setting src so the browser animation clock
+      // starts immediately when the image finishes loading.
+      spriteContainer.appendChild(img);
       img.src = dataUrl;
       await new Promise((res) => { img.onload = res; img.onerror = res; });
       if (img.naturalWidth > 0) {
         spriteCache[key] = img;
         return img;
+      } else {
+        // Load failed — remove the orphan element
+        spriteContainer.removeChild(img);
       }
     }
   } catch { /* fall through */ }
@@ -175,15 +257,25 @@ async function loadSprite(companionId, state) {
   return null;
 }
 
-// Pre-warm the idle and walk sprites immediately on load
-loadSprite(companion.id, 'idle');
-loadSprite(companion.id, 'walk');
+// Pre-warm the most common actions immediately so the character appears without a
+// procedural flash on first state transition.
+function prewarmSprites(id) {
+  const common = ['idle', 'walk', 'wave', 'happy', 'water', 'stretch', 'sad', 'eyes'];
+  for (const action of common) loadSprite(id, action);
+}
+prewarmSprites(companion.id);
 
 // ─── State helpers ────────────────────────────────────────────────────────────
 
 const DEFAULT_QUOTES = {
-  idle: '', walk: '', wave: '👋 Hey there!', water: '💧 Stay hydrated!',
-  happy: '✨ Looking good!', stretch: '🧘 Stretch time!', sad: '😴 Rest your eyes…',
+  idle:    '',
+  walk:    '',
+  wave:    '👋 Hey there!',
+  water:   '💧 Stay hydrated!',
+  happy:   '✨ Looking good!',
+  stretch: '🧘 Stretch time!',
+  sad:     '😴 Rest your eyes…',
+  eyes:    '👁️ Eye break — look away!',
 };
 
 function pickNextState() {
@@ -206,8 +298,6 @@ pickNextState();
 // ─── Render loop ──────────────────────────────────────────────────────────────
 
 let lastTimestamp = 0;
-let spriteFrame = 0;
-let spriteFrameTimer = 0;
 
 function renderFrame(timestamp) {
   rafId = null;
@@ -215,18 +305,11 @@ function renderFrame(timestamp) {
   lastTimestamp = timestamp;
   animTime += dt * 0.001;
 
-  // Sprite frame advance
-  spriteFrameTimer += dt;
-  if (spriteFrameTimer > 1000 / SPRITE_FPS) {
-    spriteFrame++;
-    spriteFrameTimer = 0;
-  }
+  // State transition — but not while the user is dragging
+  if (timestamp > nextStateTimer && !_dragActive) pickNextState();
 
-  // State transition
-  if (timestamp > nextStateTimer) pickNextState();
-
-  // Walk position — X axis walk, Y stays where user dragged it (or bottom)
-  if (walking) {
+  // Walk position — blocked during drag and briefly after drop
+  if (walking && !_dragActive && (_dragResumeAt === 0 || timestamp > _dragResumeAt)) {
     if (Math.random() < IDLE_PAUSE_CHANCE) {
       walking = false;
       currentState = 'idle';
@@ -247,7 +330,8 @@ function renderFrame(timestamp) {
         currentState = 'idle';
       }
     }
-  } else if (pauseTimer > 0 && timestamp > pauseTimer) {
+  } else if (!_dragActive && pauseTimer > 0 && timestamp > pauseTimer
+             && (_dragResumeAt === 0 || timestamp > _dragResumeAt)) {
     pauseTimer = 0;
     walking = true;
     currentState = 'walk';
@@ -283,7 +367,7 @@ function renderFrame(timestamp) {
 function drawBubble() {
   const bx = walkX;
   const by = walkY - COMPANION_TARGET_H + 40 + springY;
-  const pad = 10;
+  const pad = 12;
   ctx.font = 'bold 13px -apple-system, Segoe UI, sans-serif';
   const tw = ctx.measureText(bubbleText).width;
   const bw = tw + pad * 2;
@@ -292,58 +376,115 @@ function drawBubble() {
   ctx.save();
   ctx.globalAlpha = Math.min(bubbleAlpha, 0.95);
 
-  ctx.fillStyle = '#fff';
-  ctx.strokeStyle = 'rgba(0,0,0,0.12)';
-  ctx.lineWidth = 1;
-  const rx = bx - bw / 2;
+  // Clamp bubble horizontally so it stays on-screen
+  const clampedBx = Math.max(bw / 2 + 8, Math.min(W - bw / 2 - 8, bx));
+  const rx = clampedBx - bw / 2;
   const ry = by - bh;
+
+  // Drop shadow
+  ctx.shadowColor = 'rgba(0,0,0,0.12)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 2;
+
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = 'rgba(0,0,0,0.10)';
+  ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.roundRect(rx, ry, bw, bh, 10);
   ctx.fill();
   ctx.stroke();
 
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+
+  // Tail — point from clamped bubble toward actual companion centre
+  const tailX = Math.max(rx + 12, Math.min(rx + bw - 12, bx));
   ctx.fillStyle = '#fff';
   ctx.beginPath();
-  ctx.moveTo(bx - 7, by);
-  ctx.lineTo(bx, by + 10);
-  ctx.lineTo(bx + 7, by);
+  ctx.moveTo(tailX - 7, by);
+  ctx.lineTo(tailX, by + 10);
+  ctx.lineTo(tailX + 7, by);
   ctx.closePath();
   ctx.fill();
 
   ctx.fillStyle = '#1f2328';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(bubbleText, bx, ry + bh / 2);
+  ctx.fillText(bubbleText, clampedBx, ry + bh / 2);
 
+  ctx.restore();
+}
+
+// Draw the live status indicator (e.g. 🔴 when capturing) above the companion
+function drawStatusIndicator() {
+  if (!_statusIndicator) return;
+  ctx.save();
+  ctx.font = '14px -apple-system, Segoe UI, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.globalAlpha = 0.9;
+  ctx.fillText(_statusIndicator, walkX + CHAR_WIDTH * 0.6, walkY - COMPANION_TARGET_H + springY - 8);
   ctx.restore();
 }
 
 function drawCompanion() {
   const spriteKey = `${companion.id}:${currentState}`;
   const img = spriteCache[spriteKey];
-  const shouldFlip = walking && walkDir === -1;
+  // Flip when walking left; also flip non-walk actions when last walk direction was left
+  const shouldFlip = walkDir === -1 && (walking || currentState !== 'walk');
 
   if (img) {
     const iw = img.naturalWidth;
     const ih = img.naturalHeight;
     if (iw === 0 || ih === 0) {
+      // Loaded but empty (broken file) — fall through to procedural
       drawProceduralCompanion(shouldFlip);
+      drawStatusIndicator();
       return;
     }
+    // Scale to target height while capping width at 50% of screen
     const scale = Math.min(COMPANION_TARGET_H / ih, (W * 0.5) / iw);
     const dw = iw * scale;
     const dh = ih * scale;
     const dx = walkX - dw / 2;
     const dy = walkY - dh + springY;    // feet at walkY
     ctx.save();
-    if (shouldFlip) { ctx.translate(walkX * 2, 0); ctx.scale(-1, 1); }
+    if (shouldFlip) {
+      // Mirror around the character centre so position stays stable
+      ctx.translate(walkX * 2, 0);
+      ctx.scale(-1, 1);
+    }
+    // ctx.drawImage(animatedWebP) always stamps the browser's current frame —
+    // the browser advances animated WebP frames on its own clock for free.
     ctx.drawImage(img, dx, dy, dw, dh);
     ctx.restore();
+    drawStatusIndicator();
   } else {
+    // Sprite not yet cached — kick off a load if not already in-flight
     if (!spriteLoading[spriteKey]) {
       loadSprite(companion.id, currentState);
     }
-    drawProceduralCompanion(shouldFlip);
+    // Check whether the idle fallback is ready while the real sprite loads
+    const idleKey = `${companion.id}:idle`;
+    const idleImg = spriteCache[idleKey];
+    if (idleImg && idleImg.naturalWidth > 0 && currentState !== 'idle') {
+      // Show idle sprite while the requested action's sprite is loading
+      const iw = idleImg.naturalWidth;
+      const ih = idleImg.naturalHeight;
+      const scale = Math.min(COMPANION_TARGET_H / ih, (W * 0.5) / iw);
+      const dw = iw * scale;
+      const dh = ih * scale;
+      const dx = walkX - dw / 2;
+      const dy = walkY - dh + springY;
+      ctx.save();
+      if (shouldFlip) { ctx.translate(walkX * 2, 0); ctx.scale(-1, 1); }
+      ctx.drawImage(idleImg, dx, dy, dw, dh);
+      ctx.restore();
+    } else {
+      drawProceduralCompanion(shouldFlip);
+    }
+    drawStatusIndicator();
   }
 }
 
@@ -377,6 +518,14 @@ function drawProceduralCompanion(flip) {
   } else if (currentState === 'sad') {
     bob = -Math.abs(Math.sin(animTime * 1.2)) * 3 * sc + springY;
     eyeBlink = 0.3;
+  } else if (currentState === 'water') {
+    // Bend forward slightly, one arm raised as if holding a bottle
+    bob = Math.sin(animTime * 2) * 2 * sc + springY;
+    waveAngle = Math.sin(animTime * 1.5) * 0.2 + 0.5; // right arm raised
+  } else if (currentState === 'eyes') {
+    // Wide eyes, slow blink — "look away from screen" reminder
+    eyeBlink = 0.5 + Math.abs(Math.sin(animTime * 0.4)) * 0.5;
+    bob = Math.sin(animTime * 1.0) * 1 * sc + springY;
   }
 
   ctx.save();
@@ -420,9 +569,10 @@ function drawProceduralCompanion(flip) {
 
   ctx.save();
   ctx.translate(cx - bodyW / 2, baseY - legH - bodyH * 0.75 - bob);
-  const leftArmRot = currentState === 'stretch'
-    ? -1.4 + Math.sin(animTime * 1.5) * 0.15
-    : currentState === 'wave' ? -1.15 + waveAngle
+  const leftArmRot =
+    currentState === 'stretch' ? -1.4 + Math.sin(animTime * 1.5) * 0.15
+    : currentState === 'wave'  ? -1.15 + waveAngle
+    : currentState === 'eyes'  ? 0.0                  // arms relaxed for eye break
     : 0.18 - walkPhase * 0.28;
   ctx.rotate(leftArmRot);
   ctx.fillStyle = colors.body || '#2563eb';
@@ -433,9 +583,11 @@ function drawProceduralCompanion(flip) {
 
   ctx.save();
   ctx.translate(cx + bodyW / 2, baseY - legH - bodyH * 0.75 - bob);
-  const rightArmRot = currentState === 'stretch'
-    ? 1.4 - Math.sin(animTime * 1.5) * 0.15
-    : currentState === 'wave' ? 1.1 - waveAngle
+  const rightArmRot =
+    currentState === 'stretch' ? 1.4 - Math.sin(animTime * 1.5) * 0.15
+    : currentState === 'wave'  ? 1.1 - waveAngle
+    : currentState === 'water' ? -(0.8 + waveAngle)   // right arm raised with bottle
+    : currentState === 'eyes'  ? 0.0                  // arms relaxed for eye break
     : -0.18 + walkPhase * 0.28;
   ctx.rotate(rightArmRot);
   ctx.fillStyle = colors.body || '#2563eb';
@@ -548,6 +700,11 @@ window.addEventListener('mouseup', () => {
   if (!_dragActive) return;
   _dragActive = false;
   hitZone.classList.remove('dragging');
+  // Brief cooldown before auto-walk resumes so the companion stays where dropped
+  _dragResumeAt = performance.now() + DRAG_RESUME_MS;
+  // Show a friendly drop reaction
+  const drops = ['🎯 Right here!', '📍 Perfect spot!', '👌 Done!'];
+  showBubble(drops[Math.floor(Math.random() * drops.length)], 1500);
 });
 
 // Touch drag support
@@ -578,6 +735,7 @@ window.addEventListener('touchend', () => {
   if (!_dragActive) return;
   _dragActive = false;
   hitZone.classList.remove('dragging');
+  _dragResumeAt = performance.now() + DRAG_RESUME_MS;
 });
 
 // ─── Single click: live pet reactions ────────────────────────────────────────
@@ -596,8 +754,21 @@ hitZone.addEventListener('click', () => {
   const movedX = Math.abs(walkX - _walkXAtDragStart);
   const movedY = Math.abs(walkY - _walkYAtDragStart);
   if (movedX > 5 || movedY > 5) return;
-  const reaction = CLICK_REACTIONS[_clickReactionIdx % CLICK_REACTIONS.length];
+
+  // Show live status in the click cycle if we have capture data
+  let reaction = CLICK_REACTIONS[_clickReactionIdx % CLICK_REACTIONS.length];
   _clickReactionIdx++;
+
+  // Every 3rd click: surface live capture stats if capturing
+  if (_clickReactionIdx % 3 === 0 && _captureStatus.capturing) {
+    reaction = {
+      state: 'happy',
+      bubble: `📊 ${_captureStatus.eventsSeen} events · ${_captureStatus.draftsSaved} drafts`,
+      spring: -8,
+      dur: 3500,
+    };
+  }
+
   currentState = reaction.state;
   walking = false;
   springVY = reaction.spring;
@@ -621,25 +792,23 @@ async function reloadCompanion() {
   const next = await loadActiveCompanionFromIPC();
   if (next.id === companion.id) return; // nothing changed
   companion = next;
-  // Clear sprite cache for old companion
-  Object.keys(spriteCache).forEach((k) => {
+  // Clear sprite cache for old companion so stale frames don't bleed through
+  for (const k of Object.keys(spriteCache)) {
     if (!k.startsWith(companion.id + ':')) delete spriteCache[k];
-  });
-  Object.keys(spriteLoading).forEach((k) => {
+  }
+  for (const k of Object.keys(spriteLoading)) {
     if (!k.startsWith(companion.id + ':')) delete spriteLoading[k];
-  });
-  // Pre-warm idle + walk so the real image appears without robot flash
-  loadSprite(companion.id, 'idle');
-  loadSprite(companion.id, 'walk');
+  }
+  // Pre-warm all common actions so transitions are instant
+  prewarmSprites(companion.id);
   pickNextState();
 }
 
 // Initial async load — replace the default Grace with the persisted companion.
 loadActiveCompanionFromIPC().then((state) => {
   companion = state;
-  // Pre-warm sprites so the companion appears without a robot flash on first frame.
-  loadSprite(companion.id, 'idle');
-  loadSprite(companion.id, 'walk');
+  // Pre-warm all common sprites so the companion appears without a procedural flash.
+  prewarmSprites(companion.id);
 });
 
 // Poll for companion changes every 2 s.  localStorage events do not fire

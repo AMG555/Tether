@@ -34,13 +34,20 @@
       background: transparent;
       z-index: 10;
       touch-action: none;
+      /* Smooth cursor transition when transitioning grab → grabbing */
+      transition: cursor 0.05s;
+      user-select: none;
+      -webkit-user-select: none;
     }
-    #hit-zone.dragging { cursor: grabbing; }
+    #hit-zone.dragging {
+      cursor: grabbing;
+    }
   </style>
 </head>
 <body>
   <canvas id="companion-canvas"></canvas>
-  <div id="hit-zone"></div>
+  <!-- role=button + title give keyboard/screen-reader users a hint -->
+  <div id="hit-zone" role="button" tabindex="-1" aria-label="Companion — drag to move, click to interact" title="Drag to move · Click to greet · Double-click for surprise!"></div>
   <script type="module" src="./companion-overlay.js"></script>
 </body>
 </html>
