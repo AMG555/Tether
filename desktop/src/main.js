@@ -212,66 +212,27 @@ function setupTabs() {
 let allDrafts = [];
 let currentDraft = null;
 
-async function setupRecoveryView() {
-  const searchInput = document.getElementById('draft-search-input');
-  const refreshBtn = document.getElementById('refresh-drafts-btn');
-  const copyBtn = document.getElementById('copy-draft-btn');
-  const deleteBtn = document.getElementById('delete-draft-btn');
-  const revisionSelect = document.getElementById('revision-select');
-
-  async function loadAndRenderDrafts(query = null) {
-    try {
-      const status = await getVaultStatus();
-      const badgeText = document.getElementById('retention-badge-text');
-      if (badgeText && status?.retentionDays) {
-        badgeText.textContent = `${status.retentionDays}-day auto-purge active`;
-      }
-      allDrafts = await listDrafts(query);
-      if (allDrafts.length === 0) {
-        allDrafts = [
-          {
-            id: 1,
-            app: 'Cursor',
-            preview: 'export async function calculateHash(payload) { const buffer = await crypto.subtle.digest("SHA-256", payload); return toHex(buffer); }',
-            chars: 428,
-            revisions: 4,
-            updatedAt: Date.now() / 1000 - 300,
-            ageHuman: '5m ago',
-            daysLeft: 14,
-          },
-          {
-            id: 2,
-            app: 'Google Chrome',
-            preview: 'Reviewing the quarterly product specifications and security roadmap for crash-resilient local storage...',
-            chars: 1240,
-            revisions: 2,
-            updatedAt: Date.now() / 1000 - 7200,
-            ageHuman: '2h ago',
-            daysLeft: 13,
-          },
-          {
-            id: 3,
-            app: 'Slack',
-            preview: 'Shipped v0.1.0 release notes with 32 on-demand companions and 100% offline AES-256-GCM vault.',
-            chars: 185,
-            revisions: 1,
-            updatedAt: Date.now() / 1000 - 86400,
-            ageHuman: '1d ago',
-            daysLeft: 13,
-          },
-        ];
-      }
-      renderDraftList(allDrafts);
-      if (allDrafts.length > 0 && !currentDraft) {
-        selectDraft(allDrafts[0].id);
-      }
-    } catch {
-      // Offline fallback sample drafts for instant interactive UI
+/**
+ * Module-level so Settings view can call it after purge/prune.
+ * Loads drafts from vault (or falls back to sample data) and re-renders the list.
+ */
+async function loadAndRenderDrafts(query = null) {
+  try {
+    const status = await getVaultStatus();
+    const badgeText = document.getElementById('retention-badge-text');
+    if (badgeText && status?.retentionDays) {
+      const days = status.retentionDays;
+      badgeText.textContent = days >= 365
+        ? `${(days / 365).toFixed(1).replace(/\.0$/, '')}yr auto-purge active`
+        : `${days}-day auto-purge active`;
+    }
+    allDrafts = await listDrafts(query);
+    if (allDrafts.length === 0) {
       allDrafts = [
         {
           id: 1,
           app: 'Cursor',
-          preview: 'export async function calculateHash(payload) { ... }',
+          preview: 'export async function calculateHash(payload) { const buffer = await crypto.subtle.digest("SHA-256", payload); return toHex(buffer); }',
           chars: 428,
           revisions: 4,
           updatedAt: Date.now() / 1000 - 300,
@@ -281,7 +242,7 @@ async function setupRecoveryView() {
         {
           id: 2,
           app: 'Google Chrome',
-          preview: 'Reviewing the quarterly product specifications and security roadmap...',
+          preview: 'Reviewing the quarterly product specifications and security roadmap for crash-resilient local storage...',
           chars: 1240,
           revisions: 2,
           updatedAt: Date.now() / 1000 - 7200,
@@ -290,8 +251,8 @@ async function setupRecoveryView() {
         },
         {
           id: 3,
-          app: 'Visual Studio Code',
-          preview: 'const client = new WebSocket("ws://127.0.0.1:8080");',
+          app: 'Slack',
+          preview: 'Shipped v0.1.0 release notes with 32 on-demand companions and 100% offline AES-256-GCM vault.',
           chars: 185,
           revisions: 1,
           updatedAt: Date.now() / 1000 - 86400,
@@ -299,104 +260,156 @@ async function setupRecoveryView() {
           daysLeft: 13,
         },
       ];
-      renderDraftList(allDrafts);
+    }
+    renderDraftList(allDrafts);
+    if (allDrafts.length > 0 && !currentDraft) {
       selectDraft(allDrafts[0].id);
     }
+  } catch {
+    // Offline fallback sample drafts for instant interactive UI
+    allDrafts = [
+      {
+        id: 1,
+        app: 'Cursor',
+        preview: 'export async function calculateHash(payload) { ... }',
+        chars: 428,
+        revisions: 4,
+        updatedAt: Date.now() / 1000 - 300,
+        ageHuman: '5m ago',
+        daysLeft: 14,
+      },
+      {
+        id: 2,
+        app: 'Google Chrome',
+        preview: 'Reviewing the quarterly product specifications and security roadmap...',
+        chars: 1240,
+        revisions: 2,
+        updatedAt: Date.now() / 1000 - 7200,
+        ageHuman: '2h ago',
+        daysLeft: 13,
+      },
+      {
+        id: 3,
+        app: 'Visual Studio Code',
+        preview: 'const client = new WebSocket("ws://127.0.0.1:8080");',
+        chars: 185,
+        revisions: 1,
+        updatedAt: Date.now() / 1000 - 86400,
+        ageHuman: '1d ago',
+        daysLeft: 13,
+      },
+    ];
+    renderDraftList(allDrafts);
+    selectDraft(allDrafts[0].id);
+  }
+}
+
+/**
+ * Module-level so Settings view (purge) and Recovery view both render the list.
+ */
+function renderDraftList(drafts) {
+  const listEl = document.getElementById('drafts-list');
+  const countEl = document.getElementById('drafts-count-label');
+  if (!listEl) return;
+
+  if (countEl) countEl.textContent = `${drafts.length} drafts`;
+  listEl.innerHTML = '';
+
+  if (drafts.length === 0) {
+    listEl.innerHTML = '<li class="draft-item empty-state">No matching drafts found.</li>';
+    return;
   }
 
-  function renderDraftList(drafts) {
-    const listEl = document.getElementById('drafts-list');
-    const countEl = document.getElementById('drafts-count-label');
-    if (!listEl) return;
-
-    if (countEl) countEl.textContent = `${drafts.length} drafts`;
-    listEl.innerHTML = '';
-
-    if (drafts.length === 0) {
-      listEl.innerHTML = '<li class="draft-item empty-state">No matching drafts found.</li>';
-      return;
+  drafts.forEach((draft) => {
+    const li = document.createElement('li');
+    li.className = 'draft-item';
+    li.dataset.id = String(draft.id);
+    if (currentDraft && currentDraft.id === draft.id) {
+      li.classList.add('active');
     }
 
-    drafts.forEach((draft) => {
-      const li = document.createElement('li');
-      li.className = 'draft-item';
-      li.dataset.id = String(draft.id);
-      if (currentDraft && currentDraft.id === draft.id) {
-        li.classList.add('active');
-      }
+    li.innerHTML = `
+      <div class="draft-item-header">
+        <span class="app-badge">${escapeHtml(draft.app)}</span>
+        <span class="meta-time">${escapeHtml(draft.ageHuman)}</span>
+      </div>
+      <div class="draft-preview">${escapeHtml(draft.preview)}</div>
+      <div class="draft-footer-meta">
+        <span>${draft.chars} chars • ${draft.revisions} rev</span>
+        <span class="expiry-tag">${draft.daysLeft}d left</span>
+      </div>
+    `;
 
-      li.innerHTML = `
-        <div class="draft-item-header">
-          <span class="app-badge">${escapeHtml(draft.app)}</span>
-          <span class="meta-time">${escapeHtml(draft.ageHuman)}</span>
-        </div>
-        <div class="draft-preview">${escapeHtml(draft.preview)}</div>
-        <div class="draft-footer-meta">
-          <span>${draft.chars} chars • ${draft.revisions} rev</span>
-          <span class="expiry-tag">${draft.daysLeft}d left</span>
-        </div>
-      `;
+    li.addEventListener('click', () => selectDraft(draft.id));
+    listEl.appendChild(li);
+  });
+}
 
-      li.addEventListener('click', () => selectDraft(draft.id));
-      listEl.appendChild(li);
-    });
+/**
+ * Module-level — called from renderDraftList click handlers and directly.
+ */
+async function selectDraft(id) {
+  document.querySelectorAll('.draft-item').forEach((el) => {
+    el.classList.toggle('active', el.dataset.id === String(id));
+  });
+
+  try {
+    currentDraft = await getDraft(id);
+  } catch {
+    const local = allDrafts.find((d) => d.id === id);
+    currentDraft = {
+      id,
+      app: local ? local.app : 'Editor',
+      text: local ? local.preview : 'Recovered draft text preview.',
+      chars: local ? local.chars : 200,
+      revisions: local ? local.revisions : 1,
+      updatedAt: local ? local.updatedAt : Date.now() / 1000,
+      ageHuman: local ? local.ageHuman : 'just now',
+      daysLeft: local ? local.daysLeft : 14,
+    };
   }
 
-  async function selectDraft(id) {
-    document.querySelectorAll('.draft-item').forEach((el) => {
-      el.classList.toggle('active', el.dataset.id === String(id));
-    });
+  const appBadge = document.getElementById('detail-app-badge');
+  const timeEl = document.getElementById('detail-time');
+  const charsEl = document.getElementById('detail-chars');
+  const revsEl = document.getElementById('detail-revisions-count');
+  const retEl = document.getElementById('detail-retention');
+  const textEl = document.getElementById('detail-text');
 
-    try {
-      currentDraft = await getDraft(id);
-    } catch {
-      const local = allDrafts.find((d) => d.id === id);
-      currentDraft = {
-        id,
-        app: local ? local.app : 'Editor',
-        text: local ? local.preview : 'Recovered draft text preview.',
-        chars: local ? local.chars : 200,
-        revisions: local ? local.revisions : 1,
-        updatedAt: local ? local.updatedAt : Date.now() / 1000,
-        ageHuman: local ? local.ageHuman : 'just now',
-        daysLeft: local ? local.daysLeft : 14,
-      };
+  if (appBadge) appBadge.textContent = currentDraft.app;
+  if (timeEl) timeEl.textContent = currentDraft.ageHuman;
+  if (charsEl) charsEl.textContent = `${currentDraft.chars} chars`;
+  if (revsEl) revsEl.textContent = `${currentDraft.revisions} revisions`;
+  if (retEl) retEl.textContent = `${currentDraft.daysLeft} days left`;
+  if (textEl) textEl.textContent = currentDraft.text;
+  const diffBadge = document.getElementById('revision-diff-badge');
+  if (diffBadge) diffBadge.hidden = true;
+
+  // Load revisions
+  try {
+    const revisions = await getRevisions(id);
+    const revisionSelect = document.getElementById('revision-select');
+    if (revisionSelect) {
+      revisionSelect.innerHTML = '<option value="current">Current Version</option>';
+      revisions.forEach((revText, index) => {
+        const opt = document.createElement('option');
+        opt.value = String(index);
+        opt.textContent = `Revision ${revisions.length - index} (${revText.length} chars)`;
+        opt.dataset.revText = revText;
+        revisionSelect.appendChild(opt);
+      });
     }
-
-    const appBadge = document.getElementById('detail-app-badge');
-    const timeEl = document.getElementById('detail-time');
-    const charsEl = document.getElementById('detail-chars');
-    const revsEl = document.getElementById('detail-revisions-count');
-    const retEl = document.getElementById('detail-retention');
-    const textEl = document.getElementById('detail-text');
-
-    if (appBadge) appBadge.textContent = currentDraft.app;
-    if (timeEl) timeEl.textContent = currentDraft.ageHuman;
-    if (charsEl) charsEl.textContent = `${currentDraft.chars} chars`;
-    if (revsEl) revsEl.textContent = `${currentDraft.revisions} revisions`;
-    if (retEl) retEl.textContent = `${currentDraft.daysLeft} days left`;
-    if (textEl) textEl.textContent = currentDraft.text;
-    // Reset revision diff badge when switching drafts
-    const diffBadge = document.getElementById('revision-diff-badge');
-    if (diffBadge) diffBadge.hidden = true;
-
-    // Load revisions
-    try {
-      const revisions = await getRevisions(id);
-      if (revisionSelect) {
-        revisionSelect.innerHTML = '<option value="current">Current Version</option>';
-        revisions.forEach((revText, index) => {
-          const opt = document.createElement('option');
-          opt.value = String(index);
-          opt.textContent = `Revision ${revisions.length - index} (${revText.length} chars)`;
-          opt.dataset.revText = revText;
-          revisionSelect.appendChild(opt);
-        });
-      }
-    } catch {
-      // Ignored in preview mode
-    }
+  } catch {
+    // Ignored in preview mode
   }
+}
+
+async function setupRecoveryView() {
+  const searchInput = document.getElementById('draft-search-input');
+  const refreshBtn = document.getElementById('refresh-drafts-btn');
+  const copyBtn = document.getElementById('copy-draft-btn');
+  const deleteBtn = document.getElementById('delete-draft-btn');
+  const revisionSelect = document.getElementById('revision-select');
 
   if (revisionSelect) {
     revisionSelect.addEventListener('change', () => {
@@ -411,7 +424,6 @@ async function setupRecoveryView() {
         if (diffBadge) diffBadge.hidden = true;
       } else if (selected?.dataset?.revText) {
         revText = selected.dataset.revText;
-        // Compare revision length to current — surface deleted content
         if (diffBadge && currentDraft.text) {
           const currentLen = currentDraft.text.length;
           const revLen = revText.length;
@@ -472,23 +484,40 @@ async function setupRecoveryView() {
   if (deleteBtn) {
     deleteBtn.addEventListener('click', async () => {
       if (!currentDraft) return;
-      if (!confirm(`Permanently delete this ${currentDraft.app} draft?`)) return;
-
-      try {
-        await deleteDraft(currentDraft.id);
-      } catch {
-        // Fallback for UI state
-      }
-
-      allDrafts = allDrafts.filter((d) => d.id !== currentDraft.id);
-      currentDraft = null;
-      renderDraftList(allDrafts);
-      if (allDrafts.length > 0) {
-        selectDraft(allDrafts[0].id);
-      } else {
-        const textEl = document.getElementById('detail-text');
-        if (textEl) textEl.textContent = 'No drafts remaining.';
-      }
+      // Inline confirmation — no browser alert()
+      const app = currentDraft.app;
+      const draftId = currentDraft.id;
+      showToast(`Delete this ${app} draft? Click Delete again to confirm.`, 'info', 4000);
+      deleteBtn.dataset.pendingDelete = draftId;
+      deleteBtn.textContent = 'Confirm Delete';
+      deleteBtn.classList.add('btn-danger-confirm');
+      const reset = () => {
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.classList.remove('btn-danger-confirm');
+        delete deleteBtn.dataset.pendingDelete;
+      };
+      // Auto-reset after 4 seconds
+      const autoReset = setTimeout(reset, 4000);
+      deleteBtn.addEventListener('click', async function onConfirm() {
+        clearTimeout(autoReset);
+        deleteBtn.removeEventListener('click', onConfirm);
+        reset();
+        if (!currentDraft || currentDraft.id !== draftId) return;
+        try {
+          await deleteDraft(draftId);
+        } catch {
+          // Fallback for UI state
+        }
+        allDrafts = allDrafts.filter((d) => d.id !== draftId);
+        currentDraft = null;
+        renderDraftList(allDrafts);
+        if (allDrafts.length > 0) {
+          await selectDraft(allDrafts[0].id);
+        } else {
+          const textEl = document.getElementById('detail-text');
+          if (textEl) textEl.textContent = 'No drafts remaining.';
+        }
+      }, { once: true });
     });
   }
 
@@ -727,6 +756,13 @@ async function openCompanionPreview(c) {
   if (speedSelect) speedSelect.value = savedSpeed;
   if (customQuoteInput) customQuoteInput.value = savedQuote;
   if (speechText) speechText.textContent = savedQuote;
+
+  // Show real time in the preview taskbar clock
+  const clockEl = document.getElementById('preview-taskbar-clock');
+  if (clockEl) {
+    const now = new Date();
+    clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
 
   modal.classList.remove('hidden');
   await updatePreviewStage(c, 'idle');
@@ -999,7 +1035,7 @@ function setupPreviewModalHandlers() {
       // Show the companion overlay window via the IPC bridge
       showCompanionOverlay();
 
-      alert(`Companion "${previewCompanion.name}" is now your active companion!`);
+      showToast(`"${previewCompanion.name}" is now your active companion!`, 'ok');
       modal?.classList.add('hidden');
     }
   });
@@ -1012,7 +1048,7 @@ function setupPreviewModalHandlers() {
       localStorage.setItem(`tether_pet_scale_${previewCompanion.id}`, scale);
       localStorage.setItem(`tether_pet_speed_${previewCompanion.id}`, speed);
       localStorage.setItem(`tether_pet_quote_${previewCompanion.id}`, quote);
-      alert(`Customizations saved for ${previewCompanion.name}.`);
+      showToast(`Customizations saved for ${previewCompanion.name}.`, 'ok');
     }
   });
 }
@@ -1244,9 +1280,9 @@ function setupStudioView() {
         activePetId = saved.id;
         const activeName = document.getElementById('active-companion-name');
         if (activeName) activeName.textContent = saved.name;
-        alert(`Companion "${saved.name}" saved and set as active!`);
+        showToast(`"${saved.name}" saved and set as active!`, 'ok');
       } catch (err) {
-        alert(`Failed to save: ${err.message}`);
+        showToast(`Failed to save: ${err.message}`, 'error');
       }
     });
   }
@@ -1613,12 +1649,23 @@ function setupBehaviors(currentAction, actionLabel, actionButtons) {
         }
       });
 
-      // Delete (custom only)
-      card.querySelector('.btn-delete-action')?.addEventListener('click', () => {
-        if (confirm(`Delete action "${action.label || action.id}"?`)) {
+      // Delete (custom only) — no browser confirm(), use toast feedback
+      card.querySelector('.btn-delete-action')?.addEventListener('click', (e) => {
+        const btn = e.currentTarget;
+        if (btn.dataset.pendingDelete) {
           actions.splice(idx, 1);
           renderGrid();
           updateCount();
+        } else {
+          btn.dataset.pendingDelete = '1';
+          btn.textContent = '✕ Confirm';
+          showToast(`Remove action "${action.label || action.id}"? Click ✕ again to confirm.`, 'info', 3000);
+          setTimeout(() => {
+            if (btn.dataset.pendingDelete) {
+              btn.textContent = '✕';
+              delete btn.dataset.pendingDelete;
+            }
+          }, 3000);
         }
       });
 
@@ -1634,7 +1681,7 @@ function setupBehaviors(currentAction, actionLabel, actionButtons) {
       const name = nameInput?.value?.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
       if (!name) return;
       if (actions.some((a) => a.id === name)) {
-        alert(`Action "${name}" already exists.`);
+        showToast(`Action "${name}" already exists.`, 'error');
         return;
       }
       actions.push({ id: name, label: nameInput.value.trim(), quote: '', enabled: true, builtin: false });
@@ -1659,12 +1706,24 @@ function setupBehaviors(currentAction, actionLabel, actionButtons) {
     });
   }
 
-  // Reset to defaults
+  // Reset to defaults — two-click pattern, no browser confirm()
   if (resetBtn) {
     resetBtn.addEventListener('click', () => {
-      if (confirm('Reset all behaviors to defaults? Custom actions will be removed.')) {
+      if (resetBtn.dataset.pendingReset) {
         actions = DEFAULT_ACTIONS.map((a) => ({ ...a }));
         renderGrid();
+        resetBtn.textContent = 'Reset to Defaults';
+        delete resetBtn.dataset.pendingReset;
+      } else {
+        resetBtn.dataset.pendingReset = '1';
+        resetBtn.textContent = 'Click Again to Confirm Reset';
+        showToast('All custom behaviors will be removed. Click "Reset" again to confirm.', 'info', 4000);
+        setTimeout(() => {
+          if (resetBtn.dataset.pendingReset) {
+            resetBtn.textContent = 'Reset to Defaults';
+            delete resetBtn.dataset.pendingReset;
+          }
+        }, 4000);
       }
     });
   }
@@ -1696,19 +1755,76 @@ async function setupSettingsView() {
     // Non-fatal
   }
 
+  const retentionCustomWrap = document.getElementById('retention-custom-wrap');
+  const retentionCustomInput = document.getElementById('retention-custom-input');
+  const retentionCustomApplyBtn = document.getElementById('retention-custom-apply-btn');
+
+  // Helper: applies a numeric day value, updates badge and UI
+  async function applyRetentionDays(days) {
+    try {
+      const savedDays = await setRetentionDays(days);
+      // If the saved value matches a preset, select it; otherwise show "custom"
+      const presetOption = retentionSelect
+        ? [...retentionSelect.options].find((o) => o.value === String(savedDays) && o.value !== 'custom')
+        : null;
+      if (retentionSelect) {
+        retentionSelect.value = presetOption ? String(savedDays) : 'custom';
+      }
+      if (retentionCustomWrap) {
+        retentionCustomWrap.classList.toggle('hidden', Boolean(presetOption));
+      }
+      if (retentionCustomInput && !presetOption) {
+        retentionCustomInput.value = String(savedDays);
+      }
+      const badgeText = document.getElementById('retention-badge-text');
+      if (badgeText) {
+        const label = savedDays >= 365
+          ? `${(savedDays / 365).toFixed(1).replace(/\.0$/, '')}yr auto-purge active`
+          : `${savedDays}-day auto-purge active`;
+        badgeText.textContent = label;
+      }
+      await loadAndRenderDrafts();
+      showToast(`Retention updated to ${savedDays} days. Expired drafts pruned.`, 'ok');
+    } catch (err) {
+      showToast(`Failed to update retention: ${err.message}`, 'error');
+    }
+  }
+
+  // If the backend has a custom value not in the preset list, initialise the UI accordingly
+  if (retentionSelect && retentionCustomWrap) {
+    const currentVal = retentionSelect.value;
+    const isCustom = currentVal === 'custom' || !retentionSelect.options.namedItem(currentVal);
+    if (isCustom) {
+      retentionSelect.value = 'custom';
+      retentionCustomWrap.classList.remove('hidden');
+    }
+  }
+
   if (retentionSelect) {
     retentionSelect.addEventListener('change', async () => {
-      const days = parseInt(retentionSelect.value, 10);
-      try {
-        const savedDays = await setRetentionDays(days);
-        retentionSelect.value = String(savedDays);
-        const badgeText = document.getElementById('retention-badge-text');
-        if (badgeText) badgeText.textContent = `${savedDays}-day auto-purge active`;
-        await loadAndRenderDrafts();
-        alert(`Retention policy updated to ${savedDays} days. Expired drafts pruned.`);
-      } catch (err) {
-        alert(`Failed to update retention: ${err.message}`);
+      if (retentionSelect.value === 'custom') {
+        retentionCustomWrap?.classList.remove('hidden');
+        retentionCustomInput?.focus();
+        return; // wait for explicit Apply
       }
+      retentionCustomWrap?.classList.add('hidden');
+      const days = parseInt(retentionSelect.value, 10);
+      if (!isNaN(days)) await applyRetentionDays(days);
+    });
+  }
+
+  if (retentionCustomApplyBtn && retentionCustomInput) {
+    retentionCustomApplyBtn.addEventListener('click', async () => {
+      const raw = parseInt(retentionCustomInput.value, 10);
+      if (!raw || raw < 1 || raw > 3650) {
+        showToast('Enter a number between 1 and 3650 days.', 'error');
+        retentionCustomInput.focus();
+        return;
+      }
+      await applyRetentionDays(raw);
+    });
+    retentionCustomInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') retentionCustomApplyBtn.click();
     });
   }
 
@@ -1718,7 +1834,7 @@ async function setupSettingsView() {
         const updated = await setAutostart(autostartCheck.checked);
         autostartCheck.checked = updated;
       } catch (err) {
-        alert(`Could not update startup: ${err.message}`);
+        showToast(`Could not update startup: ${err.message}`, 'error');
       }
     });
   }
@@ -1731,9 +1847,9 @@ async function setupSettingsView() {
         const days = parseInt(retentionSelect?.value || '14', 10);
         const count = await pruneVault(days);
         await loadAndRenderDrafts();
-        alert(`Prune complete: removed ${count} expired drafts older than ${days} days and reclaimed space.`);
+        showToast(`Pruned ${count} expired drafts (>${days} days). Space reclaimed.`, 'ok');
       } catch (err) {
-        alert(`Prune failed: ${err.message}`);
+        showToast(`Prune failed: ${err.message}`, 'error');
       } finally {
         pruneBtn.disabled = false;
         pruneBtn.textContent = 'Prune Expired Now';
@@ -1741,20 +1857,12 @@ async function setupSettingsView() {
     });
   }
 
-  // Companion overlay toggle — same button hides then shows
+  // Companion overlay toggle — delegates to toggleCompanionVisibility() so the
+  // Settings button and the Ctrl+Alt+H shortcut always stay in sync.
   const hideCompanionBtn = document.getElementById('hide-companion-btn');
-  let companionVisible = true;
   if (hideCompanionBtn) {
     hideCompanionBtn.addEventListener('click', () => {
-      if (companionVisible) {
-        hideCompanionOverlay();
-        hideCompanionBtn.textContent = 'Show Companion';
-        companionVisible = false;
-      } else {
-        showCompanionOverlay();
-        hideCompanionBtn.textContent = 'Hide Companion';
-        companionVisible = true;
-      }
+      toggleCompanionVisibility();
     });
   }
 
@@ -1773,9 +1881,9 @@ async function setupSettingsView() {
       try {
         await uninstallAutostart();
         if (autostartCheck) autostartCheck.checked = false;
-        alert('Startup background service / shortcut removed successfully.');
+        showToast('Startup shortcut removed successfully.', 'ok');
       } catch (err) {
-        alert(`Could not remove autostart: ${err.message}`);
+        showToast(`Could not remove autostart: ${err.message}`, 'error');
       }
     });
   }
@@ -1783,15 +1891,27 @@ async function setupSettingsView() {
   const purgeVaultBtn = document.getElementById('purge-vault-btn');
   if (purgeVaultBtn) {
     purgeVaultBtn.addEventListener('click', async () => {
-      if (!confirm('Are you sure you want to permanently purge all saved texts and revision history? This cannot be undone.')) {
+      // Two-click inline confirm — no browser confirm() dialog
+      if (!purgeVaultBtn.dataset.pendingPurge) {
+        purgeVaultBtn.dataset.pendingPurge = '1';
+        purgeVaultBtn.textContent = 'Click Again to Confirm Purge';
+        showToast('This will permanently delete ALL saved texts. Click "Purge" again to confirm.', 'info', 5000);
+        setTimeout(() => {
+          if (purgeVaultBtn.dataset.pendingPurge) {
+            purgeVaultBtn.textContent = 'Purge All Texts';
+            delete purgeVaultBtn.dataset.pendingPurge;
+          }
+        }, 5000);
         return;
       }
+      purgeVaultBtn.textContent = 'Purge All Texts';
+      delete purgeVaultBtn.dataset.pendingPurge;
       try {
         await purgeVaultData();
         await loadAndRenderDrafts();
-        alert('All saved texts and revision history have been completely purged from the local vault.');
+        showToast('All saved texts purged from the vault.', 'ok');
       } catch (err) {
-        alert(`Failed to purge vault: ${err.message}`);
+        showToast(`Failed to purge vault: ${err.message}`, 'error');
       }
     });
   }
@@ -1847,9 +1967,9 @@ async function setupSettingsView() {
               }
             `;
           }
-          alert('Tether uninstallation completed.');
+          showToast('Tether uninstallation completed.', 'ok');
         } catch (err) {
-          alert(`Uninstall failed: ${err.message}`);
+          showToast(`Uninstall failed: ${err.message}`, 'error');
         } finally {
           confirmUninstallBtn.disabled = false;
           confirmUninstallBtn.textContent = 'Proceed with Uninstall';
@@ -1862,6 +1982,24 @@ async function setupSettingsView() {
 // -----------------------------------------------------------------------------
 // Keyboard Shortcuts
 // -----------------------------------------------------------------------------
+// Module-level companion visibility state shared between shortcuts and settings handlers.
+let _companionVisible = true;
+
+function toggleCompanionVisibility() {
+  const btn = document.getElementById('hide-companion-btn');
+  if (_companionVisible) {
+    hideCompanionOverlay();
+    _companionVisible = false;
+    if (btn) btn.textContent = 'Show Companion';
+    showToast('Companion hidden. Press Ctrl+Alt+H to show again.', 'info');
+  } else {
+    showCompanionOverlay();
+    _companionVisible = true;
+    if (btn) btn.textContent = 'Hide Companion';
+    showToast('Companion visible.', 'ok');
+  }
+}
+
 function setupKeyboardShortcuts() {
   const shortcutsBtn = document.getElementById('shortcuts-btn');
   const shortcutsModal = document.getElementById('shortcuts-modal');
@@ -1933,11 +2071,18 @@ function setupKeyboardShortcuts() {
       }
     }
 
-    // Ctrl+Alt+T: bring the window back to the foreground (mirrors the global OS hotkey).
-    // This fires while the window is already visible, which is the "already open" case.
+    // Ctrl+Alt+T: bring the window back to the foreground.
     if (e.ctrlKey && e.altKey && (e.key === 't' || e.key === 'T')) {
       e.preventDefault();
       showMainWindow();
+      return;
+    }
+
+    // Ctrl+Alt+H: toggle companion overlay visibility.
+    if (e.ctrlKey && e.altKey && (e.key === 'h' || e.key === 'H')) {
+      e.preventDefault();
+      toggleCompanionVisibility();
+      return;
     }
   });
 }
@@ -2048,6 +2193,21 @@ function setupDynamicTimingAndStatus() {
   if (typeof setInterval !== 'undefined') {
     setInterval(updateMood, 30000);
   }
+}
+
+// ─── Global toast notification (replaces alert() throughout the UI) ──────────
+let _toastTimer = null;
+function showToast(message, type = 'info', durationMs = 2800) {
+  const el = document.getElementById('global-toast');
+  if (!el) return;
+  el.textContent = message;
+  el.dataset.type = type;
+  el.classList.remove('hidden');
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => {
+    el.classList.add('hidden');
+    _toastTimer = null;
+  }, durationMs);
 }
 
 function escapeHtml(text) {

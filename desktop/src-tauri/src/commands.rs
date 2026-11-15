@@ -257,7 +257,7 @@ pub fn prune_vault(max_days: Option<i64>) -> Result<usize, String> {
 pub fn set_retention_days(days: i64) -> Result<i64, String> {
     let dir = tether::default_data_dir();
     let (mut cfg, _) = tether::config::Config::load_or_default(&dir);
-    let clamped = days.clamp(1, 365);
+    let clamped = days.clamp(1, 3650); // allow up to ~10 years for custom periods
     cfg.retention_days = clamped;
     cfg.save(&dir).map_err(|e| e.to_string())?;
     if let Ok(vault) = open_local_vault() {
@@ -943,24 +943,29 @@ pub fn show_companion_overlay(app: tauri::AppHandle) -> Result<(), String> {
         .ok_or("companion-overlay window not found")?;
 
     // Position at bottom-right of the primary monitor, 24 px from the right edge
-    // and 48 px above the taskbar, but only when the window has never been moved
-    // (i.e. it is still at the default center position).  We detect "never moved"
-    // by checking whether the window is currently invisible — the overlay starts
-    // hidden and the user may drag it after the first show.
+    // and 48 px above the taskbar, but only on first show.  We detect "never shown"
+    // by checking whether the window is currently invisible — the overlay starts hidden.
+    // After first placement the user may drag it anywhere; subsequent shows respect
+    // their chosen position.
     if !w.is_visible().unwrap_or(true) {
         if let Ok(Some(monitor)) = app.primary_monitor() {
-            let screen_w = monitor.size().width;
-            let screen_h = monitor.size().height;
-            let win_w: u32 = 320;
-            let win_h: u32 = 340;
-            let x = screen_w.saturating_sub(win_w + 24) as i32;
-            let y = screen_h.saturating_sub(win_h + 48) as i32;
+            let size = monitor.size();
+            let scale = monitor.scale_factor();
+            // Monitor size is in physical pixels; convert window logical size to physical.
+            let win_w_phys = (320.0 * scale) as u32;
+            let win_h_phys = (340.0 * scale) as u32;
+            // Place 24 logical px from the right, 56 logical px from the bottom
+            // (clears a 48px taskbar on most Windows configurations).
+            let margin_right = (24.0 * scale) as u32;
+            let margin_bottom = (56.0 * scale) as u32;
+            let x = size.width.saturating_sub(win_w_phys + margin_right) as i32;
+            let y = size.height.saturating_sub(win_h_phys + margin_bottom) as i32;
             let _ = w.set_position(PhysicalPosition::new(x, y));
         }
     }
 
-    w.show().map_err(|e| e.to_string())?;
-    w.set_focus().map_err(|e| e.to_string())
+    // Show without stealing keyboard focus — the overlay is purely visual.
+    w.show().map_err(|e| e.to_string())
 }
 
 /// Hides the companion overlay window.  Called from the main window via IPC.

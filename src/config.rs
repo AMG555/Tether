@@ -66,7 +66,7 @@ impl Config {
                     // Clamp the dangerous knobs rather than trusting them.
                     cfg.flush_ms = cfg.flush_ms.clamp(200, 60_000);
                     cfg.ring_slots = cfg.ring_slots.clamp(64, 65536);
-                    cfg.retention_days = cfg.retention_days.clamp(1, 365);
+                    cfg.retention_days = cfg.retention_days.clamp(1, 3650);
                     let (lo, hi) = cfg.pet_bounds;
                     cfg.pet_bounds = (lo.clamp(0.0, 1.0), hi.clamp(0.0, 1.0));
                     (cfg, None)

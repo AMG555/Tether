@@ -236,7 +236,7 @@ impl Engine {
     }
 
     pub fn set_retention_days(&self, days: i64) {
-        self.retention_days.store(days.clamp(1, 365), Ordering::Relaxed);
+        self.retention_days.store(days.clamp(1, 3650), Ordering::Relaxed);
     }
 
     pub fn vault(&self) -> std::sync::MutexGuard<'_, Vault> {

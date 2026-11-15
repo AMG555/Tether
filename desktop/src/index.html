@@ -468,9 +468,9 @@
               <div class="setting-item">
                 <div class="setting-text">
                   <label for="setting-autostart" class="setting-label">Launch Tether on system startup</label>
-                  <p class="setting-hint">Automatically launches Tether when your computer boots so you never lose unsaved writing.</p>
+                  <p class="setting-hint">Enabled automatically on first launch — Tether is already protecting you from the next boot. Uncheck to disable.</p>
                 </div>
-                <input type="checkbox" id="setting-autostart" class="toggle-checkbox">
+                <input type="checkbox" id="setting-autostart" class="toggle-checkbox" checked>
               </div>
 
               <div class="setting-item">
@@ -501,20 +501,31 @@
             <!-- Vault Retention -->
             <div class="settings-card">
               <h3 class="card-title">Storage Retention &amp; Privacy</h3>
-              <div class="setting-item">
+              <div class="setting-item retention-setting-item">
                 <div class="setting-text">
                   <label for="setting-retention-days" class="setting-label">Retention duration</label>
-                  <p class="setting-hint">Texts older than the retention threshold are automatically wiped and vacuumed.</p>
+                  <p class="setting-hint">Texts older than the retention threshold are automatically wiped and vacuumed from the encrypted vault.</p>
                 </div>
-                <select id="setting-retention-days" class="select-field select-narrow" aria-label="Retention duration">
-                  <option value="1">1 day (Ultra minimal)</option>
-                  <option value="3">3 days</option>
-                  <option value="7">7 days (1 week)</option>
-                  <option value="14" selected>14 days (2 weeks - Recommended)</option>
-                  <option value="30">30 days (1 month)</option>
-                  <option value="60">60 days</option>
-                  <option value="90">90 days</option>
-                </select>
+                <div class="retention-controls">
+                  <select id="setting-retention-days" class="select-field select-narrow" aria-label="Retention duration">
+                    <option value="1">1 day (Ultra minimal)</option>
+                    <option value="3">3 days</option>
+                    <option value="7">7 days (1 week)</option>
+                    <option value="14" selected>14 days (2 weeks — Recommended)</option>
+                    <option value="30">30 days (1 month)</option>
+                    <option value="60">60 days (2 months)</option>
+                    <option value="90">90 days (3 months)</option>
+                    <option value="180">180 days (6 months)</option>
+                    <option value="365">365 days (1 year)</option>
+                    <option value="custom">Custom…</option>
+                  </select>
+                  <div id="retention-custom-wrap" class="retention-custom-wrap hidden">
+                    <label for="retention-custom-input" class="sr-only">Custom days</label>
+                    <input type="number" id="retention-custom-input" class="input-text-compact retention-custom-input"
+                      min="1" max="3650" placeholder="Days (1–3650)" aria-label="Custom retention in days">
+                    <button type="button" id="retention-custom-apply-btn" class="btn btn-secondary">Apply</button>
+                  </div>
+                </div>
               </div>
 
               <div class="setting-item">
@@ -615,13 +626,24 @@
             <div class="preview-desktop-mockup" aria-label="Desktop companion preview">
               <!-- Wallpaper area -->
               <div class="preview-desktop-wallpaper">
-                <!-- Companion sits at the bottom of the wallpaper -->
+                <!-- Fake desktop icons — give the mockup context -->
+                <div class="preview-desktop-icons" aria-hidden="true">
+                  <div class="preview-desktop-icon">
+                    <div class="preview-icon-img" style="background:#1e40af;">📄</div>
+                    <span>Notes.txt</span>
+                  </div>
+                  <div class="preview-desktop-icon">
+                    <div class="preview-icon-img" style="background:#065f46;">💻</div>
+                    <span>Cursor</span>
+                  </div>
+                </div>
+                <!-- Companion sits at the bottom-right of the wallpaper, mirroring real overlay -->
                 <div class="preview-companion-stage">
                   <div id="preview-speech-bubble" class="preview-speech-bubble preview-speech-bubble--desktop">
                     <span id="preview-speech-text">Ready to safeguard your writing.</span>
                   </div>
                   <img id="preview-companion-img" class="preview-companion-img preview-companion-img--desktop" src="" alt="Companion animation clip" hidden>
-                  <canvas id="preview-companion-canvas" class="preview-companion-canvas preview-companion-canvas--desktop" width="160" height="200" aria-label="Companion animation preview"></canvas>
+                  <canvas id="preview-companion-canvas" class="preview-companion-canvas preview-companion-canvas--desktop" width="200" height="250" aria-label="Companion animation preview"></canvas>
                 </div>
               </div>
               <!-- Taskbar strip -->
@@ -631,9 +653,13 @@
                   <span class="preview-taskbar-search-icon">⌕</span>
                   <span>Search</span>
                 </div>
+                <div class="preview-taskbar-apps">
+                  <div class="preview-taskbar-app-icon" style="border-color:rgba(37,99,235,0.6);">📄</div>
+                  <div class="preview-taskbar-app-icon" style="border-color:rgba(5,150,105,0.6);">💻</div>
+                </div>
                 <div class="preview-taskbar-tray">
                   <span class="preview-taskbar-tray-icon" title="Tether companion active">◈</span>
-                  <span class="preview-taskbar-clock">12:34</span>
+                  <span class="preview-taskbar-clock" id="preview-taskbar-clock">12:34</span>
                 </div>
               </div>
             </div>
@@ -704,6 +730,9 @@
       </div>
     </div>
 
+    <!-- Global Feedback Toast -->
+    <div id="global-toast" class="global-toast hidden" role="alert" aria-live="polite" aria-atomic="true"></div>
+
     <!-- Keyboard Shortcuts Modal -->
     <div id="shortcuts-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="shortcuts-modal-title">
       <div class="modal-dialog">
@@ -751,6 +780,14 @@
               <tr>
                 <td><kbd>Ctrl</kbd> + <kbd>C</kbd></td>
                 <td>Copy selected draft text</td>
+              </tr>
+              <tr>
+                <td><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>H</kbd></td>
+                <td>Hide / show desktop companion overlay</td>
+              </tr>
+              <tr>
+                <td><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>T</kbd></td>
+                <td>Bring Tether window to foreground</td>
               </tr>
               <tr>
                 <td><kbd>?</kbd> or <kbd>Ctrl</kbd> + <kbd>/</kbd></td>
