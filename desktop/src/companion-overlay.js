@@ -7,17 +7,17 @@
  *   2. Procedural canvas fallback (custom companions / no pack installed)
  *
  * Walk behaviour: companion auto-walks across the bottom of the screen
- * left → right then right → left. User can drag it to any position.
+ * left → right then right → left. User can drag it to any X position.
  *
- * Click-through: the overlay is permanently OS-transparent (setIgnoreCursorEvents=true).
- * When the user mousedowns over the character bounding box, we briefly disable
- * passthrough (setCompanionPassthrough(false)) so the native OS drag can fire,
- * then restore passthrough on mouseup.
+ * Click-through: the full canvas has pointer-events:none so the OS treats the
+ * transparent area as click-through.  A small #hit-zone div tracks the character
+ * position in CSS (updated after every render frame) and captures mouse events.
+ * Drag updates walkX directly in JS — no native window drag, no IPC needed.
  *
  * All Tauri IPC calls must go through api.js (architecture rule).
  */
 
-import { startCompanionDrag, getCompanionClip, setCompanionPassthrough } from './api.js';
+import { getCompanionClip } from './api.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -51,10 +51,11 @@ function loadActiveCompanion() {
 
 let companion = loadActiveCompanion();
 
-// ─── Canvas setup ─────────────────────────────────────────────────────────────
+// ─── Canvas + hit-zone setup ──────────────────────────────────────────────────
 
-const canvas = document.getElementById('companion-canvas');
-const ctx = canvas.getContext('2d');
+const canvas  = document.getElementById('companion-canvas');
+const ctx     = canvas.getContext('2d');
+const hitZone = document.getElementById('hit-zone');
 
 // Logical dimensions — always CSS pixels.  All draw code uses these.
 let W = window.innerWidth;
@@ -88,7 +89,19 @@ window.addEventListener('resize', () => {
   if (typeof walkX !== 'undefined') {
     walkX = Math.max(CHAR_MARGIN, Math.min(W - CHAR_MARGIN, walkX));
   }
+  updateHitZone();
 });
+
+// Move the hit-zone div so it covers the character's current bounding box.
+// Called every render frame so it tracks the character exactly.
+function updateHitZone() {
+  const hw = CHAR_WIDTH * 2;        // hit width = full character width
+  const hh = CHAR_HEIGHT;           // hit height = full character height
+  hitZone.style.left   = `${Math.round(walkX - hw / 2)}px`;
+  hitZone.style.bottom = '0px';
+  hitZone.style.width  = `${hw}px`;
+  hitZone.style.height = `${hh}px`;
+}
 
 // ─── State machine ────────────────────────────────────────────────────────────
 
@@ -271,6 +284,7 @@ function renderFrame(timestamp) {
   ctx.clearRect(0, 0, W, H);
   drawCompanion();
   if (bubbleAlpha > 0.01) drawBubble();
+  updateHitZone();
 
   rafId = requestAnimationFrame(renderFrame);
 }
@@ -540,27 +554,35 @@ function isOverCompanion(x, y) {
   return x >= charLeft && x <= charRight && y >= charTop && y <= charBot;
 }
 
-// ─── Drag to reposition ───────────────────────────────────────────────────────
-// The overlay is OS-transparent (cursor passthrough = true) by default.
-// To initiate a native window drag we must briefly disable passthrough so the
-// OS sees the mousedown, then restore it on mouseup.
+// ─── Hit-zone drag + click ────────────────────────────────────────────────────
+// The canvas has pointer-events:none so the OS treats the transparent area as
+// click-through.  #hit-zone is a small div that CSS-tracks the character and
+// receives all mouse events.  Drag updates walkX in JS (no native window drag).
 
-canvas.addEventListener('mousedown', (e) => {
-  if (isOverCompanion(e.clientX, e.clientY)) {
-    canvas.style.cursor = 'grabbing';
-    // Disable passthrough so the OS-level drag is received by this window.
-    setCompanionPassthrough(false).then(() => startCompanionDrag());
-  }
+let _dragActive = false;
+let _dragStartX = 0;
+let _walkXAtDragStart = 0;
+
+hitZone.addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  _dragActive = true;
+  _dragStartX = e.clientX;
+  _walkXAtDragStart = walkX;
+  hitZone.classList.add('dragging');
+  walking = false;
+  currentState = 'idle';
 });
 
-canvas.addEventListener('mouseup', () => {
-  canvas.style.cursor = '';
-  // Restore OS click-through so clicks on the transparent area pass through.
-  setCompanionPassthrough(true);
+window.addEventListener('mousemove', (e) => {
+  if (!_dragActive) return;
+  const dx = e.clientX - _dragStartX;
+  walkX = Math.max(CHAR_MARGIN, Math.min(W - CHAR_MARGIN, _walkXAtDragStart + dx));
 });
 
-canvas.addEventListener('mousemove', (e) => {
-  canvas.style.cursor = isOverCompanion(e.clientX, e.clientY) ? 'grab' : '';
+window.addEventListener('mouseup', () => {
+  if (!_dragActive) return;
+  _dragActive = false;
+  hitZone.classList.remove('dragging');
 });
 
 // ─── Single click: live pet reactions ────────────────────────────────────────
@@ -574,8 +596,9 @@ const CLICK_REACTIONS = [
 ];
 let _clickReactionIdx = 0;
 
-canvas.addEventListener('click', (e) => {
-  if (!isOverCompanion(e.clientX, e.clientY)) return;
+hitZone.addEventListener('click', () => {
+  // Ignore click if the user just finished a drag (moved more than 5px)
+  if (Math.abs(walkX - _walkXAtDragStart) > 5) return;
   const reaction = CLICK_REACTIONS[_clickReactionIdx % CLICK_REACTIONS.length];
   _clickReactionIdx++;
   currentState = reaction.state;
@@ -588,8 +611,7 @@ canvas.addEventListener('click', (e) => {
 
 // ─── Double-click: extra big happy bounce ────────────────────────────────────
 
-canvas.addEventListener('dblclick', (e) => {
-  if (!isOverCompanion(e.clientX, e.clientY)) return;
+hitZone.addEventListener('dblclick', () => {
   currentState = 'happy';
   walking = false;
   springVY = -20;
