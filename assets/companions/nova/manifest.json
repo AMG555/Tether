@@ -1,0 +1,33 @@
+{
+  "id": "nova",
+  "name": "Nova",
+  "description": "An astronaut on a solo mission to keep you hydrated across the solar system.",
+  "tags": [
+    "human",
+    "hero",
+    "sci-fi"
+  ],
+  "isCustom": false,
+  "isInstalled": true,
+  "avatarType": "clips",
+  "actions": [
+    "idle",
+    "walk",
+    "wave",
+    "water",
+    "stretch",
+    "happy",
+    "sad",
+    "eyes"
+  ],
+  "clips": {
+    "idle": "idle.webp",
+    "walk": "walk.webp",
+    "wave": "wave.webp",
+    "water": "water.webp",
+    "stretch": "stretch.webp",
+    "happy": "happy.webp",
+    "sad": "sad.webp",
+    "eyes": "eyes.webp"
+  }
+}

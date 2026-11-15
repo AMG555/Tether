@@ -1,0 +1,33 @@
+{
+  "id": "splash",
+  "name": "Splash",
+  "description": "A single water drop on a mission — your most single-minded hydration coach.",
+  "tags": [
+    "nature",
+    "whimsical",
+    "water"
+  ],
+  "isCustom": false,
+  "isInstalled": true,
+  "avatarType": "clips",
+  "actions": [
+    "idle",
+    "walk",
+    "wave",
+    "water",
+    "stretch",
+    "happy",
+    "sad",
+    "eyes"
+  ],
+  "clips": {
+    "idle": "idle.webp",
+    "walk": "walk.webp",
+    "wave": "wave.webp",
+    "water": "water.webp",
+    "stretch": "stretch.webp",
+    "happy": "happy.webp",
+    "sad": "sad.webp",
+    "eyes": "eyes.webp"
+  }
+}

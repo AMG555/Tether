@@ -1,0 +1,33 @@
+{
+  "id": "theo",
+  "name": "Theo",
+  "description": "A curious kid who asks \"why?\" about everything, including your posture.",
+  "tags": [
+    "human",
+    "kid",
+    "curious"
+  ],
+  "isCustom": false,
+  "isInstalled": true,
+  "avatarType": "clips",
+  "actions": [
+    "idle",
+    "walk",
+    "wave",
+    "water",
+    "stretch",
+    "happy",
+    "sad",
+    "eyes"
+  ],
+  "clips": {
+    "idle": "idle.webp",
+    "walk": "walk.webp",
+    "wave": "wave.webp",
+    "water": "water.webp",
+    "stretch": "stretch.webp",
+    "happy": "happy.webp",
+    "sad": "sad.webp",
+    "eyes": "eyes.webp"
+  }
+}

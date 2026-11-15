@@ -18,7 +18,8 @@ ring.bin
 /gui/clip-shot-*.png
 /gui/studio-*.png
 
-# Companion clip assets — large binary files managed outside git
-# Users download companions on demand; store with Git LFS or a release bundle if needed
-/assets/companions/
+# Companion WebP clips — large animated binaries, downloaded on demand at runtime.
+# The manifest.json files (< 1 KB each) ARE tracked so Tauri's build-time resource
+# validation passes and the installed app knows which companions exist.
+/assets/companions/**/*.webp
 /dist/

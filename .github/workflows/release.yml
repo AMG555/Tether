@@ -88,6 +88,27 @@ jobs:
           WINDOWS_CERTIFICATE_PWD: ${{ secrets.WINDOWS_CERTIFICATE_PWD }}
         run: |
           set -euo pipefail
+
+          # Populate assets/companions/ with companion WebP clips before the Tauri build.
+          # The manifest.json files are committed (tracked by git), but the WebP binaries
+          # are gitignored to keep the repo lightweight.  We fetch the companion pack zip
+          # from the most recent GitHub release that has one, then extract into place.
+          # If the download fails (first-ever release, no network, etc.) we skip silently —
+          # Tauri's resource validator only requires the *directory* to exist and the
+          # manifests are already on disk from the checkout.
+          COMPANIONS_DIR="assets/companions"
+          if [ -d "$COMPANIONS_DIR" ]; then
+            echo "Fetching companion WebP pack for bundling..."
+            PACK_URL="https://github.com/${{ github.repository }}/releases/latest/download/companion-webp-pack.zip"
+            if curl -fsSL "$PACK_URL" -o companion-webp-pack.zip 2>/dev/null; then
+              unzip -q companion-webp-pack.zip -d "$COMPANIONS_DIR" 2>/dev/null || true
+              rm -f companion-webp-pack.zip
+              echo "Companion WebP pack extracted."
+            else
+              echo "No companion pack available (first release or no pack published) — building with manifests only."
+            fi
+          fi
+
           # Build the NSIS installer via Tauri — produces the setup.exe that the
           # README download link points at.
           cd desktop
@@ -148,6 +169,12 @@ jobs:
             cp "$DESK_BIN" "dist/tether-desktop-windows-x86_64/"
             cp README.md LICENSE docs/limitations.md "dist/tether-desktop-windows-x86_64/"
             (cd dist && 7z a "tether-desktop-windows-x86_64.zip" "tether-desktop-windows-x86_64" > /dev/null)
+          fi
+          # Bundle companion WebP clips as a standalone zip so future CI builds can
+          # download and inject them before the Tauri resource validator runs.
+          if [ -d "assets/companions" ]; then
+            (cd assets && 7z a "../dist/companion-webp-pack.zip" companions > /dev/null)
+            echo "Companion WebP pack zipped for release."
           fi
 
       - uses: actions/upload-artifact@v4

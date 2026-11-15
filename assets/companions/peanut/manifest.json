@@ -1,0 +1,33 @@
+{
+  "id": "peanut",
+  "name": "Peanut",
+  "description": "A baby elephant with an excellent memory — especially for missed water breaks.",
+  "tags": [
+    "animal",
+    "elephant",
+    "playful"
+  ],
+  "isCustom": false,
+  "isInstalled": true,
+  "avatarType": "clips",
+  "actions": [
+    "idle",
+    "walk",
+    "wave",
+    "water",
+    "stretch",
+    "happy",
+    "sad",
+    "eyes"
+  ],
+  "clips": {
+    "idle": "idle.webp",
+    "walk": "walk.webp",
+    "wave": "wave.webp",
+    "water": "water.webp",
+    "stretch": "stretch.webp",
+    "happy": "happy.webp",
+    "sad": "sad.webp",
+    "eyes": "eyes.webp"
+  }
+}

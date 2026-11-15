@@ -1,0 +1,33 @@
+{
+  "id": "quest",
+  "name": "Quest",
+  "description": "A gamer boy who treats the reminder bell like an achievement unlocked.",
+  "tags": [
+    "human",
+    "kid",
+    "tech"
+  ],
+  "isCustom": false,
+  "isInstalled": true,
+  "avatarType": "clips",
+  "actions": [
+    "idle",
+    "walk",
+    "wave",
+    "water",
+    "stretch",
+    "happy",
+    "sad",
+    "eyes"
+  ],
+  "clips": {
+    "idle": "idle.webp",
+    "walk": "walk.webp",
+    "wave": "wave.webp",
+    "water": "water.webp",
+    "stretch": "stretch.webp",
+    "happy": "happy.webp",
+    "sad": "sad.webp",
+    "eyes": "eyes.webp"
+  }
+}

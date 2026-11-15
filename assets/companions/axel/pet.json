@@ -1,0 +1,17 @@
+{
+  "name": "Axel",
+  "author": "AMG",
+  "version": 1,
+  "license": "CC0",
+  "anchor": "bottom",
+  "clips": {
+    "idle": "idle.webp",
+    "walk": "walk.webp",
+    "wave": "wave.webp",
+    "water": "water.webp",
+    "stretch": "stretch.webp",
+    "happy": "happy.webp",
+    "sad": "sad.webp",
+    "eyes": "eyes.webp"
+  }
+}
