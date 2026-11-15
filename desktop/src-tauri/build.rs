@@ -20,6 +20,10 @@ fn main() {
             "uninstall_app",
             "get_companion_clip",
             "get_system_status",
+            "show_main_window",
+            "show_companion_overlay",
+            "hide_companion_overlay",
+            "start_companion_drag",
         ]),
     ))
     .expect("failed to configure the Tauri command allowlist");

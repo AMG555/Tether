@@ -400,3 +400,46 @@ export async function showMainWindow() {
     // Best-effort: if the bridge is gone the window is already visible.
   }
 }
+
+/**
+ * Shows the companion overlay window.
+ * @returns {Promise<void>}
+ */
+export async function showCompanionOverlay() {
+  const invoke = getInvoker();
+  if (!invoke) return;
+  try {
+    await invoke('show_companion_overlay');
+  } catch {
+    // Best-effort.
+  }
+}
+
+/**
+ * Hides the companion overlay window.
+ * @returns {Promise<void>}
+ */
+export async function hideCompanionOverlay() {
+  const invoke = getInvoker();
+  if (!invoke) return;
+  try {
+    await invoke('hide_companion_overlay');
+  } catch {
+    // Best-effort.
+  }
+}
+
+/**
+ * Starts a native OS drag on the companion overlay window.
+ * @returns {Promise<void>}
+ */
+export async function startCompanionDrag() {
+  const invoke = getInvoker();
+  if (!invoke) return;
+  try {
+    await invoke('start_companion_drag');
+  } catch {
+    // Best-effort.
+  }
+}
+

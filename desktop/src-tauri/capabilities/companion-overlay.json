@@ -1,0 +1,8 @@
+{
+  "identifier": "companion-overlay",
+  "description": "Companion overlay window — only needs to drag itself",
+  "windows": ["companion-overlay"],
+  "permissions": [
+    "allow-start-companion-drag"
+  ]
+}

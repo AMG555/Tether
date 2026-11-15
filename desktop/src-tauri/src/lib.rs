@@ -5,32 +5,14 @@ use tauri::Manager as _;
 
 pub fn run() -> Result<(), tauri::Error> {
     tauri::Builder::default()
-        .setup(|app| {
-            // Companion overlay window — transparent, always-on-top, no decorations.
-            // Hidden until a companion is activated from the main window.
-            let _overlay = tauri::WebviewWindowBuilder::new(
-                app,
-                "companion-overlay",
-                tauri::WebviewUrl::App("companion-overlay.html".into()),
-            )
-            .title("Tether Companion")
-            .inner_size(220.0, 280.0)
-            .decorations(false)
-            .transparent(true)
-            .always_on_top(true)
-            .skip_taskbar(true)
-            .visible(false)
-            .build()?;
-            Ok(())
-        })
         // Intercept the X-button: hide the main window instead of closing it.
         // The process must keep running so the crash-ring capture stays active.
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" {
-                    api.prevent_close();
-                    let _ = window.hide();
-                }
+                // Never destroy any app window — always hide so the process
+                // stays alive for background crash-ring capture.
+                api.prevent_close();
+                let _ = window.hide();
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -54,6 +36,9 @@ pub fn run() -> Result<(), tauri::Error> {
             commands::get_companion_clip,
             commands::get_system_status,
             commands::show_main_window,
+            commands::show_companion_overlay,
+            commands::hide_companion_overlay,
+            commands::start_companion_drag,
         ])
         .build(tauri::generate_context!())?
         .run(|app, event| {

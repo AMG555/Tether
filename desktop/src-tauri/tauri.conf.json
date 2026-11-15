@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "security": {
       "csp": "default-src 'self' asset: http://asset.localhost; connect-src ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'",
-      "capabilities": ["main"]
+      "capabilities": ["main", "companion-overlay"]
     },
     "windows": [
       {

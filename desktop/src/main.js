@@ -19,6 +19,8 @@ import {
   getCompanionClip,
   getSystemStatus,
   showMainWindow,
+  showCompanionOverlay,
+  hideCompanionOverlay,
 } from './api.js';
 
 const genericFailureMessage = 'Tether could not load app information.';
@@ -534,12 +536,8 @@ async function setupCompanionsView() {
           }));
         }
 
-        // Show the companion overlay window
-        if (window.__TAURI__) {
-          window.__TAURI__.webviewWindow.getByLabel('companion-overlay').then((w) => {
-            if (w) { w.show(); w.setFocus(); }
-          }).catch(() => {});
-        }
+        // Show the companion overlay window via the IPC bridge
+        showCompanionOverlay();
 
         renderGrid();
       });
@@ -786,12 +784,8 @@ function setupPreviewModalHandlers() {
         }));
       }
 
-      // Show the companion overlay window
-      if (window.__TAURI__) {
-        window.__TAURI__.webviewWindow.getByLabel('companion-overlay').then((w) => {
-          if (w) { w.show(); w.setFocus(); }
-        }).catch(() => {});
-      }
+      // Show the companion overlay window via the IPC bridge
+      showCompanionOverlay();
 
       alert(`Companion "${previewCompanion.name}" is now your active companion!`);
       modal?.classList.add('hidden');
@@ -1134,11 +1128,7 @@ async function setupSettingsView() {
   const hideCompanionBtn = document.getElementById('hide-companion-btn');
   if (hideCompanionBtn) {
     hideCompanionBtn.addEventListener('click', () => {
-      if (window.__TAURI__) {
-        window.__TAURI__.webviewWindow.getByLabel('companion-overlay').then((w) => {
-          if (w) w.hide();
-        }).catch(() => {});
-      }
+      hideCompanionOverlay();
     });
   }
 

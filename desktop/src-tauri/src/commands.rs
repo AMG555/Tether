@@ -932,6 +932,34 @@ pub fn show_main_window(window: tauri::Window) -> Result<(), String> {
     window.set_focus().map_err(|e| e.to_string())
 }
 
+/// Shows the companion overlay window.  Called from the main window via IPC.
+#[tauri::command]
+pub fn show_companion_overlay(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager as _;
+    let w = app
+        .get_webview_window("companion-overlay")
+        .ok_or("companion-overlay window not found")?;
+    w.show().map_err(|e| e.to_string())?;
+    w.set_focus().map_err(|e| e.to_string())
+}
+
+/// Hides the companion overlay window.  Called from the main window via IPC.
+#[tauri::command]
+pub fn hide_companion_overlay(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager as _;
+    let w = app
+        .get_webview_window("companion-overlay")
+        .ok_or("companion-overlay window not found")?;
+    w.hide().map_err(|e| e.to_string())
+}
+
+/// Initiates a native OS window drag for the companion overlay.
+/// The overlay calls this on mousedown so the user can reposition it.
+#[tauri::command]
+pub fn start_companion_drag(window: tauri::Window) -> Result<(), String> {
+    window.start_dragging().map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn get_system_status() -> Result<SystemStatusInfo, String> {
     let dir = tether::default_data_dir();

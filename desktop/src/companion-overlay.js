@@ -2,8 +2,12 @@
  * companion-overlay.js
  * Runs inside the transparent companion-overlay window.
  * Renders the active companion procedurally, animates it, and
- * lets the user drag the window using Tauri's window API.
+ * lets the user drag the window using the Tauri IPC bridge.
+ *
+ * All Tauri IPC calls must go through api.js (architecture rule: no direct Tauri globals).
  */
+
+import { startCompanionDrag } from './api.js';
 
 // ─── Companion data ─────────────────────────────────────────────────────────
 
@@ -193,40 +197,10 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ─── Drag to move window ─────────────────────────────────────────────────────
+// Use the native OS drag via Tauri IPC — no manual position tracking needed.
 
-let dragStart = null;
-let winPosAtDragStart = null;
-
-canvas.addEventListener('mousedown', async (e) => {
-  if (!window.__TAURI__) return;
-  dragStart = { x: e.screenX, y: e.screenY };
-  try {
-    const pos = await window.__TAURI__.window.getCurrent().outerPosition();
-    winPosAtDragStart = { x: pos.x, y: pos.y };
-  } catch {
-    winPosAtDragStart = { x: 0, y: 0 };
-  }
-});
-
-window.addEventListener('mousemove', async (e) => {
-  if (!dragStart || !winPosAtDragStart || !window.__TAURI__) return;
-  const dx = e.screenX - dragStart.x;
-  const dy = e.screenY - dragStart.y;
-  try {
-    await window.__TAURI__.window.getCurrent().setPosition(
-      new window.__TAURI__.window.PhysicalPosition(
-        winPosAtDragStart.x + dx,
-        winPosAtDragStart.y + dy,
-      ),
-    );
-  } catch {
-    // ignore
-  }
-});
-
-window.addEventListener('mouseup', () => {
-  dragStart = null;
-  winPosAtDragStart = null;
+canvas.addEventListener('mousedown', () => {
+  startCompanionDrag();
 });
 
 // ─── Reload companion when activated from main window ───────────────────────

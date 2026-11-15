@@ -1,7 +1,7 @@
 {
   "identifier": "main",
   "description": "Local Tether main window with least-privilege commands",
-  "windows": ["main", "companion-overlay"],
+  "windows": ["main"],
   "permissions": [
     "allow-get-app-info",
     "allow-get-vault-status",
@@ -22,10 +22,8 @@
     "allow-uninstall-app",
     "allow-get-companion-clip",
     "allow-get-system-status",
-    "core:window:allow-get-all-windows",
-    "core:window:allow-show",
-    "core:window:allow-hide",
-    "core:window:allow-set-position",
-    "core:window:allow-set-always-on-top"
+    "allow-show-main-window",
+    "allow-show-companion-overlay",
+    "allow-hide-companion-overlay"
   ]
 }
