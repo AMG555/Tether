@@ -69,6 +69,23 @@ jobs:
       - name: Package Windows Desktop App
         if: matrix.target == 'x86_64-pc-windows-msvc'
         shell: bash
+        env:
+          # Code-signing secrets — set these in GitHub → Settings → Secrets.
+          # All three must be present for signing to run; if any is absent the
+          # build still succeeds but the binaries will be unsigned.
+          #
+          # How to get a certificate:
+          #   Option A (recommended for CI): ssl.com OV/EV eSigner cloud HSM
+          #     WINDOWS_CERTIFICATE      — base64-encoded .pfx  (openssl pkcs12 … | base64)
+          #     WINDOWS_CERTIFICATE_PWD  — PFX passphrase
+          #     (EV only) ESIGNER_USERNAME / ESIGNER_PASSWORD / ESIGNER_TOTP_SECRET
+          #   Option B: any .pfx from DigiCert / Sectigo / GlobalSign
+          #     Same two secrets, no eSigner env vars needed.
+          #
+          # Tauri picks up TAURI_SIGNING_PRIVATE_KEY / TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+          # automatically for updater bundle signing (separate from EXE signing below).
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PWD: ${{ secrets.WINDOWS_CERTIFICATE_PWD }}
         run: |
           set -euo pipefail
           # Build the NSIS installer via Tauri — produces the setup.exe that the
@@ -77,13 +94,47 @@ jobs:
           npm install
           node node_modules/@tauri-apps/cli/tauri.js build
           cd ..
-          # Copy the NSIS installer as the primary Windows download asset.
+
           NSIS_BIN="desktop/src-tauri/target/release/bundle/nsis/Tether_0.1.0_x64-setup.exe"
+          DESK_BIN="desktop/src-tauri/target/release/tether-desktop.exe"
+
+          # ── Authenticode signing (runs only when certificate secrets are set) ──
+          if [ -n "${WINDOWS_CERTIFICATE:-}" ] && [ -n "${WINDOWS_CERTIFICATE_PWD:-}" ]; then
+            echo "Signing binaries with Authenticode..."
+            # Decode the base64-encoded PFX to a temp file
+            PFX_PATH="$(mktemp --suffix=.pfx)"
+            echo "$WINDOWS_CERTIFICATE" | base64 --decode > "$PFX_PATH"
+
+            sign_binary() {
+              local bin="$1"
+              [ -f "$bin" ] || return 0
+              signtool.exe sign \
+                /fd SHA256 \
+                /f "$PFX_PATH" \
+                /p "$WINDOWS_CERTIFICATE_PWD" \
+                /tr http://timestamp.sectigo.com \
+                /td SHA256 \
+                /d "Tether" \
+                /du "https://github.com/${{ github.repository }}" \
+                "$bin"
+            }
+
+            # Sign the main executable first, then the NSIS installer that wraps it
+            sign_binary "$DESK_BIN"
+            sign_binary "$NSIS_BIN"
+            rm -f "$PFX_PATH"
+          else
+            echo "WINDOWS_CERTIFICATE secret not set — skipping Authenticode signing."
+            echo "To suppress the SmartScreen 'Unknown publisher' warning, add:"
+            echo "  WINDOWS_CERTIFICATE (base64 .pfx) and WINDOWS_CERTIFICATE_PWD"
+            echo "  as GitHub repository secrets."
+          fi
+
+          # Copy the NSIS installer as the primary Windows download asset.
           if [ -f "$NSIS_BIN" ]; then
             cp "$NSIS_BIN" "dist/Tether_0.1.0_x64-setup.exe"
           fi
           # Also ship the raw tether-desktop.exe for users who prefer no installer.
-          DESK_BIN="desktop/src-tauri/target/release/tether-desktop.exe"
           if [ -f "$DESK_BIN" ]; then
             cp "$DESK_BIN" "dist/tether-desktop-windows-x86_64.exe"
             mkdir -p "dist/tether-desktop-windows-x86_64"
