@@ -27,6 +27,9 @@ import {
 const genericFailureMessage = 'Tether could not load app information.';
 
 // Complete Catalog of 32 companions available for on-demand installation
+// Grace and Rory are bundled with the installer (always installed).
+// Every entry here is a companion that must be explicitly downloaded — shown
+// in the grid as "Download" cards until the user installs them.
 const CATALOG_COMPANIONS = [
   { id: 'axel', name: 'Axel', desc: 'A skater boy who grinds deadlines the same way he grinds rails.', tags: ['human', 'kid', 'sporty'], size: '7.0 MB' },
   { id: 'bao', name: 'Bao', desc: 'A steamed bun with a fiery heart and unwavering patience.', tags: ['food', 'cute', 'calm'], size: '5.3 MB' },
@@ -39,7 +42,6 @@ const CATALOG_COMPANIONS = [
   { id: 'doc', name: 'Doc', desc: 'A wise owl physician reminding you of eye ergonomics and breaks.', tags: ['animal', 'wise', 'health'], size: '4.6 MB' },
   { id: 'ember', name: 'Ember', desc: 'A tiny flame sprite who sparkles whenever your typing flow heats up.', tags: ['elemental', 'magic', 'energetic'], size: '5.4 MB' },
   { id: 'finn', name: 'Finn', desc: 'A football kid who takes every break to practice his step-overs.', tags: ['human', 'kid', 'sporty'], size: '5.3 MB' },
-  { id: 'grace', name: 'Grace', desc: 'A warm, grounding presence — reminds you to drink water and rest.', tags: ['human', 'adult', 'calm'], size: '4.1 MB' },
   { id: 'iris', name: 'Iris', desc: 'An artist fairy who paints colorful sparkles along your margins.', tags: ['fantasy', 'creative', 'calm'], size: '4.2 MB' },
   { id: 'luna', name: 'Luna', desc: 'A moon fairy who keeps your circadian rhythm honest when you work late.', tags: ['fantasy', 'fairy', 'calm'], size: '5.9 MB' },
   { id: 'marmalade', name: 'Marmalade', desc: 'A drowsy ginger cat purring quietly on top of your words.', tags: ['animal', 'cat', 'cozy'], size: '4.3 MB' },
@@ -50,7 +52,6 @@ const CATALOG_COMPANIONS = [
   { id: 'penny', name: 'Penny', desc: 'A retro mechanical penguin who waddles in rhythm with your typing.', tags: ['animal', 'robot', 'playful'], size: '4.5 MB' },
   { id: 'pixel', name: 'Pixel', desc: 'A retro 8-bit companion bouncing along your text lines.', tags: ['retro', 'pixel', 'playful'], size: '7.0 MB' },
   { id: 'quest', name: 'Quest', desc: 'A gamer kid who treats every break like an achievement unlocked.', tags: ['human', 'kid', 'tech'], size: '5.2 MB' },
-  { id: 'rory', name: 'Rory', desc: 'The lion cub heir — small, boisterous, and convinced he runs the place.', tags: ['animal', 'cub', 'playful'], size: '6.8 MB' },
   { id: 'sage', name: 'Sage', desc: 'A yoga instructor who demonstrates desk stretches with enthusiasm.', tags: ['human', 'sporty', 'calm'], size: '3.8 MB' },
   { id: 'shadow', name: 'Shadow', desc: 'A stealth panther who watches over your cursor silently.', tags: ['animal', 'cat', 'sleek'], size: '4.0 MB' },
   { id: 'spike', name: 'Spike', desc: 'A jackfruit with opinions — slow to ripen, but worth the wait.', tags: ['food', 'whimsical', 'calm'], size: '7.0 MB' },

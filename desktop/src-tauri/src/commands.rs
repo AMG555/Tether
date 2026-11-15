@@ -552,10 +552,10 @@ pub fn install_catalog_companion(id: String) -> Result<CompanionItem, String> {
     //    is deleted and nothing is written to the data directory.
     if !installed_from_local {
         let zip_url = format!(
-            "https://github.com/AMG555/Tether/releases/download/v0.1.0/companion-{clean_id}.zip"
+            "https://github.com/AMG555/Tether/releases/latest/download/companion-{clean_id}.zip"
         );
         let checksums_url =
-            "https://github.com/AMG555/Tether/releases/download/v0.1.0/checksums.txt";
+            "https://github.com/AMG555/Tether/releases/latest/download/checksums.txt";
         let temp_zip = std::env::temp_dir().join(format!("companion-{clean_id}.zip"));
         let temp_checksums = std::env::temp_dir().join("tether-companion-checksums.txt");
 
