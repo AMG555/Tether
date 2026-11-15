@@ -28,7 +28,7 @@ Choose a featherlight native **Desktop GUI** (Tauri 2) with 32 downloadable comp
 
 <br>
 
-![Tether Desktop Recover](shots/desktop-recover.png)
+![Tether Desktop — Recover Texts](shots/desktop-recover.png)
 
 </div>
 
@@ -81,8 +81,10 @@ curl -fsSL https://raw.githubusercontent.com/AMG555/Tether/main/scripts/install.
 
 Tether includes a native desktop application powered by **Tauri 2** and system webviews — accessible, responsive on high-DPI displays, and zero resource waste.
 
-![Desktop Text Recovery](shots/desktop-recover.png)
-![System Settings & Clean Uninstall](shots/desktop-settings.png)
+![Tether — Recover Texts](shots/desktop-recover.png)
+![Tether — Companions Catalog](shots/desktop-companions.png)
+![Tether — Companion Studio](shots/desktop-studio.png)
+![Tether — System Settings](shots/desktop-settings.png)
 
 ### Key Desktop Capabilities
 

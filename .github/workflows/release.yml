@@ -153,7 +153,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
-          path: dist/*.*
+          # Use dist/ (not dist/*.*) so every file in the dir is captured,
+          # including versionless aliases like Tether_x64-setup.exe that
+          # have no extra dot segments in their names.
+          path: dist/
 
   publish:
     needs: build
