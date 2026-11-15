@@ -1,8 +1,10 @@
 mod commands;
 mod diagnostics;
 
+use tauri::Manager as _;
+
 pub fn run() -> Result<(), tauri::Error> {
-    let result = tauri::Builder::default()
+    tauri::Builder::default()
         .setup(|app| {
             // Companion overlay window — transparent, always-on-top, no decorations.
             // Hidden until a companion is activated from the main window.
@@ -21,12 +23,10 @@ pub fn run() -> Result<(), tauri::Error> {
             .build()?;
             Ok(())
         })
-        // Intercept the X-button close so the window hides rather than terminating
-        // the process. The app keeps capturing in the background; users exit cleanly
-        // from Settings → Uninstall or via the system tray (future).
+        // Intercept the X-button: hide the main window instead of closing it.
+        // The process must keep running so the crash-ring capture stays active.
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                // Only hide the main window; the companion overlay may already be hidden.
                 if window.label() == "main" {
                     api.prevent_close();
                     let _ = window.hide();
@@ -55,11 +55,22 @@ pub fn run() -> Result<(), tauri::Error> {
             commands::get_system_status,
             commands::show_main_window,
         ])
-        .run(tauri::generate_context!());
-
-    if let Err(error) = &result {
-        eprintln!("{}", diagnostics::startup_failure_label(&error.to_string()));
-    }
-
-    result
+        .build(tauri::generate_context!())?
+        .run(|app, event| {
+            // Tauri 2 exits the process when the last window closes by default.
+            // Prevent that so the crash-ring capture keeps running in the background
+            // after the user closes (hides) the main window.
+            // The only intentional exit paths are:
+            //   • Settings → Uninstall (calls std::process::exit directly)
+            //   • OS kill / SIGTERM
+            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                api.prevent_exit();
+                // Re-show the main window so the user is not left with nothing.
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.show();
+                    let _ = w.set_focus();
+                }
+            }
+        });
+    Ok(())
 }
