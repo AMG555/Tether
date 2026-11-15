@@ -7,12 +7,12 @@
  *   2. Procedural canvas fallback (custom companions / no pack installed)
  *
  * Walk behaviour: companion auto-walks across the bottom of the screen
- * left → right then right → left. User can drag it to any X position.
+ * left → right then right → left. User can drag it to any X/Y position.
  *
  * Click-through: the full canvas has pointer-events:none so the OS treats the
  * transparent area as click-through.  A small #hit-zone div tracks the character
  * position in CSS (updated after every render frame) and captures mouse events.
- * Drag updates walkX directly in JS — no native window drag, no IPC needed.
+ * Drag updates walkX/walkY directly in JS — no native window drag, no IPC needed.
  *
  * All Tauri IPC calls must go through api.js (architecture rule).
  */
@@ -21,14 +21,15 @@ import { getCompanionClip } from './api.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const WALK_SPEED_PX  = 1.4;      // pixels per frame
-const WALK_PAUSE_MS  = 5000;     // pause at edge before turning
-const IDLE_PAUSE_CHANCE = 0.003; // per-frame chance to pause mid-walk
-const SPRITE_FPS     = 12;       // WebP sprite playback rate
-const CHAR_SCALE     = 1.55;     // global scale for procedural character (bigger!)
-const CHAR_MARGIN    = 56;       // px from each edge — walk boundary
-const CHAR_WIDTH     = 80;       // approximate half-width of character for hit-testing
-const CHAR_HEIGHT    = 220;      // approximate full height for hit-testing
+const WALK_SPEED_PX   = 2.2;      // pixels per frame (faster, more lively)
+const WALK_PAUSE_MS   = 4000;     // pause at edge before turning
+const IDLE_PAUSE_CHANCE = 0.002;  // per-frame chance to pause mid-walk
+const SPRITE_FPS      = 12;       // WebP sprite playback rate
+const CHAR_SCALE      = 1.55;     // global scale for procedural character
+const CHAR_MARGIN     = 60;       // px from each horizontal edge — walk boundary
+const CHAR_WIDTH      = 80;       // approximate half-width for hit-testing
+const CHAR_HEIGHT     = 220;      // approximate full height for hit-testing
+const COMPANION_TARGET_H = 220;   // render height in logical CSS pixels
 
 // ─── Companion data ───────────────────────────────────────────────────────────
 
@@ -61,10 +62,6 @@ const hitZone = document.getElementById('hit-zone');
 let W = window.innerWidth;
 let H = window.innerHeight;
 
-// Size the canvas backing store to the physical pixel resolution.
-// IMPORTANT: assigning canvas.width resets the context to identity transform,
-// so we must re-apply the DPR scale immediately after every resize.
-// We store the last applied DPR so we never accidentally double-scale.
 let _appliedDpr = 1;
 function resizeCanvas() {
   const dpr = window.devicePixelRatio || 1;
@@ -73,10 +70,8 @@ function resizeCanvas() {
   W = window.innerWidth;
   H = window.innerHeight;
   if (canvas.width !== w || canvas.height !== h) {
-    // Assigning width/height resets the context — scale is lost.
     canvas.width  = w;
     canvas.height = h;
-    // Re-apply DPR scale so all draw calls use logical (CSS) coordinates.
     ctx.scale(dpr, dpr);
     _appliedDpr = dpr;
   }
@@ -85,27 +80,24 @@ resizeCanvas();
 
 window.addEventListener('resize', () => {
   resizeCanvas();
-  // Keep walkX inside new bounds after a resize
-  if (typeof walkX !== 'undefined') {
-    walkX = Math.max(CHAR_MARGIN, Math.min(W - CHAR_MARGIN, walkX));
-  }
+  walkX = Math.max(CHAR_MARGIN, Math.min(W - CHAR_MARGIN, walkX));
+  walkY = Math.max(CHAR_HEIGHT + 10, Math.min(H - 10, walkY));
   updateHitZone();
 });
 
 // Move the hit-zone div so it covers the character's current bounding box.
-// Called every render frame so it tracks the character exactly.
 function updateHitZone() {
-  const hw = CHAR_WIDTH * 2;        // hit width = full character width
-  const hh = CHAR_HEIGHT;           // hit height = full character height
+  const hw = CHAR_WIDTH * 2;
+  const hh = CHAR_HEIGHT;
   hitZone.style.left   = `${Math.round(walkX - hw / 2)}px`;
-  hitZone.style.bottom = '0px';
+  hitZone.style.top    = `${Math.round(walkY - hh)}px`;
+  hitZone.style.bottom = '';
   hitZone.style.width  = `${hw}px`;
   hitZone.style.height = `${hh}px`;
 }
 
 // ─── State machine ────────────────────────────────────────────────────────────
 
-// Read enabled actions from main window's localStorage (set by Behaviors tab)
 function getWalkStates() {
   try {
     const raw = localStorage.getItem('tether-active-actions');
@@ -129,7 +121,8 @@ let WALK_STATES = getWalkStates();
 let currentState = 'idle';
 let nextStateTimer = 0;
 let walkDir = 1;         // 1 = right, -1 = left
-let walkX = CHAR_MARGIN; // start at bottom-left, walk toward right
+let walkX = CHAR_MARGIN; // start at left edge
+let walkY = H;           // feet Y position (bottom of screen by default)
 let walking = false;
 let pauseTimer = 0;
 let animTime = 0;
@@ -171,20 +164,18 @@ async function loadSprite(companionId, state) {
       img.src = dataUrl;
       await new Promise((res) => { img.onload = res; img.onerror = res; });
       if (img.naturalWidth > 0) {
-        // Only cache a successful load — a zero-size image means the decode failed.
         spriteCache[key] = img;
         return img;
       }
     }
   } catch { /* fall through */ }
-  // Never permanently cache null — a companion might have clips even if
-  // avatarType isn't set (old localStorage entry without the field).
-  // Clearing the loading flag allows a retry on the next state transition.
   delete spriteLoading[key];
   return null;
 }
 
+// Pre-warm the idle and walk sprites immediately on load
 loadSprite(companion.id, 'idle');
+loadSprite(companion.id, 'walk');
 
 // ─── State helpers ────────────────────────────────────────────────────────────
 
@@ -194,7 +185,6 @@ const DEFAULT_QUOTES = {
 };
 
 function pickNextState() {
-  // Re-read enabled actions every pick so Settings changes take effect immediately
   WALK_STATES = getWalkStates();
   if (WALK_STATES.length === 0) WALK_STATES = ['idle'];
 
@@ -204,7 +194,6 @@ function pickNextState() {
   nextStateTimer = performance.now() + (5000 + Math.random() * 7000);
   loadSprite(companion.id, currentState);
 
-  // Show speech bubble — use custom quote if set, fall back to defaults
   const quotes = getActionQuotes();
   const text = quotes[currentState] || DEFAULT_QUOTES[currentState] || '';
   if (text) showBubble(text, 2800);
@@ -234,7 +223,7 @@ function renderFrame(timestamp) {
   // State transition
   if (timestamp > nextStateTimer) pickNextState();
 
-  // Walk position
+  // Walk position — X axis walk, Y stays where user dragged it (or bottom)
   if (walking) {
     if (Math.random() < IDLE_PAUSE_CHANCE) {
       walking = false;
@@ -263,9 +252,9 @@ function renderFrame(timestamp) {
     nextStateTimer = performance.now() + 9000;
   }
 
-  // Spring physics — apply a landing impulse when switching to walk
+  // Spring physics
   if (currentState === 'walk' && Math.abs(springVY) < 0.1 && Math.abs(springY) < 0.1) {
-    if (Math.random() < 0.008) springVY = -6; // small hop
+    if (Math.random() < 0.008) springVY = -6;
   }
   if (currentState === 'happy' && Math.random() < 0.012) springVY = -10;
 
@@ -291,8 +280,7 @@ function renderFrame(timestamp) {
 
 function drawBubble() {
   const bx = walkX;
-  const charFeetY = H - 28;      // matches baseY in drawProceduralCompanion
-  const by = charFeetY - CHAR_HEIGHT + 60 + springY; // float above companion's head
+  const by = walkY - COMPANION_TARGET_H + 40 + springY;
   const pad = 10;
   ctx.font = 'bold 13px -apple-system, Segoe UI, sans-serif';
   const tw = ctx.measureText(bubbleText).width;
@@ -302,7 +290,6 @@ function drawBubble() {
   ctx.save();
   ctx.globalAlpha = Math.min(bubbleAlpha, 0.95);
 
-  // Bubble body
   ctx.fillStyle = '#fff';
   ctx.strokeStyle = 'rgba(0,0,0,0.12)';
   ctx.lineWidth = 1;
@@ -313,7 +300,6 @@ function drawBubble() {
   ctx.fill();
   ctx.stroke();
 
-  // Bubble tail
   ctx.fillStyle = '#fff';
   ctx.beginPath();
   ctx.moveTo(bx - 7, by);
@@ -322,7 +308,6 @@ function drawBubble() {
   ctx.closePath();
   ctx.fill();
 
-  // Bubble text
   ctx.fillStyle = '#1f2328';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -330,10 +315,6 @@ function drawBubble() {
 
   ctx.restore();
 }
-
-// Target height for the companion in logical CSS pixels.
-// Matches the procedural character height so clip/procedural look the same size.
-const COMPANION_TARGET_H = 220;
 
 function drawCompanion() {
   const spriteKey = `${companion.id}:${currentState}`;
@@ -344,17 +325,14 @@ function drawCompanion() {
     const iw = img.naturalWidth;
     const ih = img.naturalHeight;
     if (iw === 0 || ih === 0) {
-      // Image loaded with zero dimensions — treat as missing, draw procedural
       drawProceduralCompanion(shouldFlip);
       return;
     }
-    // Scale so the companion renders at COMPANION_TARGET_H pixels tall,
-    // preserving aspect ratio.  Never exceed half the screen width.
     const scale = Math.min(COMPANION_TARGET_H / ih, (W * 0.5) / iw);
     const dw = iw * scale;
     const dh = ih * scale;
     const dx = walkX - dw / 2;
-    const dy = H - dh + springY;
+    const dy = walkY - dh + springY;    // feet at walkY
     ctx.save();
     if (shouldFlip) { ctx.translate(walkX * 2, 0); ctx.scale(-1, 1); }
     ctx.drawImage(img, dx, dy, dw, dh);
@@ -370,15 +348,15 @@ function drawCompanion() {
 function drawProceduralCompanion(flip) {
   const colors = companion.colors || DEFAULT_COMPANION.colors;
   const cx = walkX;
-  // Character stands with feet at baseY; spring offset shifts the whole body
-  const baseY = H - 28;
+  // Feet at walkY, spring offset shifts entire body
+  const baseY = walkY;
   const sc = CHAR_SCALE;
 
   let bob = Math.sin(animTime * 2.5) * 2.5 * sc + springY;
   let waveAngle = 0;
   let walkPhase = 0;
   let eyeBlink = Math.sin(animTime * 0.7) > 0.96 ? 0.08 : 1.0;
-  let breathe = Math.sin(animTime * 1.2) * 1.5 * sc; // subtle body breathe
+  let breathe = Math.sin(animTime * 1.2) * 1.5 * sc;
 
   if (currentState === 'walk') {
     walkPhase = Math.sin(animTime * 7);
@@ -393,7 +371,7 @@ function drawProceduralCompanion(flip) {
     breathe = 0;
   } else if (currentState === 'stretch') {
     bob = Math.sin(animTime * 1.5) * 4 * sc + springY;
-    waveAngle = -Math.abs(Math.sin(animTime * 1.5)) * 0.9; // both arms up
+    waveAngle = -Math.abs(Math.sin(animTime * 1.5)) * 0.9;
   } else if (currentState === 'sad') {
     bob = -Math.abs(Math.sin(animTime * 1.2)) * 3 * sc + springY;
     eyeBlink = 0.3;
@@ -402,13 +380,11 @@ function drawProceduralCompanion(flip) {
   ctx.save();
   if (flip) { ctx.translate(cx * 2, 0); ctx.scale(-1, 1); }
 
-  // Ground shadow
   ctx.fillStyle = 'rgba(0,0,0,0.14)';
   ctx.beginPath();
   ctx.ellipse(cx, baseY + 4, 30 * sc, 7 * sc, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Legs
   const legSpread = 11 * sc;
   const legW = 10 * sc;
   const legH = 18 * sc;
@@ -422,7 +398,6 @@ function drawProceduralCompanion(flip) {
   ctx.roundRect(cx + legSpread - legW * 0.5, baseY - legH - bob + legR, legW, legH + 4 * sc, 3 * sc);
   ctx.fill();
 
-  // Body
   const bodyW = 46 * sc;
   const bodyH = 50 * sc + breathe;
   ctx.fillStyle = colors.body || '#2563eb';
@@ -430,20 +405,17 @@ function drawProceduralCompanion(flip) {
   ctx.roundRect(cx - bodyW / 2, baseY - legH - bodyH - bob, bodyW, bodyH, 8 * sc);
   ctx.fill();
 
-  // Chest badge
   const badgeW = 20 * sc;
   const badgeH = 26 * sc;
   ctx.fillStyle = colors.accent || '#c2331a';
   ctx.beginPath();
   ctx.roundRect(cx - badgeW / 2, baseY - legH - bodyH * 0.65 - bob, badgeW, badgeH, 4 * sc);
   ctx.fill();
-  // Shine on badge
   ctx.fillStyle = 'rgba(255,255,255,0.18)';
   ctx.beginPath();
   ctx.roundRect(cx - badgeW / 2 + 2 * sc, baseY - legH - bodyH * 0.65 - bob + 2 * sc, badgeW * 0.4, badgeH * 0.45, 2 * sc);
   ctx.fill();
 
-  // Left arm
   ctx.save();
   ctx.translate(cx - bodyW / 2, baseY - legH - bodyH * 0.75 - bob);
   const leftArmRot = currentState === 'stretch'
@@ -457,7 +429,6 @@ function drawProceduralCompanion(flip) {
   ctx.fill();
   ctx.restore();
 
-  // Right arm
   ctx.save();
   ctx.translate(cx + bodyW / 2, baseY - legH - bodyH * 0.75 - bob);
   const rightArmRot = currentState === 'stretch'
@@ -471,7 +442,6 @@ function drawProceduralCompanion(flip) {
   ctx.fill();
   ctx.restore();
 
-  // Head
   const headW = 40 * sc;
   const headH = 32 * sc;
   const headY = baseY - legH - bodyH - headH - bob + 4 * sc;
@@ -480,7 +450,6 @@ function drawProceduralCompanion(flip) {
   ctx.roundRect(cx - headW / 2, headY, headW, headH, 8 * sc);
   ctx.fill();
 
-  // Ears (triangular)
   ctx.fillStyle = colors.accent || '#c2331a';
   ctx.beginPath();
   ctx.moveTo(cx - 16 * sc, headY + 2 * sc);
@@ -495,7 +464,6 @@ function drawProceduralCompanion(flip) {
   ctx.closePath();
   ctx.fill();
 
-  // Eyes — rounded squares with highlights
   const eyeY = headY + headH * 0.42;
   const eyeW = 8 * sc;
   const eyeH = 10 * sc * eyeBlink;
@@ -506,7 +474,6 @@ function drawProceduralCompanion(flip) {
   ctx.beginPath();
   ctx.roundRect(cx + 6 * sc, eyeY, eyeW, eyeH, 2 * sc);
   ctx.fill();
-  // Eye highlights
   if (eyeBlink > 0.5) {
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
     ctx.beginPath();
@@ -541,33 +508,22 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) stopAnim(); else startAnim();
 });
 
-// ─── Hit-test helper: is the click near the companion character? ──────────────
-// Because the canvas fills the whole screen, we must only act on events that
-// land within the companion's bounding box — not anywhere on the transparent
-// overlay.  Other clicks pass through to the desktop (Tauri transparent window).
-
-function isOverCompanion(x, y) {
-  const charLeft  = walkX - CHAR_WIDTH;
-  const charRight = walkX + CHAR_WIDTH;
-  const charTop   = H - CHAR_HEIGHT;
-  const charBot   = H;
-  return x >= charLeft && x <= charRight && y >= charTop && y <= charBot;
-}
-
 // ─── Hit-zone drag + click ────────────────────────────────────────────────────
-// The canvas has pointer-events:none so the OS treats the transparent area as
-// click-through.  #hit-zone is a small div that CSS-tracks the character and
-// receives all mouse events.  Drag updates walkX in JS (no native window drag).
+// Full 2D drag — user can move the companion anywhere on screen.
 
 let _dragActive = false;
 let _dragStartX = 0;
+let _dragStartY = 0;
 let _walkXAtDragStart = 0;
+let _walkYAtDragStart = 0;
 
 hitZone.addEventListener('mousedown', (e) => {
   e.preventDefault();
   _dragActive = true;
   _dragStartX = e.clientX;
+  _dragStartY = e.clientY;
   _walkXAtDragStart = walkX;
+  _walkYAtDragStart = walkY;
   hitZone.classList.add('dragging');
   walking = false;
   currentState = 'idle';
@@ -576,7 +532,10 @@ hitZone.addEventListener('mousedown', (e) => {
 window.addEventListener('mousemove', (e) => {
   if (!_dragActive) return;
   const dx = e.clientX - _dragStartX;
+  const dy = e.clientY - _dragStartY;
   walkX = Math.max(CHAR_MARGIN, Math.min(W - CHAR_MARGIN, _walkXAtDragStart + dx));
+  // Keep the companion fully visible vertically (feet must be on screen)
+  walkY = Math.max(COMPANION_TARGET_H + 10, Math.min(H - 10, _walkYAtDragStart + dy));
 });
 
 window.addEventListener('mouseup', () => {
@@ -585,8 +544,38 @@ window.addEventListener('mouseup', () => {
   hitZone.classList.remove('dragging');
 });
 
+// Touch drag support
+hitZone.addEventListener('touchstart', (e) => {
+  if (e.touches.length !== 1) return;
+  e.preventDefault();
+  const t = e.touches[0];
+  _dragActive = true;
+  _dragStartX = t.clientX;
+  _dragStartY = t.clientY;
+  _walkXAtDragStart = walkX;
+  _walkYAtDragStart = walkY;
+  hitZone.classList.add('dragging');
+  walking = false;
+  currentState = 'idle';
+}, { passive: false });
+
+window.addEventListener('touchmove', (e) => {
+  if (!_dragActive || e.touches.length !== 1) return;
+  const t = e.touches[0];
+  const dx = t.clientX - _dragStartX;
+  const dy = t.clientY - _dragStartY;
+  walkX = Math.max(CHAR_MARGIN, Math.min(W - CHAR_MARGIN, _walkXAtDragStart + dx));
+  walkY = Math.max(COMPANION_TARGET_H + 10, Math.min(H - 10, _walkYAtDragStart + dy));
+});
+
+window.addEventListener('touchend', () => {
+  if (!_dragActive) return;
+  _dragActive = false;
+  hitZone.classList.remove('dragging');
+});
+
 // ─── Single click: live pet reactions ────────────────────────────────────────
-// Rotate through distinct reactions so every click feels different.
+
 const CLICK_REACTIONS = [
   { state: 'wave',    bubble: '👋 Hey there!',       spring: -8,  dur: 3000 },
   { state: 'happy',   bubble: '✨ You noticed me!',   spring: -14, dur: 3500 },
@@ -598,7 +587,9 @@ let _clickReactionIdx = 0;
 
 hitZone.addEventListener('click', () => {
   // Ignore click if the user just finished a drag (moved more than 5px)
-  if (Math.abs(walkX - _walkXAtDragStart) > 5) return;
+  const movedX = Math.abs(walkX - _walkXAtDragStart);
+  const movedY = Math.abs(walkY - _walkYAtDragStart);
+  if (movedX > 5 || movedY > 5) return;
   const reaction = CLICK_REACTIONS[_clickReactionIdx % CLICK_REACTIONS.length];
   _clickReactionIdx++;
   currentState = reaction.state;
@@ -608,8 +599,6 @@ hitZone.addEventListener('click', () => {
   showBubble(reaction.bubble, reaction.dur - 200);
   loadSprite(companion.id, reaction.state);
 });
-
-// ─── Double-click: extra big happy bounce ────────────────────────────────────
 
 hitZone.addEventListener('dblclick', () => {
   currentState = 'happy';
@@ -624,12 +613,14 @@ hitZone.addEventListener('dblclick', () => {
 
 function reloadCompanion() {
   companion = loadActiveCompanion();
+  // Clear sprite cache for old companion
   Object.keys(spriteCache).forEach((k) => {
     if (!k.startsWith(companion.id + ':')) delete spriteCache[k];
   });
   Object.keys(spriteLoading).forEach((k) => {
     if (!k.startsWith(companion.id + ':')) delete spriteLoading[k];
   });
+  // Pre-warm idle + walk so the real image appears without robot flash
   loadSprite(companion.id, 'idle');
   loadSprite(companion.id, 'walk');
   pickNextState();

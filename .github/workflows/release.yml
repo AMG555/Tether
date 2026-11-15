@@ -182,7 +182,7 @@ jobs:
           for CDIR in assets/companions/*/; do
             CNAME="$(basename "$CDIR")"
             if [ -d "$CDIR" ] && ls "$CDIR"/*.webp 2>/dev/null | head -1 | grep -q .; then
-              (cd assets/companions && zip -qr "../../dist/companion-${CNAME}.zip" "$CNAME/")
+              (cd assets/companions && 7z a "../../dist/companion-${CNAME}.zip" "$CNAME/" > /dev/null)
               echo "Packaged companion-${CNAME}.zip"
             fi
           done

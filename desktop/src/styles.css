@@ -772,6 +772,11 @@ main {
   overflow: hidden;
   position: relative;
   border-bottom: 1px solid var(--rule);
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.companion-card-avatar:hover {
+  opacity: 0.88;
 }
 
 .companion-avatar-img {
@@ -1586,8 +1591,8 @@ canvas#studio-canvas {
 
 /* ── Desktop mockup shell ───────────────────────────────────────── */
 .preview-desktop-mockup {
-  width: 380px;
-  height: 290px;
+  width: 420px;
+  height: 340px;
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid var(--rule-strong);
@@ -1684,32 +1689,37 @@ canvas#studio-canvas {
   pointer-events: none;
 }
 
-/* Companion sits at the bottom-left of the wallpaper, matching real overlay start position */
+/* Companion sits at the bottom-right of the wallpaper, mirroring real overlay position */
 .preview-companion-stage {
   position: absolute;
   bottom: 0;
-  left: 12px;
+  right: 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0;
-  cursor: pointer;
+  cursor: grab;
+  user-select: none;
   transition: transform 0.1s ease;
+}
+.preview-companion-stage:hover {
+  transform: scale(1.03) translateY(-2px);
 }
 .preview-companion-stage:active {
   transform: scale(0.96) translateY(2px);
 }
 
 .preview-companion-img--desktop {
-  width: 130px;
-  height: 160px;
+  width: 190px;
+  height: 230px;
   object-fit: contain;
   display: block;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
 }
 
 .preview-companion-canvas--desktop {
-  width: 130px;
-  height: 160px;
+  width: 190px;
+  height: 230px;
   display: block;
 }
 

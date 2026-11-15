@@ -655,6 +655,11 @@ async function setupCompanionsView() {
         }
       }
 
+      // Clicking the avatar image, card header, or Preview button all open preview
+      card.querySelector('.companion-card-avatar')?.addEventListener('click', () => {
+        openCompanionPreview(c);
+      });
+
       card.querySelector('.btn-preview-pet')?.addEventListener('click', () => {
         openCompanionPreview(c);
       });
