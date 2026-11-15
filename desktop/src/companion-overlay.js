@@ -21,7 +21,7 @@
  * All Tauri IPC calls must go through api.js (architecture rule).
  */
 
-import { getCompanionClip, getActiveCompanion, getCaptureStatus } from './api.js';
+import { getCompanionClip, getActiveCompanion, getCaptureStatus, setCompanionPassthrough } from './api.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -230,9 +230,12 @@ const spriteContainer = (() => {
   return el;
 })();
 
+/** Sentinel placed in spriteCache for a permanently missing/broken sprite. */
+const SPRITE_MISSING = null;
+
 async function loadSprite(companionId, state) {
   const key = `${companionId}:${state}`;
-  if (key in spriteCache) return spriteCache[key];
+  if (key in spriteCache) return spriteCache[key]; // includes SPRITE_MISSING sentinel
   if (spriteLoading[key]) return undefined;
   spriteLoading[key] = true;
   try {
@@ -246,15 +249,17 @@ async function loadSprite(companionId, state) {
       await new Promise((res) => { img.onload = res; img.onerror = res; });
       if (img.naturalWidth > 0) {
         spriteCache[key] = img;
+        delete spriteLoading[key];
         return img;
-      } else {
-        // Load failed — remove the orphan element
-        spriteContainer.removeChild(img);
       }
+      // Image loaded but reported zero size — broken file, remove orphan
+      spriteContainer.removeChild(img);
     }
   } catch { /* fall through */ }
+  // Mark as permanently missing so we never flood IPC with retries
+  spriteCache[key] = SPRITE_MISSING;
   delete spriteLoading[key];
-  return null;
+  return SPRITE_MISSING;
 }
 
 // Pre-warm the most common actions immediately so the character appears without a
@@ -285,7 +290,11 @@ function pickNextState() {
   const idx = Math.floor(Math.random() * WALK_STATES.length);
   currentState = WALK_STATES[idx];
   walking = currentState === 'walk';
+  // Schedule next transition 5–12 s from now.
+  // Use performance.now() so it stays consistent with the RAF timestamp clock.
   nextStateTimer = performance.now() + (5000 + Math.random() * 7000);
+  // Clear any pending edge-pause timer so it doesn't fight the new state
+  pauseTimer = 0;
   loadSprite(companion.id, currentState);
 
   const quotes = getActionQuotes();
@@ -293,6 +302,10 @@ function pickNextState() {
   if (text) showBubble(text, 2800);
 }
 
+// Initialise nextStateTimer to a value safely in the future so the first
+// renderFrame call doesn't immediately fire pickNextState a second time.
+// (lastTimestamp starts at 0 so the first dt is large; RAF timestamp on first
+// call is already in the thousands of ms, which would exceed nextStateTimer=0.)
 pickNextState();
 
 // ─── Render loop ──────────────────────────────────────────────────────────────
@@ -305,14 +318,17 @@ function renderFrame(timestamp) {
   lastTimestamp = timestamp;
   animTime += dt * 0.001;
 
-  // State transition — but not while the user is dragging
-  if (timestamp > nextStateTimer && !_dragActive) pickNextState();
+  // State transition — but not while dragging and not while an edge-pause is
+  // pending (let the walk resume first, then allow a fresh state pick).
+  if (timestamp > nextStateTimer && !_dragActive && pauseTimer === 0) pickNextState();
 
   // Walk position — blocked during drag and briefly after drop
-  if (walking && !_dragActive && (_dragResumeAt === 0 || timestamp > _dragResumeAt)) {
+  const walkAllowed = !_dragActive && (_dragResumeAt === 0 || timestamp > _dragResumeAt);
+  if (walking && walkAllowed) {
     if (Math.random() < IDLE_PAUSE_CHANCE) {
       walking = false;
       currentState = 'idle';
+      // Push the next state timer out so idle has time to show before the next pick
       nextStateTimer = performance.now() + 3000;
     } else {
       walkX += walkDir * WALK_SPEED_PX;
@@ -322,23 +338,28 @@ function renderFrame(timestamp) {
         walking = false;
         pauseTimer = timestamp + WALK_PAUSE_MS;
         currentState = 'idle';
+        // Extend the state timer so pickNextState can't fire during the pause
+        nextStateTimer = performance.now() + WALK_PAUSE_MS + 1000;
       } else if (walkX < CHAR_MARGIN) {
         walkX = CHAR_MARGIN;
         walkDir = 1;
         walking = false;
         pauseTimer = timestamp + WALK_PAUSE_MS;
         currentState = 'idle';
+        nextStateTimer = performance.now() + WALK_PAUSE_MS + 1000;
       }
     }
-  } else if (!_dragActive && pauseTimer > 0 && timestamp > pauseTimer
-             && (_dragResumeAt === 0 || timestamp > _dragResumeAt)) {
+  } else if (walkAllowed && pauseTimer > 0 && timestamp > pauseTimer) {
     pauseTimer = 0;
     walking = true;
     currentState = 'walk';
     nextStateTimer = performance.now() + 9000;
   }
 
-  // Spring physics
+  // Spring physics — idle gets a small occasional nudge so it never looks frozen
+  if (currentState === 'idle' && Math.abs(springVY) < 0.1 && Math.abs(springY) < 0.1) {
+    if (Math.random() < 0.003) springVY = -4;
+  }
   if (currentState === 'walk' && Math.abs(springVY) < 0.1 && Math.abs(springY) < 0.1) {
     if (Math.random() < 0.008) springVY = -6;
   }
@@ -428,64 +449,53 @@ function drawStatusIndicator() {
   ctx.restore();
 }
 
+/** Draw a loaded WebP sprite image at the companion's current position. */
+function drawSpriteImg(img, shouldFlip) {
+  const scale = Math.min(COMPANION_TARGET_H / img.naturalHeight, (W * 0.5) / img.naturalWidth);
+  const dw = img.naturalWidth * scale;
+  const dh = img.naturalHeight * scale;
+  const dx = walkX - dw / 2;
+  const dy = walkY - dh + springY;
+  ctx.save();
+  if (shouldFlip) { ctx.translate(walkX * 2, 0); ctx.scale(-1, 1); }
+  // drawImage on an animated WebP always stamps the browser's current frame —
+  // the browser advances frames on its own clock for free.
+  ctx.drawImage(img, dx, dy, dw, dh);
+  ctx.restore();
+}
+
 function drawCompanion() {
   const spriteKey = `${companion.id}:${currentState}`;
-  const img = spriteCache[spriteKey];
   // Flip when walking left; also flip non-walk actions when last walk direction was left
   const shouldFlip = walkDir === -1 && (walking || currentState !== 'walk');
 
+  const img = spriteCache[spriteKey]; // may be undefined (not yet fetched), or SPRITE_MISSING (null)
+
   if (img) {
-    const iw = img.naturalWidth;
-    const ih = img.naturalHeight;
-    if (iw === 0 || ih === 0) {
-      // Loaded but empty (broken file) — fall through to procedural
-      drawProceduralCompanion(shouldFlip);
-      drawStatusIndicator();
-      return;
-    }
-    // Scale to target height while capping width at 50% of screen
-    const scale = Math.min(COMPANION_TARGET_H / ih, (W * 0.5) / iw);
-    const dw = iw * scale;
-    const dh = ih * scale;
-    const dx = walkX - dw / 2;
-    const dy = walkY - dh + springY;    // feet at walkY
-    ctx.save();
-    if (shouldFlip) {
-      // Mirror around the character centre so position stays stable
-      ctx.translate(walkX * 2, 0);
-      ctx.scale(-1, 1);
-    }
-    // ctx.drawImage(animatedWebP) always stamps the browser's current frame —
-    // the browser advances animated WebP frames on its own clock for free.
-    ctx.drawImage(img, dx, dy, dw, dh);
-    ctx.restore();
+    // Valid loaded image
+    drawSpriteImg(img, shouldFlip);
     drawStatusIndicator();
-  } else {
-    // Sprite not yet cached — kick off a load if not already in-flight
-    if (!spriteLoading[spriteKey]) {
-      loadSprite(companion.id, currentState);
-    }
-    // Check whether the idle fallback is ready while the real sprite loads
-    const idleKey = `${companion.id}:idle`;
-    const idleImg = spriteCache[idleKey];
-    if (idleImg && idleImg.naturalWidth > 0 && currentState !== 'idle') {
-      // Show idle sprite while the requested action's sprite is loading
-      const iw = idleImg.naturalWidth;
-      const ih = idleImg.naturalHeight;
-      const scale = Math.min(COMPANION_TARGET_H / ih, (W * 0.5) / iw);
-      const dw = iw * scale;
-      const dh = ih * scale;
-      const dx = walkX - dw / 2;
-      const dy = walkY - dh + springY;
-      ctx.save();
-      if (shouldFlip) { ctx.translate(walkX * 2, 0); ctx.scale(-1, 1); }
-      ctx.drawImage(idleImg, dx, dy, dw, dh);
-      ctx.restore();
-    } else {
-      drawProceduralCompanion(shouldFlip);
-    }
-    drawStatusIndicator();
+    return;
   }
+
+  if (img === undefined) {
+    // Not yet in cache — kick off a load (loadSprite guards against parallel requests)
+    loadSprite(companion.id, currentState);
+  }
+  // img === null means permanently missing — fall through to fallback below
+
+  // Bridge: show idle sprite while the requested action sprite is loading/missing
+  const idleKey = `${companion.id}:idle`;
+  const idleImg = spriteCache[idleKey];
+  if (idleImg && currentState !== 'idle') {
+    drawSpriteImg(idleImg, shouldFlip);
+    drawStatusIndicator();
+    return;
+  }
+
+  // Final fallback: procedural animated character
+  drawProceduralCompanion(shouldFlip);
+  drawStatusIndicator();
 }
 
 function drawProceduralCompanion(flip) {
@@ -668,6 +678,13 @@ document.addEventListener('visibilitychange', () => {
 
 // ─── Hit-zone drag + click ────────────────────────────────────────────────────
 // Full 2D drag — user can move the companion anywhere on screen.
+//
+// OS passthrough note: the overlay window runs with set_ignore_cursor_events(true)
+// (full click-through) so desktop clicks pass beneath it.  On mousedown we call
+// setCompanionPassthrough(false) to claim all cursor events for the duration of
+// the drag — without this, fast drags that move the cursor off the hit-zone lose
+// mousemove/mouseup events at the OS level and the companion gets stuck.
+// On mouseup we restore passthrough immediately.
 
 let _dragActive = false;
 let _dragStartX = 0;
@@ -675,16 +692,36 @@ let _dragStartY = 0;
 let _walkXAtDragStart = 0;
 let _walkYAtDragStart = 0;
 
-hitZone.addEventListener('mousedown', (e) => {
-  e.preventDefault();
+function _beginDrag(clientX, clientY) {
   _dragActive = true;
-  _dragStartX = e.clientX;
-  _dragStartY = e.clientY;
+  _dragStartX = clientX;
+  _dragStartY = clientY;
   _walkXAtDragStart = walkX;
   _walkYAtDragStart = walkY;
   hitZone.classList.add('dragging');
   walking = false;
   currentState = 'idle';
+  // Disable OS passthrough so we receive ALL cursor events during the drag,
+  // even when the cursor moves far outside the hit-zone div.
+  setCompanionPassthrough(false);
+}
+
+function _endDrag() {
+  if (!_dragActive) return;
+  _dragActive = false;
+  hitZone.classList.remove('dragging');
+  // Restore OS passthrough so the desktop is click-through again.
+  setCompanionPassthrough(true);
+  // Brief cooldown before auto-walk resumes so the companion stays where dropped
+  _dragResumeAt = performance.now() + DRAG_RESUME_MS;
+  // Show a friendly drop reaction
+  const drops = ['🎯 Right here!', '📍 Perfect spot!', '👌 Done!'];
+  showBubble(drops[Math.floor(Math.random() * drops.length)], 1500);
+}
+
+hitZone.addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  _beginDrag(e.clientX, e.clientY);
 });
 
 window.addEventListener('mousemove', (e) => {
@@ -692,34 +729,20 @@ window.addEventListener('mousemove', (e) => {
   const dx = e.clientX - _dragStartX;
   const dy = e.clientY - _dragStartY;
   walkX = Math.max(CHAR_MARGIN, Math.min(W - CHAR_MARGIN, _walkXAtDragStart + dx));
-  // Keep the companion fully visible vertically (feet must be on screen)
   walkY = Math.max(COMPANION_TARGET_H + 10, Math.min(H - 10, _walkYAtDragStart + dy));
 });
 
-window.addEventListener('mouseup', () => {
-  if (!_dragActive) return;
-  _dragActive = false;
-  hitZone.classList.remove('dragging');
-  // Brief cooldown before auto-walk resumes so the companion stays where dropped
-  _dragResumeAt = performance.now() + DRAG_RESUME_MS;
-  // Show a friendly drop reaction
-  const drops = ['🎯 Right here!', '📍 Perfect spot!', '👌 Done!'];
-  showBubble(drops[Math.floor(Math.random() * drops.length)], 1500);
-});
+window.addEventListener('mouseup', _endDrag);
+
+// Safety net: if the window loses focus mid-drag (e.g. Alt+Tab) restore passthrough
+window.addEventListener('blur', () => { if (_dragActive) _endDrag(); });
 
 // Touch drag support
 hitZone.addEventListener('touchstart', (e) => {
   if (e.touches.length !== 1) return;
   e.preventDefault();
   const t = e.touches[0];
-  _dragActive = true;
-  _dragStartX = t.clientX;
-  _dragStartY = t.clientY;
-  _walkXAtDragStart = walkX;
-  _walkYAtDragStart = walkY;
-  hitZone.classList.add('dragging');
-  walking = false;
-  currentState = 'idle';
+  _beginDrag(t.clientX, t.clientY);
 }, { passive: false });
 
 window.addEventListener('touchmove', (e) => {
@@ -731,12 +754,8 @@ window.addEventListener('touchmove', (e) => {
   walkY = Math.max(COMPANION_TARGET_H + 10, Math.min(H - 10, _walkYAtDragStart + dy));
 });
 
-window.addEventListener('touchend', () => {
-  if (!_dragActive) return;
-  _dragActive = false;
-  hitZone.classList.remove('dragging');
-  _dragResumeAt = performance.now() + DRAG_RESUME_MS;
-});
+window.addEventListener('touchend', _endDrag);
+window.addEventListener('touchcancel', _endDrag);
 
 // ─── Single click: live pet reactions ────────────────────────────────────────
 
