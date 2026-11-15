@@ -24,6 +24,7 @@ fn main() {
             "show_companion_overlay",
             "hide_companion_overlay",
             "start_companion_drag",
+            "get_capture_status",
         ]),
     ))
     .expect("failed to configure the Tauri command allowlist");

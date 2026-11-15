@@ -443,3 +443,19 @@ export async function startCompanionDrag() {
   }
 }
 
+/**
+ * Returns the current capture status.
+ * @returns {Promise<{ capturing: boolean, eventsSeen: number, draftsSaved: number }>}
+ */
+export async function getCaptureStatus() {
+  const invoke = getInvoker();
+  if (!invoke) {
+    return { capturing: false, eventsSeen: 0, draftsSaved: 0 };
+  }
+  try {
+    return await invoke('get_capture_status');
+  } catch {
+    return { capturing: false, eventsSeen: 0, draftsSaved: 0 };
+  }
+}
+

@@ -125,7 +125,7 @@ fn to_base64(data: &[u8]) -> String {
     out
 }
 
-fn open_local_vault() -> Result<tether::vault::Vault, String> {
+pub fn open_local_vault() -> Result<tether::vault::Vault, String> {
     let dir = tether::default_data_dir();
     let key_file = dir.join("key.txt");
     let key = if key_file.exists() {
@@ -958,6 +958,33 @@ pub fn hide_companion_overlay(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn start_companion_drag(window: tauri::Window) -> Result<(), String> {
     window.start_dragging().map_err(|e| e.to_string())
+}
+
+/// Returns the current capture status: whether the keyboard hook is active, how many
+/// events have been seen, and how many drafts are stored in the vault.
+#[tauri::command]
+pub fn get_capture_status(
+    state: tauri::State<'_, std::sync::Mutex<crate::AppState>>,
+) -> Result<CaptureStatus, String> {
+    let guard = state.lock().map_err(|_| "state lock poisoned".to_string())?;
+    let capturing = guard.capturing.load(std::sync::atomic::Ordering::Relaxed);
+    let (events_seen, drafts_saved) = match &guard.engine {
+        Some(engine) => {
+            let seen = engine.stats.events_seen.load(std::sync::atomic::Ordering::Relaxed);
+            let commits = engine.stats.commits.load(std::sync::atomic::Ordering::Relaxed);
+            (seen, commits)
+        }
+        None => (0, 0),
+    };
+    Ok(CaptureStatus { capturing, events_seen, drafts_saved })
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CaptureStatus {
+    pub capturing: bool,
+    pub events_seen: u64,
+    pub drafts_saved: u64,
 }
 
 #[tauri::command]

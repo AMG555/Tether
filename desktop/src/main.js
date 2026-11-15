@@ -21,6 +21,7 @@ import {
   showMainWindow,
   showCompanionOverlay,
   hideCompanionOverlay,
+  getCaptureStatus,
 } from './api.js';
 
 const genericFailureMessage = 'Tether could not load app information.';
@@ -493,18 +494,27 @@ async function setupCompanionsView() {
       const card = document.createElement('div');
       card.className = `companion-card ${c.id === activePetId ? 'active-pet' : ''}`;
 
-      const tagsHtml = (c.tags || []).map((t) => `<span class="tag-badge">${escapeHtml(t)}</span>`).join('');
+      const tagsHtml = (c.tags || []).slice(0, 3).map((t) => `<span class="tag-badge">${escapeHtml(t)}</span>`).join('');
+
       const actionBtnHtml = c.isInstalled
         ? (c.id === activePetId
           ? '<span class="status-pill ok">Active</span>'
-          : `<button type="button" class="btn btn-secondary btn-select-pet" data-id="${c.id}">Select</button>`)
-        : `<button type="button" class="btn btn-primary btn-install-pet" data-id="${c.id}">Download Pack</button>`;
+          : `<button type="button" class="btn btn-secondary btn-select-pet" data-id="${c.id}">Activate</button>`)
+        : `<button type="button" class="btn btn-primary btn-install-pet" data-id="${c.id}">Download</button>`;
+
+      // Pick a colour for the avatar based on the companion's colours or a hash
+      const avatarColors = c.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' };
 
       card.innerHTML = `
-        <div>
+        <div class="companion-card-avatar">
+          <canvas class="companion-avatar-canvas" width="220" height="220"
+            aria-hidden="true" data-companion-id="${escapeHtml(c.id)}"></canvas>
+          ${c.isInstalled ? '<span class="installed-badge">Installed</span>' : ''}
+          ${c.id === activePetId ? '<span class="active-overlay-badge">Active</span>' : ''}
+        </div>
+        <div class="companion-card-body">
           <div class="companion-card-header">
             <h3 class="companion-name">${escapeHtml(c.name)}</h3>
-            <span class="meta-label">${c.isInstalled ? 'Installed' : 'Catalog'}</span>
           </div>
           <p class="companion-desc">${escapeHtml(c.description)}</p>
           <div class="tag-list">${tagsHtml}</div>
@@ -517,6 +527,12 @@ async function setupCompanionsView() {
           </div>
         </div>
       `;
+
+      // Draw avatar on the card canvas
+      const avatarCanvas = card.querySelector('.companion-avatar-canvas');
+      if (avatarCanvas) {
+        renderCompanionCardAvatar(avatarCanvas, avatarColors, c.name);
+      }
 
       card.querySelector('.btn-preview-pet')?.addEventListener('click', () => {
         openCompanionPreview(c);
@@ -548,13 +564,25 @@ async function setupCompanionsView() {
         btn.disabled = true;
 
         try {
-          await installCatalogCompanion(c.id);
+          const installed = await installCatalogCompanion(c.id);
+          // Re-fetch the full companions list from Rust so installed status
+          // is authoritative — don't rely on the local object mutation.
+          try {
+            installedCompanions = await listCompanions();
+          } catch {
+            // If re-fetch fails, fall back to local mutation
+            c.isInstalled = true;
+            if (!installedCompanions.find((x) => x.id === c.id)) {
+              installedCompanions.push({ ...c, ...installed, isInstalled: true });
+            }
+          }
         } catch {
-          // Fallback simulation
+          // Install failed — re-enable button
+          btn.textContent = 'Download Pack';
+          btn.disabled = false;
+          return;
         }
 
-        c.isInstalled = true;
-        installedCompanions.push(c);
         renderGrid();
       });
 
@@ -657,6 +685,109 @@ async function updatePreviewStage(companion, action) {
     canvasEl.hidden = false;
     renderProceduralPreview(canvasEl, companion, action);
   }
+}
+
+/**
+ * Renders a stylised avatar portrait for a companion card.
+ * Uses a larger canvas (220×220) with centered composition.
+ * Falls back gracefully if getContext is not available (SSR/tests).
+ */
+function renderCompanionCardAvatar(canvas, colors, name) {
+  if (!canvas) return;
+  const ctx = canvas.getContext ? canvas.getContext('2d') : null;
+  if (!ctx) return;
+
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const bg = colors.body || '#2563eb';
+  const acc = colors.accent || '#c2331a';
+  const eye = colors.eyes || '#14120f';
+
+  // Soft gradient background
+  const grad = ctx.createRadialGradient(w / 2, h * 0.4, 20, w / 2, h * 0.4, w * 0.7);
+  grad.addColorStop(0, bg + '44');
+  grad.addColorStop(1, bg + '11');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+
+  // Ground shadow ellipse
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  ctx.beginPath();
+  ctx.ellipse(w / 2, h - 18, 50, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const cx = w / 2;
+  const cy = h * 0.56;
+  const sc = w / 160; // scale relative to 160px reference
+
+  // Legs
+  ctx.fillStyle = acc;
+  ctx.fillRect(cx - 22 * sc, cy + 36 * sc, 16 * sc, 24 * sc);
+  ctx.fillRect(cx + 6 * sc,  cy + 36 * sc, 16 * sc, 24 * sc);
+
+  // Body
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.roundRect(cx - 32 * sc, cy - 48 * sc, 64 * sc, 88 * sc, 10 * sc);
+  ctx.fill();
+
+  // Chest badge
+  ctx.fillStyle = acc;
+  ctx.beginPath();
+  ctx.roundRect(cx - 14 * sc, cy - 24 * sc, 28 * sc, 32 * sc, 5 * sc);
+  ctx.fill();
+
+  // Arms
+  ctx.fillStyle = bg;
+  ctx.save();
+  ctx.translate(cx - 32 * sc, cy - 32 * sc);
+  ctx.rotate(0.18);
+  ctx.fillRect(-10 * sc, 0, 10 * sc, 38 * sc);
+  ctx.restore();
+  ctx.save();
+  ctx.translate(cx + 32 * sc, cy - 32 * sc);
+  ctx.rotate(-0.18);
+  ctx.fillRect(0, 0, 10 * sc, 38 * sc);
+  ctx.restore();
+
+  // Head
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.roundRect(cx - 28 * sc, cy - 102 * sc, 56 * sc, 48 * sc, 10 * sc);
+  ctx.fill();
+
+  // Ears (triangular)
+  ctx.fillStyle = acc;
+  ctx.beginPath();
+  ctx.moveTo(cx - 24 * sc, cy - 102 * sc);
+  ctx.lineTo(cx - 16 * sc, cy - 122 * sc);
+  ctx.lineTo(cx - 8 * sc,  cy - 102 * sc);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + 8 * sc,  cy - 102 * sc);
+  ctx.lineTo(cx + 16 * sc, cy - 122 * sc);
+  ctx.lineTo(cx + 24 * sc, cy - 102 * sc);
+  ctx.fill();
+
+  // Eyes (rounded)
+  ctx.fillStyle = eye;
+  ctx.beginPath();
+  ctx.roundRect(cx - 20 * sc, cy - 86 * sc, 10 * sc, 12 * sc, 3 * sc);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.roundRect(cx + 10 * sc,  cy - 86 * sc, 10 * sc, 12 * sc, 3 * sc);
+  ctx.fill();
+
+  // Eye highlights
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.beginPath();
+  ctx.arc(cx - 17 * sc, cy - 86 * sc, 2.5 * sc, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx + 13 * sc, cy - 86 * sc, 2.5 * sc, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function renderProceduralPreview(canvas, companion, action) {
@@ -1321,6 +1452,30 @@ function setupKeyboardShortcuts() {
 // -----------------------------------------------------------------------------
 function setupDynamicTimingAndStatus() {
   const moodIndicator = document.getElementById('companion-mood-indicator');
+  const appStatus = document.getElementById('app-status');
+
+  // Poll capture status every 5 s and reflect it in the header status pill.
+  async function updateCaptureStatus() {
+    try {
+      const capture = await getCaptureStatus();
+      if (appStatus) {
+        if (capture.capturing) {
+          appStatus.dataset.state = 'capturing';
+          appStatus.textContent = `🔴 Capturing • ${capture.eventsSeen.toLocaleString()} keys`;
+        } else {
+          appStatus.dataset.state = 'ready';
+          appStatus.textContent = '100% Offline • Vault Active';
+        }
+      }
+    } catch {
+      // Non-fatal — keep whatever state the status pill already shows.
+    }
+  }
+
+  void updateCaptureStatus();
+  if (typeof setInterval !== 'undefined') {
+    setInterval(updateCaptureStatus, 5000);
+  }
 
   async function updateMood() {
     const now = new Date();

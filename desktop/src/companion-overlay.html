@@ -7,13 +7,18 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
-      background: transparent;
+      background: transparent !important;
       overflow: hidden;
       width: 220px;
       height: 280px;
+      /* Ensure transparency is not accidentally painted over */
+      -webkit-app-region: no-drag;
     }
     canvas {
       display: block;
+      /* Canvas itself must have no CSS background — transparency comes from
+         clearRect() in JS and the transparent Tauri window */
+      background: transparent;
       cursor: grab;
     }
     canvas:active {

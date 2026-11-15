@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 pub(crate) fn startup_failure_label(_error_detail: &str) -> &'static str {
     "TETHER_APP_STARTUP_FAILED"
 }
