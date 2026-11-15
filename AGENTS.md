@@ -61,6 +61,8 @@ Non-obvious decisions are in `docs/adr/`. Read the relevant ADR before changing 
 - **Window list in `tauri.conf.json` is authoritative**. Do NOT also create windows in `.setup()` via `WebviewWindowBuilder` — Tauri creates them from config automatically. Duplicate creation causes the duplicate window to be destroyed, reducing the window count and triggering `ExitRequested`.
 - **All Tauri IPC must go through `desktop/src/api.js`**. Never use `window.__TAURI__` directly in any other JS file — the architecture test (`desktop/test/architecture.test.js`) scans for `__TAURI__` regex across all `.js` sources, **including comments**.
 - **`desktop/src-tauri/capabilities/main.json`** must have `windows: ["main"]` only and no `core:*` permissions — the shell-config test enforces this. Put companion-overlay permissions in a separate `companion-overlay.json` capability.
+- **The desktop app IS the capture engine** — it starts `WH_KEYBOARD_LL` in-process via `.setup()` in `lib.rs`. `AppState` (held as Tauri managed state) owns the `Arc<Engine>`, the `stop` atomic, and the `capturing` flag. `commands.rs` opens the vault independently (read-only, per-call) rather than holding the Engine lock.
+- **The CLI binary (`tether run`) and the desktop app write to the same vault** (`%LOCALAPPDATA%\dev.tether.tether\`). Do not run both simultaneously or they will race on the ring file.
 - Run `cd desktop && npm test` for JS tests; `cargo test --manifest-path desktop/src-tauri/Cargo.toml` for Rust tests.
 
 ## Before shipping
