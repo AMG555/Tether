@@ -609,15 +609,33 @@
         </div>
 
         <div class="modal-body preview-modal-body">
-          <!-- Stage container -->
+          <!-- Stage container: desktop mockup -->
           <div class="preview-stage-wrap">
-            <div class="preview-media-container">
-              <img id="preview-companion-img" class="preview-companion-img" src="" alt="Companion animation clip" hidden>
-              <canvas id="preview-companion-canvas" class="preview-companion-canvas" width="280" height="240" aria-label="Companion animation preview"></canvas>
-            </div>
-
-            <div id="preview-speech-bubble" class="preview-speech-bubble">
-              <span id="preview-speech-text">Ready to safeguard your writing.</span>
+            <!-- Desktop wallpaper mockup -->
+            <div class="preview-desktop-mockup" aria-label="Desktop companion preview">
+              <!-- Wallpaper area -->
+              <div class="preview-desktop-wallpaper">
+                <!-- Companion sits at the bottom of the wallpaper -->
+                <div class="preview-companion-stage">
+                  <div id="preview-speech-bubble" class="preview-speech-bubble preview-speech-bubble--desktop">
+                    <span id="preview-speech-text">Ready to safeguard your writing.</span>
+                  </div>
+                  <img id="preview-companion-img" class="preview-companion-img preview-companion-img--desktop" src="" alt="Companion animation clip" hidden>
+                  <canvas id="preview-companion-canvas" class="preview-companion-canvas preview-companion-canvas--desktop" width="160" height="200" aria-label="Companion animation preview"></canvas>
+                </div>
+              </div>
+              <!-- Taskbar strip -->
+              <div class="preview-desktop-taskbar" aria-hidden="true">
+                <div class="preview-taskbar-start">⊞</div>
+                <div class="preview-taskbar-search">
+                  <span class="preview-taskbar-search-icon">⌕</span>
+                  <span>Search</span>
+                </div>
+                <div class="preview-taskbar-tray">
+                  <span class="preview-taskbar-tray-icon" title="Tether companion active">◈</span>
+                  <span class="preview-taskbar-clock">12:34</span>
+                </div>
+              </div>
             </div>
 
             <!-- Action switcher strip -->

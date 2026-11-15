@@ -1510,31 +1510,157 @@ canvas#studio-canvas {
   gap: 12px;
 }
 
-.preview-media-container {
-  width: 280px;
-  height: 240px;
-  background: var(--paper-sunk);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-lg);
+/* ── Desktop mockup shell ───────────────────────────────────────── */
+.preview-desktop-mockup {
+  width: 300px;
+  height: 220px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--rule-strong);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+/* Wallpaper — dark space gradient with subtle star-like dots */
+.preview-desktop-wallpaper {
+  flex: 1;
+  position: relative;
+  background:
+    radial-gradient(ellipse at 20% 30%, rgba(37, 99, 235, 0.18) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 70%, rgba(124, 58, 237, 0.14) 0%, transparent 55%),
+    linear-gradient(160deg, #0d1117 0%, #161b22 50%, #0f1923 100%);
+  overflow: hidden;
+}
+
+/* Tiny star particles drawn via repeating dots */
+.preview-desktop-wallpaper::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,0.55) 1px, transparent 1px),
+    radial-gradient(circle, rgba(255,255,255,0.35) 1px, transparent 1px),
+    radial-gradient(circle, rgba(255,255,255,0.25) 1px, transparent 1px);
+  background-size: 80px 80px, 55px 55px, 35px 35px;
+  background-position: 10px 15px, 32px 48px, 7px 60px;
+  pointer-events: none;
+}
+
+/* Companion sits at the bottom of the wallpaper */
+.preview-companion-stage {
+  position: absolute;
+  bottom: 0;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.preview-companion-img--desktop {
+  width: 80px;
+  height: 100px;
+  object-fit: contain;
+  display: block;
+}
+
+.preview-companion-canvas--desktop {
+  width: 80px;
+  height: 100px;
+  display: block;
+}
+
+/* Speech bubble floating above the companion */
+.preview-speech-bubble--desktop {
+  background: rgba(255,255,255,0.92);
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 10px;
+  padding: 5px 10px;
+  font-size: 10px;
+  color: #14120f;
+  text-align: center;
+  max-width: 160px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  margin-bottom: 4px;
+  position: relative;
+  white-space: normal;
+}
+
+/* Tail triangle on the speech bubble */
+.preview-speech-bubble--desktop::after {
+  content: '';
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 7px solid rgba(255,255,255,0.92);
+}
+
+/* Taskbar strip */
+.preview-desktop-taskbar {
+  height: 30px;
+  background: rgba(10, 12, 18, 0.96);
+  border-top: 1px solid rgba(255,255,255,0.08);
   display: flex;
   align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  position: relative;
+  padding: 0 8px;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
-.preview-companion-img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
+.preview-taskbar-start {
+  color: rgba(255,255,255,0.75);
+  font-size: 14px;
+  line-height: 1;
+  cursor: default;
+  padding: 2px 4px;
 }
 
-.preview-companion-canvas {
-  width: 100%;
-  height: 100%;
+.preview-taskbar-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 9px;
+  color: rgba(255,255,255,0.45);
+  letter-spacing: 0.03em;
 }
 
-.preview-speech-bubble {
+.preview-taskbar-search-icon {
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.preview-taskbar-tray {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.preview-taskbar-tray-icon {
+  color: rgba(37, 99, 235, 0.9);
+  font-size: 12px;
+}
+
+.preview-taskbar-clock {
+  font-size: 9px;
+  color: rgba(255,255,255,0.55);
+  font-family: var(--mono);
+  letter-spacing: 0.04em;
+}
+
+/* Legacy speech bubble (for Studio stage — keep as-is) */
+.preview-speech-bubble:not(.preview-speech-bubble--desktop) {
   background: var(--paper-float);
   border: 1px solid var(--rule-strong);
   border-radius: 10px;

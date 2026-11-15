@@ -932,13 +932,33 @@ pub fn show_main_window(window: tauri::Window) -> Result<(), String> {
     window.set_focus().map_err(|e| e.to_string())
 }
 
-/// Shows the companion overlay window.  Called from the main window via IPC.
+/// Shows the companion overlay window, positioning it at the bottom-right of the
+/// primary monitor (above the Windows taskbar) on first show.
+/// After the initial placement the user can drag it anywhere.
 #[tauri::command]
 pub fn show_companion_overlay(app: tauri::AppHandle) -> Result<(), String> {
-    use tauri::Manager as _;
+    use tauri::{Manager as _, PhysicalPosition};
     let w = app
         .get_webview_window("companion-overlay")
         .ok_or("companion-overlay window not found")?;
+
+    // Position at bottom-right of the primary monitor, 24 px from the right edge
+    // and 48 px above the taskbar, but only when the window has never been moved
+    // (i.e. it is still at the default center position).  We detect "never moved"
+    // by checking whether the window is currently invisible — the overlay starts
+    // hidden and the user may drag it after the first show.
+    if !w.is_visible().unwrap_or(true) {
+        if let Ok(Some(monitor)) = app.primary_monitor() {
+            let screen_w = monitor.size().width;
+            let screen_h = monitor.size().height;
+            let win_w: u32 = 320;
+            let win_h: u32 = 340;
+            let x = screen_w.saturating_sub(win_w + 24) as i32;
+            let y = screen_h.saturating_sub(win_h + 48) as i32;
+            let _ = w.set_position(PhysicalPosition::new(x, y));
+        }
+    }
+
     w.show().map_err(|e| e.to_string())?;
     w.set_focus().map_err(|e| e.to_string())
 }

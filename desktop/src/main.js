@@ -879,7 +879,9 @@ function renderProceduralPreview(canvas, companion, action) {
   ctx.clearRect(0, 0, w, h);
 
   const cx = w / 2;
-  const cy = h / 2 + 25;
+  // Position the character at the bottom of the canvas so it looks like it's
+  // standing on the desktop floor in the mockup view.
+  const cy = h - 50;
   const colors = companion.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' };
 
   let bob = 0;
