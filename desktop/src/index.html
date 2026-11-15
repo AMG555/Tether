@@ -98,6 +98,13 @@
             </div>
           </div>
 
+          <!-- Live capture activity banner — shown only when capture is running -->
+          <div id="capture-live-bar" class="capture-live-bar hidden" role="status" aria-live="polite">
+            <span class="capture-live-dot" aria-hidden="true"></span>
+            <span id="capture-live-label">Capturing keystrokes — text is being saved automatically</span>
+            <span id="capture-live-count" class="capture-live-count"></span>
+          </div>
+
           <div class="search-bar">
             <label for="draft-search-input" class="sr-only">Search drafts</label>
             <input type="search" id="draft-search-input" class="search-input" placeholder="Search saved text or app name (e.g. Cursor, Chrome, Slack)..." autocomplete="off" spellcheck="false">
@@ -141,6 +148,7 @@
                 <select id="revision-select" class="select-small" aria-label="Select draft revision">
                   <option value="current">Current Version</option>
                 </select>
+                <span id="revision-diff-badge" class="revision-deleted-badge" hidden aria-live="polite"></span>
               </div>
 
               <div class="detail-content-wrapper">

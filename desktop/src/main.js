@@ -343,6 +343,9 @@ async function setupRecoveryView() {
     if (revsEl) revsEl.textContent = `${currentDraft.revisions} revisions`;
     if (retEl) retEl.textContent = `${currentDraft.daysLeft} days left`;
     if (textEl) textEl.textContent = currentDraft.text;
+    // Reset revision diff badge when switching drafts
+    const diffBadge = document.getElementById('revision-diff-badge');
+    if (diffBadge) diffBadge.hidden = true;
 
     // Load revisions
     try {
@@ -366,13 +369,33 @@ async function setupRecoveryView() {
     revisionSelect.addEventListener('change', () => {
       const selected = revisionSelect.selectedOptions[0];
       const textEl = document.getElementById('detail-text');
+      const diffBadge = document.getElementById('revision-diff-badge');
       if (!textEl || !currentDraft) return;
 
+      let revText = null;
       if (revisionSelect.value === 'current') {
-        textEl.textContent = currentDraft.text;
+        revText = currentDraft.text;
+        if (diffBadge) diffBadge.hidden = true;
       } else if (selected?.dataset?.revText) {
-        textEl.textContent = selected.dataset.revText;
+        revText = selected.dataset.revText;
+        // Compare revision length to current — surface deleted content
+        if (diffBadge && currentDraft.text) {
+          const currentLen = currentDraft.text.length;
+          const revLen = revText.length;
+          const diff = currentLen - revLen;
+          if (diff > 0) {
+            diffBadge.hidden = false;
+            diffBadge.textContent = `⚠️ ${diff} chars deleted after this version`;
+          } else if (diff < 0) {
+            diffBadge.hidden = false;
+            diffBadge.textContent = `✚ ${Math.abs(diff)} chars added after this version`;
+          } else {
+            diffBadge.hidden = true;
+          }
+        }
       }
+
+      if (revText !== null) textEl.textContent = revText;
     });
   }
 
@@ -1735,12 +1758,21 @@ function setupDynamicTimingAndStatus() {
   const moodIndicator = document.getElementById('companion-mood-indicator');
   const appStatus = document.getElementById('app-status');
 
-  // Poll capture status every 5 s and reflect it in the header status pill.
+  const captureBar = document.getElementById('capture-live-bar');
+  const captureLiveCount = document.getElementById('capture-live-count');
+
+  let lastEventsSeen = 0;
+  let wasCapturing = false;
+  let draftRefreshTimer = null;
+
+  // Poll capture status every 2s — update header pill AND the live banner in Recover view.
   async function updateCaptureStatus() {
     try {
       const capture = await getCaptureStatus();
+      const isCapturing = capture.capturing;
+
       if (appStatus) {
-        if (capture.capturing) {
+        if (isCapturing) {
           appStatus.dataset.state = 'capturing';
           appStatus.textContent = `🔴 Capturing • ${capture.eventsSeen.toLocaleString()} keys`;
         } else {
@@ -1748,6 +1780,34 @@ function setupDynamicTimingAndStatus() {
           appStatus.textContent = '100% Offline • Vault Active';
         }
       }
+
+      // Show/hide the live capture banner in the Recover view
+      if (captureBar) {
+        captureBar.classList.toggle('hidden', !isCapturing);
+      }
+      if (captureLiveCount && isCapturing) {
+        const delta = capture.eventsSeen - lastEventsSeen;
+        const perMin = Math.round(delta * (60000 / 2000)); // approx wpm from 2s poll
+        captureLiveCount.textContent = `${capture.eventsSeen.toLocaleString()} keystrokes saved • ${capture.draftsSaved} drafts`;
+      }
+      lastEventsSeen = capture.eventsSeen;
+
+      // Auto-refresh draft list every 3s while capturing so new content appears instantly
+      if (isCapturing && !wasCapturing) {
+        // Just started capturing — kick off periodic refresh
+        if (draftRefreshTimer) clearInterval(draftRefreshTimer);
+        draftRefreshTimer = setInterval(() => {
+          const refreshBtn = document.getElementById('refresh-drafts-btn');
+          refreshBtn?.click();
+        }, 3000);
+      } else if (!isCapturing && wasCapturing) {
+        // Just stopped — stop the auto-refresh
+        if (draftRefreshTimer) { clearInterval(draftRefreshTimer); draftRefreshTimer = null; }
+        // One final refresh to show the last committed drafts
+        const refreshBtn = document.getElementById('refresh-drafts-btn');
+        refreshBtn?.click();
+      }
+      wasCapturing = isCapturing;
     } catch {
       // Non-fatal — keep whatever state the status pill already shows.
     }
@@ -1755,7 +1815,7 @@ function setupDynamicTimingAndStatus() {
 
   void updateCaptureStatus();
   if (typeof setInterval !== 'undefined') {
-    setInterval(updateCaptureStatus, 5000);
+    setInterval(updateCaptureStatus, 2000);
   }
 
   async function updateMood() {

@@ -9,15 +9,12 @@
     html, body {
       background: transparent !important;
       overflow: hidden;
-      width: 220px;
-      height: 280px;
-      /* Ensure transparency is not accidentally painted over */
+      width: 320px;
+      height: 340px;
       -webkit-app-region: no-drag;
     }
     canvas {
       display: block;
-      /* Canvas itself must have no CSS background — transparency comes from
-         clearRect() in JS and the transparent Tauri window */
       background: transparent;
       cursor: grab;
     }
@@ -27,7 +24,7 @@
   </style>
 </head>
 <body>
-  <canvas id="companion-canvas" width="220" height="280"></canvas>
+  <canvas id="companion-canvas" width="320" height="340"></canvas>
   <script type="module" src="./companion-overlay.js"></script>
 </body>
 </html>
