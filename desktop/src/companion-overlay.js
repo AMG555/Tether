@@ -759,14 +759,22 @@ window.addEventListener('touchcancel', _endDrag);
 
 // ─── Single click: live pet reactions ────────────────────────────────────────
 
+// ── Richer click reactions — cycles through all moods ────────────────────
 const CLICK_REACTIONS = [
-  { state: 'wave',    bubble: '👋 Hey there!',       spring: -8,  dur: 3000 },
-  { state: 'happy',   bubble: '✨ You noticed me!',   spring: -14, dur: 3500 },
-  { state: 'water',   bubble: '💧 Drink some water!', spring: -6,  dur: 3000 },
-  { state: 'stretch', bubble: '🧘 Time to stretch!',  spring: -5,  dur: 3000 },
-  { state: 'happy',   bubble: '😄 Click me again!',   spring: -12, dur: 2500 },
+  { state: 'wave',    bubble: '👋 Hey there!',              spring: -8,  dur: 3000 },
+  { state: 'happy',   bubble: '✨ You noticed me!',          spring: -14, dur: 3500 },
+  { state: 'water',   bubble: '💧 Drink some water!',        spring: -6,  dur: 3000 },
+  { state: 'stretch', bubble: '🧘 Time to stretch!',         spring: -5,  dur: 3000 },
+  { state: 'happy',   bubble: '😄 Wohoo! Click again!',      spring: -12, dur: 2500 },
+  { state: 'eyes',    bubble: '👁️ Look away from screen!',   spring: -4,  dur: 3200 },
+  { state: 'sad',     bubble: '😴 Remember to rest!',        spring: -3,  dur: 3000 },
+  { state: 'wave',    bubble: '🌟 Keep up the great work!',  spring: -9,  dur: 3000 },
+  { state: 'happy',   bubble: '🎊 You\'re awesome!',         spring: -16, dur: 3500 },
+  { state: 'water',   bubble: '☕ Coffee or water break?',   spring: -7,  dur: 3000 },
 ];
 let _clickReactionIdx = 0;
+// Track time of last click to detect rapid clicks (excitement boost)
+let _lastClickTime = 0;
 
 hitZone.addEventListener('click', () => {
   // Ignore click if the user just finished a drag (moved more than 5px)
@@ -774,19 +782,26 @@ hitZone.addEventListener('click', () => {
   const movedY = Math.abs(walkY - _walkYAtDragStart);
   if (movedX > 5 || movedY > 5) return;
 
-  // Show live status in the click cycle if we have capture data
-  let reaction = CLICK_REACTIONS[_clickReactionIdx % CLICK_REACTIONS.length];
-  _clickReactionIdx++;
+  const now = performance.now();
+  const rapid = now - _lastClickTime < 600; // rapid double-ish click
+  _lastClickTime = now;
 
   // Every 3rd click: surface live capture stats if capturing
+  let reaction;
   if (_clickReactionIdx % 3 === 0 && _captureStatus.capturing) {
     reaction = {
       state: 'happy',
       bubble: `📊 ${_captureStatus.eventsSeen} events · ${_captureStatus.draftsSaved} drafts`,
-      spring: -8,
+      spring: -10,
       dur: 3500,
     };
+  } else if (rapid) {
+    // Rapid tapping = excited bounce
+    reaction = { state: 'happy', bubble: '🎉 Yay!', spring: -18, dur: 2000 };
+  } else {
+    reaction = CLICK_REACTIONS[_clickReactionIdx % CLICK_REACTIONS.length];
   }
+  _clickReactionIdx++;
 
   currentState = reaction.state;
   walking = false;
@@ -799,9 +814,9 @@ hitZone.addEventListener('click', () => {
 hitZone.addEventListener('dblclick', () => {
   currentState = 'happy';
   walking = false;
-  springVY = -20;
-  nextStateTimer = performance.now() + 4000;
-  showBubble('🎉 Woohoo!!', 2500);
+  springVY = -22;
+  nextStateTimer = performance.now() + 4500;
+  showBubble('🎉 Woohoo!! You found me! 🎊', 3000);
   loadSprite(companion.id, 'happy');
 });
 
@@ -809,8 +824,18 @@ hitZone.addEventListener('dblclick', () => {
 
 async function reloadCompanion() {
   const next = await loadActiveCompanionFromIPC();
-  if (next.id === companion.id) return; // nothing changed
+  if (next.id === companion.id) {
+    // Same companion — but actions list might have changed (behavior editor).
+    // Update in-place and refresh WALK_STATES without clearing sprites.
+    if (JSON.stringify(next.actions) !== JSON.stringify(companion.actions)) {
+      companion = next;
+      WALK_STATES = getWalkStates();
+    }
+    return;
+  }
   companion = next;
+  // Refresh WALK_STATES for the new companion's action set.
+  WALK_STATES = getWalkStates();
   // Clear sprite cache for old companion so stale frames don't bleed through
   for (const k of Object.keys(spriteCache)) {
     if (!k.startsWith(companion.id + ':')) delete spriteCache[k];
@@ -826,6 +851,8 @@ async function reloadCompanion() {
 // Initial async load — replace the default Grace with the persisted companion.
 loadActiveCompanionFromIPC().then((state) => {
   companion = state;
+  // Refresh WALK_STATES to reflect this companion's action list.
+  WALK_STATES = getWalkStates();
   // Pre-warm all common sprites so the companion appears without a procedural flash.
   prewarmSprites(companion.id);
 });

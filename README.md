@@ -4,31 +4,30 @@
   <img src="assets/logo.svg" width="96" height="96" alt="Tether Vector Logo" />
 </p>
 
-# Tether
+# Tether — Offline Typing Recovery & Desktop Companion
 
 <p align="center">
   <a href="https://github.com/AMG555/Tether/actions/workflows/ci.yml"><img src="https://github.com/AMG555/Tether/actions/workflows/ci.yml/badge.svg" alt="CI Status"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://blog.rust-lang.org/2023/12/28/Rust-1.75.0.html"><img src="https://img.shields.io/badge/rustc-1.75%2B-orange.svg" alt="Rust 1.75+"></a>
   <a href="#desktop-application--gui"><img src="https://img.shields.io/badge/gui-Tauri%202.0-24C8D8.svg" alt="Tauri 2"></a>
-  <a href="#weight-measured"><img src="https://img.shields.io/badge/cli--binary-1.99--2.58_MB-success.svg" alt="Binary Size"></a>
+  <a href="#weight-measured"><img src="https://img.shields.io/badge/binary-~2_MB-success.svg" alt="~2 MB binary"></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/encryption-AES--256--GCM-blueviolet.svg" alt="AES-256-GCM"></a>
   <a href="#privacy-the-part-that-matters"><img src="https://img.shields.io/badge/network-zero--telemetry-brightgreen.svg" alt="Zero telemetry"></a>
+  <a href="#desktop-application--gui"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg" alt="Cross-platform"></a>
 </p>
 
-**100% offline crash recovery, typing autosave, and desktop companion engine.**
+**Never lose typed text again. 100% offline crash recovery, AES-256-GCM encrypted vault, and an animated floating desktop companion.**
 
-Tether is a privacy-first, ultra-fast local crash recovery instrument written in Rust. While active, it captures typing into a sub-millisecond append-only encrypted ring buffer and flushes drafts into an AES-256-GCM SQLite vault. **Zero network calls. Zero cloud telemetry. Zero subscriptions.** Sensitive fields like passwords, crypto seed phrases, tokens, and credit cards are blocked or masked before disk.
+Tether is a privacy-first, ultra-fast local crash recovery tool written in Rust. It continuously saves your typing into an encrypted local vault — so when your browser tab crashes, your app closes unexpectedly, or your machine restarts, you can recover every word instantly. **Zero network calls. Zero cloud. Zero subscriptions.** Passwords, credit cards, and tokens are blocked before they ever reach disk.
 
-Choose a featherlight native **Desktop GUI** (Tauri 2) with 32 downloadable companions, live state previews, and a floating desktop overlay — or an invisible **CLI daemon** for headless servers.
+The companion overlay is a fun addon: pick from 32 animated characters that live on your desktop, remind you to drink water, stretch, and cheer when you're writing. Fully customizable — import your own WebP sprites or build one with AI.
+
+Choose the featherlight native **Desktop GUI** (Tauri 2 · Windows/macOS/Linux) or the invisible **CLI daemon** for headless servers.
 
 <br>
 
 **[📥 Install](#-direct-download--instant-setup) · [Highlights](#highlights) · [Desktop App](#desktop-application--gui) · [32 Companions](#32-companion-characters--on-demand-packs) · [Studio](#character-studio--state-engine) · [Privacy](#privacy-the-part-that-matters) · [Architecture](#architecture)**
-
-<br>
-
-![Tether Desktop — Recover Texts](shots/desktop-recover.png)
 
 </div>
 

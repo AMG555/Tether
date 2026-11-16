@@ -115,9 +115,18 @@
             <!-- Left Pane: Draft List -->
             <div class="draft-list-pane">
               <div class="pane-header">
-                <span id="drafts-count-label" class="meta-label">0 drafts</span>
-                <span class="meta-label">Newest first</span>
-              </div>
+                    <span id="drafts-count-label" class="meta-label">0 drafts</span>
+                    <div class="sort-controls">
+                      <label for="drafts-sort-select" class="sr-only">Sort by</label>
+                      <select id="drafts-sort-select" class="select-small" aria-label="Sort drafts">
+                        <option value="newest">Newest first</option>
+                        <option value="oldest">Oldest first</option>
+                        <option value="app">By app</option>
+                        <option value="longest">Longest first</option>
+                        <option value="shortest">Shortest first</option>
+                      </select>
+                    </div>
+                  </div>
               <ul id="drafts-list" class="drafts-list" aria-label="Saved drafts list">
                 <li class="draft-item empty-state">No drafts captured yet. Type in any application to see crash-recovery drafts appear.</li>
               </ul>
@@ -418,6 +427,21 @@
 
             </div><!-- /clip-slots-grid -->
           </div><!-- /studio-panel-clips -->
+
+          <!-- ── AI Creation Guide ── -->
+          <div class="studio-ai-guide hidden" id="studio-ai-guide">
+            <div class="ai-guide-card">
+              <h3 class="form-title">🤖 Create Your Own Companion with AI</h3>
+              <p class="view-lede">Use ChatGPT, Google Gemini, or any AI image tool to generate <strong>WebP sprites</strong> for each state, then drop them into the slots above.</p>
+              <div class="ai-guide-steps">
+                <div class="ai-guide-step"><span class="ai-guide-num">1</span><div><strong>Design the character</strong> — Prompt: <code class="ai-prompt-block">Cute [animal/robot], front-facing, transparent background PNG, desktop widget style, 200×300px max.</code></div></div>
+                <div class="ai-guide-step"><span class="ai-guide-num">2</span><div><strong>Generate 8 states</strong> — idle, walk, wave, water, stretch, happy, sad, eyes. Same art style across all.<br><em class="ai-guide-hint">Tools: ChatGPT-4o · Gemini Image · Midjourney · Leonardo.ai · Canva AI</em></div></div>
+                <div class="ai-guide-step"><span class="ai-guide-num">3</span><div><strong>Convert to animated WebP</strong> — Ezgif.com/webp-maker (browser), <code>img2webp -d 100 f1.png f2.png -o walk.webp</code> (CLI), or Aseprite → Export → WebP.<br><em class="ai-guide-hint">Name files: idle.webp · walk.webp · wave.webp · water.webp · stretch.webp · happy.webp · sad.webp · eyes.webp</em></div></div>
+                <div class="ai-guide-step"><span class="ai-guide-num">4</span><div><strong>Import</strong> — Drop each <code>.webp</code> into its slot above, or ZIP all 8 and use <strong>Import ZIP Pack</strong>.</div></div>
+              </div>
+              <div class="ai-guide-tips">💡 <strong>Tips:</strong> transparent background · same style across all states · 120–200px wide · 3–8 frames at 80–120ms each.</div>
+            </div>
+          </div>
 
           <!-- ── Tab 3: Behaviors ── -->
           <div class="studio-tab-panel hidden" id="studio-panel-behaviors">

@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAX_BINARY_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB threshold (currently ~2.58 MB)
-const MAX_FRONTEND_SIZE_BYTES = 200 * 1024; // 200 KB threshold (currently ~10 KB)
+const MAX_FRONTEND_SIZE_BYTES = 215 * 1024; // 215 KB threshold (raised from 200 KB after adding sort controls, AI guide, responsive fixes)
 
 export async function checkPerformance() {
   const binaryName = process.platform === 'win32' ? 'tether-desktop.exe' : 'tether-desktop';

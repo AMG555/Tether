@@ -1240,7 +1240,17 @@ pub fn show_companion_overlay(app: tauri::AppHandle) -> Result<(), String> {
     let _ = w.set_ignore_cursor_events(true);
 
     // Show without stealing keyboard focus — the overlay is purely visual.
-    w.show().map_err(|e| e.to_string())
+    w.show().map_err(|e| e.to_string())?;
+
+    // On Windows: use SetWindowPos with HWND_TOPMOST but SWP_NOACTIVATE so the
+    // companion floats above app windows WITHOUT blocking the taskbar auto-hide
+    // mechanism.  Setting alwaysOnTop via Tauri's config uses a different flag
+    // combination that suppresses WM_APPACTIVATE and breaks taskbar reveal.
+    // Using the Win32 API directly gives us precise control over the Z-order flags.
+    #[cfg(target_os = "windows")]
+    set_topmost_noactivate(&w);
+
+    Ok(())
 }
 
 /// Toggles OS-level cursor passthrough on the companion overlay window.
@@ -1326,16 +1336,25 @@ pub struct ActiveCompanionState {
     pub name: String,
     pub avatar_type: String,
     pub colors: CompanionColors,
+    /// The enabled actions for this companion. When non-empty the overlay state
+    /// machine cycles only through these states (all 8 by default).
+    #[serde(default)]
+    pub actions: Vec<String>,
 }
 
 /// Returns the currently active companion from the shared state file.
-/// Falls back to Grace (the default) if the file is missing or malformed.
+/// If the stored state has no actions list (older save), look up the companion's
+/// manifest to populate it — so the overlay always gets the full action set.
 #[tauri::command]
 pub fn get_active_companion() -> ActiveCompanionState {
     let path = tether::default_data_dir().join("active-companion.json");
     if let Ok(raw) = std::fs::read_to_string(&path) {
-        if let Ok(state) = serde_json::from_str::<ActiveCompanionState>(&raw) {
+        if let Ok(mut state) = serde_json::from_str::<ActiveCompanionState>(&raw) {
             if !state.id.is_empty() {
+                // Backfill actions if missing (older saves or companions set before this change).
+                if state.actions.is_empty() {
+                    state.actions = resolve_companion_actions(&state.id);
+                }
                 return state;
             }
         }
@@ -1349,7 +1368,34 @@ pub fn get_active_companion() -> ActiveCompanionState {
             accent: "#c2331a".into(),
             eyes: "#14120f".into(),
         },
+        actions: default_actions(),
     }
+}
+
+/// Returns the standard 8-action list that every bundled companion ships with.
+fn default_actions() -> Vec<String> {
+    ["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"]
+        .iter().map(|s| (*s).to_string()).collect()
+}
+
+/// Looks up the companion manifest to get its declared action list.
+/// Falls back to the standard 8 actions if the manifest cannot be read.
+fn resolve_companion_actions(id: &str) -> Vec<String> {
+    let candidates = [
+        tether::default_data_dir().join("companions").join(id),
+        bundled_companions_dir().join(id),
+    ];
+    for dir in &candidates {
+        let manifest = dir.join("manifest.json");
+        if let Ok(raw) = std::fs::read_to_string(manifest) {
+            if let Ok(item) = serde_json::from_str::<CompanionItem>(&raw) {
+                if !item.actions.is_empty() {
+                    return item.actions;
+                }
+            }
+        }
+    }
+    default_actions()
 }
 
 /// Persists the active companion choice to disk so both the main window and the
@@ -1360,6 +1406,36 @@ pub fn set_active_companion(state: ActiveCompanionState) -> Result<(), String> {
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let json = serde_json::to_string(&state).map_err(|e| e.to_string())?;
     std::fs::write(dir.join("active-companion.json"), json).map_err(|e| e.to_string())
+}
+
+/// On Windows: sets HWND_TOPMOST with SWP_NOACTIVATE so the companion overlay
+/// floats above normal windows without suppressing the taskbar auto-hide reveal.
+/// The standard `set_always_on_top(true)` path in Tauri uses a different set of
+/// flags that can interfere with the shell's WM_APPACTIVATE detection.
+#[cfg(target_os = "windows")]
+fn set_topmost_noactivate(w: &tauri::WebviewWindow) {
+    use std::ffi::c_void;
+    // Win32 SetWindowPos constants.
+    const TOPMOST: *mut c_void = -1isize as *mut c_void;
+    const SWP_NOMOVE: u32      = 0x0002;
+    const SWP_NOSIZE: u32      = 0x0001;
+    const SWP_NOACTIVATE: u32  = 0x0010;
+
+    // We call user32 directly — it is always linked on Windows and is already
+    // used by lib.rs, so there is no extra linker cost.
+    #[link(name = "user32")]
+    extern "system" {
+        fn SetWindowPos(
+            hwnd: *mut c_void, insert_after: *mut c_void,
+            x: i32, y: i32, cx: i32, cy: i32, flags: u32,
+        ) -> i32;
+    }
+
+    if let Ok(hwnd_raw) = w.hwnd() {
+        unsafe {
+            SetWindowPos(hwnd_raw.0, TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
+    }
 }
 
 #[cfg(test)]

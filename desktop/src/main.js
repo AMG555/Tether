@@ -317,15 +317,17 @@ function renderDraftList(drafts) {
   const countEl = document.getElementById('drafts-count-label');
   if (!listEl) return;
 
-  if (countEl) countEl.textContent = `${drafts.length} drafts`;
+  // Apply current sort before rendering
+  const sorted = sortDrafts(drafts);
+  if (countEl) countEl.textContent = `${sorted.length} drafts`;
   listEl.innerHTML = '';
 
-  if (drafts.length === 0) {
+  if (sorted.length === 0) {
     listEl.innerHTML = '<li class="draft-item empty-state">No matching drafts found.</li>';
     return;
   }
 
-  drafts.forEach((draft) => {
+  sorted.forEach((draft) => {
     const li = document.createElement('li');
     li.className = 'draft-item';
     li.dataset.id = String(draft.id);
@@ -409,12 +411,39 @@ async function selectDraft(id) {
   }
 }
 
+// Current sort key for the drafts list
+let _draftSortKey = 'newest';
+
+function sortDrafts(drafts) {
+  const list = drafts.slice();
+  switch (_draftSortKey) {
+    case 'oldest':  return list.sort((a, b) => a.updatedAt - b.updatedAt);
+    case 'app':     return list.sort((a, b) => a.app.localeCompare(b.app));
+    case 'longest': return list.sort((a, b) => b.chars - a.chars);
+    case 'shortest':return list.sort((a, b) => a.chars - b.chars);
+    default:        return list.sort((a, b) => b.updatedAt - a.updatedAt); // newest
+  }
+}
+
 async function setupRecoveryView() {
   const searchInput = document.getElementById('draft-search-input');
   const refreshBtn = document.getElementById('refresh-drafts-btn');
   const copyBtn = document.getElementById('copy-draft-btn');
   const deleteBtn = document.getElementById('delete-draft-btn');
   const revisionSelect = document.getElementById('revision-select');
+  const sortSelect = document.getElementById('drafts-sort-select');
+
+  if (sortSelect) {
+    sortSelect.value = _draftSortKey;
+    sortSelect.addEventListener('change', () => {
+      _draftSortKey = sortSelect.value;
+      const q = searchInput?.value?.toLowerCase().trim() || '';
+      const base = q
+        ? allDrafts.filter((d) => d.app.toLowerCase().includes(q) || d.preview.toLowerCase().includes(q))
+        : allDrafts;
+      renderDraftList(sortDrafts(base));
+    });
+  }
 
   if (revisionSelect) {
     revisionSelect.addEventListener('change', () => {
@@ -452,14 +481,10 @@ async function setupRecoveryView() {
   if (searchInput) {
     searchInput.addEventListener('input', () => {
       const q = searchInput.value.toLowerCase().trim();
-      if (!q) {
-        renderDraftList(allDrafts);
-        return;
-      }
-      const filtered = allDrafts.filter((d) => (
-        d.app.toLowerCase().includes(q) || d.preview.toLowerCase().includes(q)
-      ));
-      renderDraftList(filtered);
+      const base = q
+        ? allDrafts.filter((d) => d.app.toLowerCase().includes(q) || d.preview.toLowerCase().includes(q))
+        : allDrafts;
+      renderDraftList(sortDrafts(base));
     });
   }
 
@@ -690,11 +715,14 @@ async function setupCompanionsView() {
 
         // Persist via IPC so the companion-overlay window (separate WebView,
         // isolated localStorage) can read the choice via get_active_companion.
+        // Include actions so the overlay state machine cycles all available states.
         const companionState = {
           id: c.id,
           name: c.name,
           avatarType: c.avatarType || 'procedural',
           colors: c.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' },
+          actions: c.actions?.length ? c.actions
+            : ['idle', 'walk', 'wave', 'water', 'stretch', 'happy', 'sad', 'eyes'],
         };
         void setActiveCompanion(companionState);
 
@@ -1227,6 +1255,14 @@ function setupPreviewModalHandlers() {
     });
   });
 
+  // Close modal when clicking the dark backdrop (outside the dialog)
+  modal?.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      stopPreviewAnim();
+      modal.classList.add('hidden');
+    }
+  });
+
   actionStrip.forEach((btn) => {
     btn.addEventListener('click', () => {
       if (previewCompanion) {
@@ -1311,11 +1347,15 @@ function setupPreviewModalHandlers() {
       });
 
       // Persist via IPC — shared between both WebView windows.
+      // Include the companion's actions list so the overlay state machine cycles
+      // through all available states for this character.
       void setActiveCompanion({
         id: previewCompanion.id,
         name: previewCompanion.name,
         avatarType: previewCompanion.avatarType || 'procedural',
         colors: previewCompanion.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' },
+        actions: previewCompanion.actions?.length ? previewCompanion.actions
+          : ['idle', 'walk', 'wave', 'water', 'stretch', 'happy', 'sad', 'eyes'],
       });
 
       // Show the companion overlay window via the IPC bridge then re-render the grid
@@ -1581,6 +1621,7 @@ function setupStudioView() {
   // ── Studio inner tab bar ──────────────────────────────────────────────────
   const studioTabBtns = document.querySelectorAll('.studio-tab');
   const studioTabPanels = document.querySelectorAll('.studio-tab-panel');
+  const aiGuide = document.getElementById('studio-ai-guide');
   studioTabBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
       const target = btn.dataset.studioTab;
@@ -1592,6 +1633,8 @@ function setupStudioView() {
         const isMatch = p.id === `studio-panel-${target}`;
         p.classList.toggle('hidden', !isMatch);
       });
+      // Show AI creation guide only on the clips panel
+      if (aiGuide) aiGuide.classList.toggle('hidden', target !== 'clips');
     });
   });
 
