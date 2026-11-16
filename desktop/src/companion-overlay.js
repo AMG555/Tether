@@ -24,6 +24,16 @@
 import { getCompanionClip, getActiveCompanion, setActiveCompanion, getCaptureStatus, setCompanionPassthrough, setHitZoneRegion } from './api.js';
 import { createBrain } from './companion-brain.js';
 
+// Global error handlers: guarantee the companion never crashes or freezes
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (e) => {
+    console.warn('[Tether Overlay Safe Guard]', e.message || e.error);
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    console.warn('[Tether Overlay Safe Guard]', e.reason);
+  });
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const WALK_SPEED_PX     = 2.2;    // pixels per frame (faster, more lively)
@@ -340,23 +350,11 @@ function stepRoam(timestamp) {
   return true; // still walking
 }
 
-/** Sync the roam button visual state to the current freeRoam value. */
-function syncRoamBtn() {
-  const btn = document.getElementById('roam-btn');
-  if (!btn) return;
-  btn.classList.toggle('roam-on', freeRoam);
-  btn.textContent = freeRoam ? '🗺️ Roam' : '🌐 Bottom';
-  btn.title = freeRoam
-    ? 'Free Roam: ON (exploring screen). Click or right-click to return to bottom.'
-    : 'Free Roam: OFF (bottom walk). Click or right-click to roam everywhere!';
-}
-
 async function toggleFreeRoam() {
   freeRoam = !freeRoam;
   if (typeof localStorage !== 'undefined') {
     try { localStorage.setItem(ROAM_STORAGE_KEY, String(freeRoam)); } catch {}
   }
-  syncRoamBtn();
 
   if (freeRoam) {
     pickRoamTarget();
@@ -500,11 +498,11 @@ async function loadSprite(companionId, state) {
       spriteContainer.appendChild(img);
       img.src = dataUrl;
       await new Promise((res) => {
-        img.onload = res;
-        img.onerror = res;
-        // Some animated WebPs report naturalWidth=0 on onload before the browser
-        // has decoded the first frame.  Wait one rAF tick as a safety net.
-        img.onload = () => requestAnimationFrame(() => res());
+        let done = false;
+        const finish = () => { if (!done) { done = true; res(); } };
+        img.onload = () => requestAnimationFrame(finish);
+        img.onerror = finish;
+        setTimeout(finish, 1500);
       });
       // Accept image if it has nonzero dimensions OR a nonzero src (animated WebP
       // with decoded-frame delay can still report 0×0 briefly after onload).
@@ -513,8 +511,8 @@ async function loadSprite(companionId, state) {
         delete spriteLoading[key];
         return img;
       }
-      // Image appears genuinely broken — remove the orphan element.
-      spriteContainer.removeChild(img);
+      // Image appears genuinely broken — remove the orphan element safely.
+      if (img.parentNode) img.parentNode.removeChild(img);
     }
   } catch { /* fall through */ }
   // Mark as permanently missing so we never flood IPC with retries
@@ -591,89 +589,93 @@ let lastTimestamp = 0;
 
 function renderFrame(timestamp) {
   rafId = null;
-  const dt = Math.min(timestamp - lastTimestamp, 50);
-  lastTimestamp = timestamp;
-  animTime += dt * 0.001;
+  try {
+    const dt = Math.min(timestamp - lastTimestamp, 50);
+    lastTimestamp = timestamp;
+    animTime += dt * 0.001;
 
-  // State transition — standard bottom patrol mode only (free-roam manages its own waypoint actions)
-  if (!freeRoam && timestamp > nextStateTimer && !_dragActive && pauseTimer === 0) {
-    pickNextState();
-  }
-
-  // Walk position — blocked during drag and briefly after drop
-  const walkAllowed = !_dragActive && (_dragResumeAt === 0 || timestamp > _dragResumeAt);
-
-  if (freeRoam && walkAllowed) {
-    // ── Free Roam mode: walk toward random waypoints all over the screen ──────
-    const isMoving = stepRoam(timestamp);
-    if (isMoving) {
-      // Show walk sprite/state while moving
-      if (currentState !== 'walk') {
-        currentState = 'walk';
-        walking = true;
-        loadSprite(companion.id, 'walk');
-      }
-      // Occasional spring bounce to keep it lively
-      if (Math.random() < 0.008) springVY = -4;
+    // State transition — standard bottom patrol mode only (free-roam manages its own waypoint actions)
+    if (!freeRoam && timestamp > nextStateTimer && !_dragActive && pauseTimer === 0) {
+      pickNextState();
     }
-  } else {
-    // ── Standard mode: patrol along the bottom edge ──────────────────────────
-    if (walking && walkAllowed) {
-      if (Math.random() < IDLE_PAUSE_CHANCE) {
-        walking = false;
-        currentState = 'idle';
-        nextStateTimer = performance.now() + 3000;
-      } else {
-        walkX += walkDir * WALK_SPEED_PX;
-        if (walkX > W - CHAR_MARGIN) {
-          walkX = W - CHAR_MARGIN;
-          walkDir = -1;
-          walking = false;
-          pauseTimer = timestamp + WALK_PAUSE_MS;
-          currentState = 'idle';
-          nextStateTimer = performance.now() + WALK_PAUSE_MS + 1000;
-        } else if (walkX < CHAR_MARGIN) {
-          walkX = CHAR_MARGIN;
-          walkDir = 1;
-          walking = false;
-          pauseTimer = timestamp + WALK_PAUSE_MS;
-          currentState = 'idle';
-          nextStateTimer = performance.now() + WALK_PAUSE_MS + 1000;
+
+    // Walk position — blocked during drag and briefly after drop
+    const walkAllowed = !_dragActive && (_dragResumeAt === 0 || timestamp > _dragResumeAt);
+
+    if (freeRoam && walkAllowed) {
+      // ── Free Roam mode: walk toward random waypoints all over the screen ──────
+      const isMoving = stepRoam(timestamp);
+      if (isMoving) {
+        // Show walk sprite/state while moving
+        if (currentState !== 'walk') {
+          currentState = 'walk';
+          walking = true;
+          loadSprite(companion.id, 'walk');
         }
+        // Occasional spring bounce to keep it lively
+        if (Math.random() < 0.008) springVY = -4;
       }
-    } else if (walkAllowed && pauseTimer > 0 && timestamp > pauseTimer) {
-      pauseTimer = 0;
-      walking = true;
-      currentState = 'walk';
-      nextStateTimer = performance.now() + 9000;
+    } else {
+      // ── Standard mode: patrol along the bottom edge ──────────────────────────
+      if (walking && walkAllowed) {
+        if (Math.random() < IDLE_PAUSE_CHANCE) {
+          walking = false;
+          currentState = 'idle';
+          nextStateTimer = performance.now() + 3000;
+        } else {
+          walkX += walkDir * WALK_SPEED_PX;
+          if (walkX > W - CHAR_MARGIN) {
+            walkX = W - CHAR_MARGIN;
+            walkDir = -1;
+            walking = false;
+            pauseTimer = timestamp + WALK_PAUSE_MS;
+            currentState = 'idle';
+            nextStateTimer = performance.now() + WALK_PAUSE_MS + 1000;
+          } else if (walkX < CHAR_MARGIN) {
+            walkX = CHAR_MARGIN;
+            walkDir = 1;
+            walking = false;
+            pauseTimer = timestamp + WALK_PAUSE_MS;
+            currentState = 'idle';
+            nextStateTimer = performance.now() + WALK_PAUSE_MS + 1000;
+          }
+        }
+      } else if (walkAllowed && pauseTimer > 0 && timestamp > pauseTimer) {
+        pauseTimer = 0;
+        walking = true;
+        currentState = 'walk';
+        nextStateTimer = performance.now() + 9000;
+      }
     }
-  }
 
-  // Spring physics — idle gets a small occasional nudge so it never looks frozen
-  if (currentState === 'idle' && Math.abs(springVY) < 0.1 && Math.abs(springY) < 0.1) {
-    if (Math.random() < 0.003) springVY = -4;
-  }
-  if (currentState === 'walk' && Math.abs(springVY) < 0.1 && Math.abs(springY) < 0.1) {
-    if (Math.random() < 0.008) springVY = -6;
-  }
-  if (currentState === 'happy' && Math.random() < 0.012) springVY = -10;
+    // Spring physics — idle gets a small occasional nudge so it never looks frozen
+    if (currentState === 'idle' && Math.abs(springVY) < 0.1 && Math.abs(springY) < 0.1) {
+      if (Math.random() < 0.003) springVY = -4;
+    }
+    if (currentState === 'walk' && Math.abs(springVY) < 0.1 && Math.abs(springY) < 0.1) {
+      if (Math.random() < 0.008) springVY = -6;
+    }
+    if (currentState === 'happy' && Math.random() < 0.012) springVY = -10;
 
-  const springForce = -SPRING_K * springY;
-  springVY = (springVY + springForce * dt * 0.001) * SPRING_DAMP;
-  springY += springVY;
-  if (Math.abs(springY) < 0.05 && Math.abs(springVY) < 0.05) {
-    springY = 0; springVY = 0;
-  }
+    const springForce = -SPRING_K * springY;
+    springVY = (springVY + springForce * dt * 0.001) * SPRING_DAMP;
+    springY += springVY;
+    if (Math.abs(springY) < 0.05 && Math.abs(springVY) < 0.05) {
+      springY = 0; springVY = 0;
+    }
 
-  // Speech bubble fade-out
-  if (bubbleAlpha > 0 && timestamp > bubbleTimer) {
-    bubbleAlpha = Math.max(0, bubbleAlpha - dt * 0.002);
-  }
+    // Speech bubble fade-out
+    if (bubbleAlpha > 0 && timestamp > bubbleTimer) {
+      bubbleAlpha = Math.max(0, bubbleAlpha - dt * 0.002);
+    }
 
-  ctx.clearRect(0, 0, W, H);
-  drawCompanion();
-  if (bubbleAlpha > 0.01) drawBubble();
-  updateHitZone();
+    ctx.clearRect(0, 0, W, H);
+    drawCompanion();
+    if (bubbleAlpha > 0.01) drawBubble();
+    updateHitZone();
+  } catch {
+    // Non-fatal: safeguard render loop so canvas never freezes permanently
+  }
 
   rafId = requestAnimationFrame(renderFrame);
 }
@@ -1174,7 +1176,6 @@ async function reloadCompanion() {
     if (typeof localStorage !== 'undefined') {
       try { localStorage.setItem(ROAM_STORAGE_KEY, String(freeRoam)); } catch {}
     }
-    syncRoamBtn();
     if (freeRoam) {
       pickRoamTarget();
       walking = true;
@@ -1222,7 +1223,6 @@ loadActiveCompanionFromIPC().then((state) => {
   if (typeof state.freeRoam === 'boolean') {
     freeRoam = state.freeRoam;
   }
-  syncRoamBtn();
   if (freeRoam) {
     pickRoamTarget();
     walking = true;
@@ -1241,18 +1241,8 @@ setInterval(reloadCompanion, 2000);
 
 // ─── Free Roam toggle interactions ──────────────────────────────────────────
 
-syncRoamBtn(); // set initial visual state
-
 // Right-click on companion toggles Free Roam
 hitZone.addEventListener('contextmenu', (e) => {
   e.preventDefault();
   toggleFreeRoam();
 });
-
-const roamBtn = document.getElementById('roam-btn');
-if (roamBtn) {
-  roamBtn.addEventListener('click', (e) => {
-    e.stopPropagation(); // don't trigger hit-zone events
-    toggleFreeRoam();
-  });
-}

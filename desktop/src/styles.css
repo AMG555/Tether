@@ -87,6 +87,7 @@ html, body {
   min-width: 320px;
   min-height: 100%;
   margin: 0;
+  overflow-x: hidden;
   background: var(--paper);
   color: var(--ink);
   font-family: var(--sans);
@@ -101,7 +102,9 @@ html, body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  /* No max-width cap — fills the full desktop screen */
+  width: 100%;
+  overflow-x: hidden;
+  /* Fills the full desktop screen cleanly */
 }
 
 /* ─── Masthead ───────────────────────────────────────────────────────────────*/
@@ -229,9 +232,8 @@ html, body {
 main {
   flex: 1;
   padding: 20px 32px;
-  max-width: 1400px;
+  max-width: 100%;
   width: 100%;
-  /* Center content but allow full use of wide screens */
   box-sizing: border-box;
 }
 
@@ -393,6 +395,7 @@ main {
 .capture-live-bar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 8px 14px;
   margin-bottom: 16px;
@@ -481,12 +484,15 @@ main {
 
 .search-bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 16px;
+  width: 100%;
 }
 
 .search-input {
   flex: 1;
+  min-width: 220px;
   font-family: var(--sans);
   font-size: 13px;
   padding: 7px 12px;
@@ -501,16 +507,18 @@ main {
 /* Master-detail grid */
 .master-detail-grid {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: minmax(280px, 340px) 1fr;
   gap: 0;
   min-height: 480px;
   border: 1px solid var(--rule);
   background: var(--paper-raised);
   border-radius: var(--radius);
   overflow: hidden;
+  width: 100%;
 }
 
 .draft-list-pane {
+  min-width: 0;
   border-right: 1px solid var(--rule);
   display: flex;
   flex-direction: column;
@@ -576,6 +584,7 @@ main {
 
 /* Detail pane */
 .draft-detail-pane {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   padding: 16px;
@@ -586,16 +595,19 @@ main {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 12px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--rule);
 }
 
-.detail-actions { display: flex; gap: 8px; }
+.detail-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .detail-meta-bar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 14px;
   font-size: 11px;
   color: var(--ink-soft);
@@ -634,6 +646,7 @@ main {
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: anywhere;
   color: var(--ink);
 }
 
@@ -2025,7 +2038,7 @@ kbd {
   .preview-desktop-mockup { width: 100%; height: 240px; }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 880px) {
   .masthead { padding: 0 14px; flex-wrap: wrap; height: auto; padding-block: 10px; gap: 8px; }
   .nav-tabs { width: 100%; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
   .nav-tabs::-webkit-scrollbar { display: none; }
@@ -2065,6 +2078,9 @@ kbd {
   main { padding: 12px; }
   .screen-header { margin-bottom: 12px; padding-bottom: 10px; }
   .view-masthead { margin-bottom: 10px; gap: 10px; }
+  .search-input { min-width: 100%; }
+  #refresh-drafts-btn { width: 100%; }
+  .modal-overlay { padding: 8px; }
 }
 
 .pane-header { align-items: center; }

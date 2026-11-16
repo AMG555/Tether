@@ -55,63 +55,13 @@
     #hit-zone.dragging {
       cursor: grabbing;
     }
-    /* Free Roam toggle pill — inside hit-zone so it stays within Win32 interactive rect */
-    #roam-btn {
-      position: absolute;
-      top: 6px;
-      right: 6px;
-      padding: 3px 8px;
-      border-radius: 10px;
-      border: 1px solid rgba(255,255,255,0.22);
-      background: rgba(20,21,22,0.85);
-      color: rgba(255,255,255,0.85);
-      font-size: 11px;
-      font-weight: 600;
-      font-family: -apple-system, Segoe UI, sans-serif;
-      line-height: 14px;
-      cursor: pointer;
-      pointer-events: auto;
-      z-index: 20;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      opacity: 0;
-      transition: opacity 0.2s, background 0.15s, border-color 0.15s, transform 0.15s;
-      user-select: none;
-      -webkit-user-select: none;
-      white-space: nowrap;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-    }
-    /* Show button on companion hover or when roam is actively exploring */
-    #hit-zone:hover #roam-btn {
-      opacity: 0.95;
-    }
-    #roam-btn:hover {
-      background: rgba(248,110,96,0.92);
-      border-color: rgba(248,110,96,1);
-      color: #fff;
-      transform: scale(1.04);
-    }
-    /* Active (roam on) state */
-    #roam-btn.roam-on {
-      background: rgba(34,142,67,0.88);
-      border-color: rgba(46,180,88,0.95);
-      color: #fff;
-      opacity: 0.72;
-    }
-    #roam-btn.roam-on:hover {
-      background: rgba(46,180,88,1);
-      opacity: 1;
-    }
   </style>
 </head>
 <body>
   <canvas id="companion-canvas"></canvas>
   <img id="companion-sprite" alt="" aria-hidden="true">
   <!-- role=button + title give keyboard/screen-reader users a hint -->
-  <div id="hit-zone" role="button" tabindex="-1" aria-label="Companion — drag to move, click to interact, right-click to toggle Free Roam" title="Drag to move · Click to interact · Right-click for Free Roam">
-    <button id="roam-btn" type="button" aria-label="Toggle Free Roam mode" title="Free Roam: off (bottom walk). Click or right-click to roam everywhere!">🌐 Bottom</button>
-  </div>
+  <div id="hit-zone" role="button" tabindex="-1" aria-label="Companion — drag to move, click to interact, right-click to toggle Free Roam" title="Drag to move · Click to interact · Right-click for Free Roam"></div>
   <script type="module" src="./companion-overlay.js"></script>
 </body>
 </html>

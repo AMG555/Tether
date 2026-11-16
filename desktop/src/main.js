@@ -26,6 +26,16 @@ import {
   setActiveCompanion,
 } from './api.js';
 
+// Global error handlers: guarantee the main window never crashes
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (e) => {
+    console.warn('[Tether Safe Guard]', e.message || e.error);
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    console.warn('[Tether Safe Guard]', e.reason);
+  });
+}
+
 const genericFailureMessage = 'Tether could not load app information.';
 
 // Complete Catalog of all 32 companions — all ship bundled with the installer.
