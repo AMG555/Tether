@@ -556,51 +556,76 @@ function drawStatusIndicator() {
   ctx.restore();
 }
 
-/** Draw a loaded WebP sprite image at the companion's current position. */
-function drawSpriteImg(img, shouldFlip) {
+/** Draw a loaded WebP sprite image at the companion's current position.
+ *
+ * flip — mirror horizontally (for right-to-left walk on a right-facing sprite).
+ *         Applied as a canvas transform so the animated WebP frames are still
+ *         rendered correctly — just mirrored at draw time each RAF tick.
+ */
+function drawSpriteImg(img, flip) {
   const scale = Math.min(COMPANION_TARGET_H / img.naturalHeight, (W * 0.5) / img.naturalWidth);
   const dw = img.naturalWidth * scale;
   const dh = img.naturalHeight * scale;
   const dx = walkX - dw / 2;
   const dy = walkY - dh + springY;
   ctx.save();
-  if (shouldFlip) { ctx.translate(walkX * 2, 0); ctx.scale(-1, 1); }
+  if (flip) {
+    // Translate so the mirror axis is the character's centre X, then scale -1.
+    // This keeps the character centred at walkX after the flip.
+    ctx.translate(walkX * 2, 0);
+    ctx.scale(-1, 1);
+  }
   // drawImage on an animated WebP always stamps the browser's current frame —
-  // the browser advances frames on its own clock for free.
+  // the browser advances frames on its own clock for free — no manual frame
+  // stepping needed.  Every RAF tick the latest decoded frame is stamped here.
   ctx.drawImage(img, dx, dy, dw, dh);
   ctx.restore();
 }
 
 function drawCompanion() {
   const spriteKey = `${companion.id}:${currentState}`;
-  // Flip when walking left; also flip non-walk actions when last walk direction was left
-  const shouldFlip = walkDir === -1 && (walking || currentState !== 'walk');
 
-  const img = spriteCache[spriteKey]; // may be undefined (not yet fetched), or SPRITE_MISSING (null)
+  // ── Flip logic ──────────────────────────────────────────────────────────────
+  // Walk WebP sprites are assumed to face RIGHT (the most common convention).
+  // When the companion is walking LEFT we mirror horizontally at draw time so a
+  // single walk.webp serves both directions — no separate asset needed.
+  //
+  // For all other states (idle, wave, water, etc.) we keep the asset's natural
+  // facing direction.  Flipping non-walk states based on walkDir caused the
+  // companion to randomly mirror during idle which looked wrong.
+  const shouldFlip = currentState === 'walk' && walkDir === -1;
+
+  const img = spriteCache[spriteKey]; // undefined = not fetched yet, null = missing
 
   if (img) {
-    // Valid loaded image
+    // Best case: exact sprite for this state is loaded and ready.
     drawSpriteImg(img, shouldFlip);
     drawStatusIndicator();
     return;
   }
 
   if (img === undefined) {
-    // Not yet in cache — kick off a load (loadSprite guards against parallel requests)
+    // Not yet in cache — kick off a load (loadSprite deduplicates concurrent requests).
     loadSprite(companion.id, currentState);
   }
-  // img === null means permanently missing — fall through to fallback below
+  // img === null → permanently missing, fall through to bridge/fallback.
 
-  // Bridge: show idle sprite while the requested action sprite is loading/missing
+  // Bridge: use the idle sprite for any state that hasn't loaded yet.
+  // The idle WebP is pre-warmed first (see prewarmSprites) so it is almost
+  // always available within the first animation frame.  Showing it here means
+  // the companion is NEVER a blank canvas — it always feels alive.
+  // Don't flip the bridge idle sprite for non-walk states.
   const idleKey = `${companion.id}:idle`;
   const idleImg = spriteCache[idleKey];
-  if (idleImg && currentState !== 'idle') {
-    drawSpriteImg(idleImg, shouldFlip);
+  if (idleImg) {
+    // For the bridge we never flip — idle is always shown facing right.
+    drawSpriteImg(idleImg, false);
     drawStatusIndicator();
     return;
   }
 
-  // Final fallback: procedural animated character
+  // Last resort: procedural animated character (covers brand-new companions
+  // before any sprites have loaded, or companions with no WebP assets at all).
   drawProceduralCompanion(shouldFlip);
   drawStatusIndicator();
 }
