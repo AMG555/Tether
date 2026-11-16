@@ -36,6 +36,28 @@ const COMPANION_TARGET_H = 220;   // render height in logical CSS pixels
 const STATUS_POLL_MS    = 4000;   // how often to poll getCaptureStatus (ms)
 const DRAG_RESUME_MS    = 2000;   // ms after drop before auto-walk resumes
 
+// ─── Free Roam mode ───────────────────────────────────────────────────────────
+// When enabled the companion walks to random destinations anywhere on screen
+// instead of only patrolling the bottom edge.  Stored in localStorage so it
+// survives a companion reload.  Completely optional — default is off.
+
+const ROAM_STORAGE_KEY   = 'tether_companion_free_roam';
+const ROAM_SPEED_PX      = 1.8;   // slightly slower for diagonal movement (feels calmer)
+const ROAM_ARRIVE_DIST   = 40;    // px — "close enough" radius to count as arrived
+const ROAM_PAUSE_MIN_MS  = 2000;  // minimum pause at each waypoint
+const ROAM_PAUSE_MAX_MS  = 6000;  // maximum pause at each waypoint
+const ROAM_MARGIN_X      = 80;    // px from horizontal edges (keep companion visible)
+const ROAM_MARGIN_TOP    = CHAR_HEIGHT + 20; // px from top (clear the head)
+const ROAM_MARGIN_BOT    = 20;    // px from bottom
+
+let freeRoam = typeof localStorage !== 'undefined'
+  && localStorage.getItem(ROAM_STORAGE_KEY) === 'true';
+
+// Current roam waypoint the companion is walking toward
+let _roamTargetX = 0;
+let _roamTargetY = 0;
+let _roamPauseUntil = 0; // timestamp — 0 means pick a new waypoint now
+
 // ─── Companion data ───────────────────────────────────────────────────────────
 
 const DEFAULT_COMPANION = {
@@ -87,8 +109,15 @@ resizeCanvas();
 
 window.addEventListener('resize', () => {
   resizeCanvas();
-  walkX = Math.max(CHAR_MARGIN, Math.min(W - CHAR_MARGIN, walkX));
-  walkY = Math.max(CHAR_HEIGHT + 10, Math.min(H - 10, walkY));
+  if (freeRoam) {
+    walkX = Math.max(ROAM_MARGIN_X, Math.min(W - ROAM_MARGIN_X, walkX));
+    walkY = Math.max(ROAM_MARGIN_TOP, Math.min(H - ROAM_MARGIN_BOT, walkY));
+    // Current roam target may now be out-of-bounds — pick a fresh one
+    pickRoamTarget();
+  } else {
+    walkX = Math.max(CHAR_MARGIN, Math.min(W - CHAR_MARGIN, walkX));
+    walkY = Math.max(CHAR_HEIGHT + 10, Math.min(H - 10, walkY));
+  }
   updateHitZone();
 });
 
@@ -158,6 +187,58 @@ function showBubble(text, durationMs = 3000) {
   bubbleText = text;
   bubbleAlpha = 1;
   bubbleTimer = performance.now() + durationMs;
+}
+
+// ─── Free Roam helpers ────────────────────────────────────────────────────────
+
+/** Pick a random on-screen waypoint the companion will walk toward. */
+function pickRoamTarget() {
+  _roamTargetX = ROAM_MARGIN_X + Math.random() * (W - ROAM_MARGIN_X * 2);
+  _roamTargetY = ROAM_MARGIN_TOP + Math.random() * (H - ROAM_MARGIN_TOP - ROAM_MARGIN_BOT);
+  _roamPauseUntil = 0; // start walking immediately
+}
+
+/** Step companion one frame toward the current roam target. Returns true while still walking. */
+function stepRoam(timestamp) {
+  // Waiting at a waypoint
+  if (_roamPauseUntil > 0) {
+    if (timestamp < _roamPauseUntil) return false; // still pausing
+    _roamPauseUntil = 0;
+    pickRoamTarget();
+    return false;
+  }
+
+  const dx = _roamTargetX - walkX;
+  const dy = _roamTargetY - walkY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
+  if (dist < ROAM_ARRIVE_DIST) {
+    // Arrived — pause then pick a new destination
+    const pauseMs = ROAM_PAUSE_MIN_MS + Math.random() * (ROAM_PAUSE_MAX_MS - ROAM_PAUSE_MIN_MS);
+    _roamPauseUntil = timestamp + pauseMs;
+    return false;
+  }
+
+  // Move toward target — normalise direction and scale by speed
+  walkX += (dx / dist) * ROAM_SPEED_PX;
+  walkY += (dy / dist) * ROAM_SPEED_PX;
+  // Keep inside safe bounds
+  walkX = Math.max(ROAM_MARGIN_X, Math.min(W - ROAM_MARGIN_X, walkX));
+  walkY = Math.max(ROAM_MARGIN_TOP, Math.min(H - ROAM_MARGIN_BOT, walkY));
+  // Update face direction based on horizontal movement
+  walkDir = dx >= 0 ? 1 : -1;
+  return true; // still walking
+}
+
+/** Sync the roam button visual state to the current freeRoam value. */
+function syncRoamBtn() {
+  const btn = document.getElementById('roam-btn');
+  if (!btn) return;
+  btn.classList.toggle('roam-on', freeRoam);
+  btn.textContent = freeRoam ? '🗺️' : '🌐';
+  btn.title = freeRoam
+    ? 'Free Roam ON — click to return to bottom-walk'
+    : 'Free Roam OFF — click to let companion roam the screen';
 }
 
 // ─── Reactive status polling ──────────────────────────────────────────────────
@@ -320,10 +401,35 @@ function renderFrame(timestamp) {
 
   // State transition — but not while dragging and not while an edge-pause is
   // pending (let the walk resume first, then allow a fresh state pick).
-  if (timestamp > nextStateTimer && !_dragActive && pauseTimer === 0) pickNextState();
+  // In free-roam mode pauses are handled by the roam state machine, so skip
+  // the standard pauseTimer guard.
+  if (timestamp > nextStateTimer && !_dragActive && (freeRoam || pauseTimer === 0)) pickNextState();
 
   // Walk position — blocked during drag and briefly after drop
   const walkAllowed = !_dragActive && (_dragResumeAt === 0 || timestamp > _dragResumeAt);
+
+  if (freeRoam && walkAllowed) {
+    // ── Free Roam mode: walk toward random waypoints all over the screen ──────
+    const isMoving = stepRoam(timestamp);
+    if (isMoving) {
+      // Show walk sprite/state while moving
+      if (currentState !== 'walk') {
+        currentState = 'walk';
+        walking = true;
+        loadSprite(companion.id, 'walk');
+      }
+      // Occasional spring bounce to keep it lively
+      if (Math.random() < 0.006) springVY = -5;
+    } else {
+      // Pausing at waypoint — play idle or a random non-walk action
+      if (walking) {
+        walking = false;
+        // Let the normal state machine choose what to show while stopped
+        pickNextState();
+      }
+    }
+  } else if (!freeRoam) {
+    // ── Standard mode: patrol along the bottom edge ───────────────────────────
   if (walking && walkAllowed) {
     if (Math.random() < IDLE_PAUSE_CHANCE) {
       walking = false;
@@ -355,6 +461,7 @@ function renderFrame(timestamp) {
     currentState = 'walk';
     nextStateTimer = performance.now() + 9000;
   }
+  } // end else if (!freeRoam)
 
   // Spring physics — idle gets a small occasional nudge so it never looks frozen
   if (currentState === 'idle' && Math.abs(springVY) < 0.1 && Math.abs(springY) < 0.1) {
@@ -861,3 +968,36 @@ loadActiveCompanionFromIPC().then((state) => {
 // cross-window inside Tauri's isolated WebViews, so polling the shared IPC
 // file is the only cross-window signalling mechanism available.
 setInterval(reloadCompanion, 2000);
+
+// ─── Free Roam toggle button ──────────────────────────────────────────────────
+
+syncRoamBtn(); // set initial visual state
+
+const roamBtn = document.getElementById('roam-btn');
+if (roamBtn) {
+  roamBtn.addEventListener('click', (e) => {
+    e.stopPropagation(); // don't trigger hit-zone events
+    freeRoam = !freeRoam;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(ROAM_STORAGE_KEY, String(freeRoam));
+    }
+    syncRoamBtn();
+
+    if (freeRoam) {
+      // Kick off roam from current position — pick a first waypoint
+      pickRoamTarget();
+      // Reset bottom-walk state so the companion doesn't snap to the edge
+      pauseTimer = 0;
+      walking = false;
+      showBubble('🗺️ Free Roam on! I\'ll explore.', 2500);
+    } else {
+      // Return companion to bottom of screen gracefully
+      walkY = H;
+      _roamPauseUntil = 0;
+      walking = false;
+      currentState = 'idle';
+      nextStateTimer = performance.now() + 2000;
+      showBubble('🌐 Back to the bottom!', 2000);
+    }
+  });
+}
