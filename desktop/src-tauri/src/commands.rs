@@ -1181,11 +1181,11 @@ pub fn get_companion_clip(id: String, action: String) -> Result<Option<String>, 
         return Ok(None);
     }
 
+    // Prefer the animated .webp; fall back to idle.webp only (never .still.webp
+    // since those are single-frame stills and would look frozen on the desktop).
     let candidates = [
         format!("{clean_action}.webp"),
-        format!("{clean_action}.still.webp"),
         "idle.webp".to_string(),
-        "idle.still.webp".to_string(),
     ];
 
     let search_roots = [
@@ -1235,11 +1235,12 @@ pub fn show_companion_overlay(app: tauri::AppHandle) -> Result<(), String> {
         let _ = w.set_position(PhysicalPosition::new(pos.x, pos.y));
     }
 
-    // Keep set_ignore_cursor_events(false) so the OS always delivers mouse events to
-    // the WebView.  Click-through for transparent areas is handled by CSS
-    // pointer-events:none on the body — only #hit-zone (pointer-events:auto) is
-    // interactive.  This is more reliable than the OS-level toggle approach.
-    let _ = w.set_ignore_cursor_events(false);
+    // Make the transparent overlay fully click-through at the OS level.
+    // The hit-zone rect is carved out as the ONLY interactive region via
+    // set_hit_zone_region() — a Win32 SetWindowRgn call that marks just the
+    // character's bounding rect as non-transparent.  Everything else stays
+    // WS_EX_TRANSPARENT so desktop clicks pass straight through.
+    let _ = w.set_ignore_cursor_events(true);
 
     // Show without stealing keyboard focus — the overlay is purely visual.
     w.show().map_err(|e| e.to_string())?;
@@ -1256,14 +1257,79 @@ pub fn show_companion_overlay(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 /// Toggles OS-level cursor passthrough on the companion overlay window.
-/// Pass `ignore = true` to let all clicks fall through (default after show).
-/// Pass `ignore = false` temporarily during a mouse drag so the native OS drag fires.
 #[tauri::command]
 pub fn set_companion_passthrough(app: tauri::AppHandle, ignore: bool) -> Result<(), String> {
     use tauri::Manager as _;
     let w =
         app.get_webview_window("companion-overlay").ok_or("companion-overlay window not found")?;
     w.set_ignore_cursor_events(ignore).map_err(|e| e.to_string())
+}
+
+/// Update the interactive region of the companion overlay to exactly the
+/// hit-zone rectangle (in CSS/logical pixels).  Everything outside this rect
+/// stays WS_EX_TRANSPARENT (fully click-through); inside the rect events are
+/// delivered normally so the user can click and drag the companion.
+///
+/// Called from the overlay JS every frame (throttled to ~10 Hz) via IPC.
+/// On non-Windows platforms this is a no-op — macOS/Linux handle transparency
+/// differently and don't need a region update.
+#[tauri::command]
+pub fn set_hit_zone_region(
+    app: tauri::AppHandle,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    scale: f64,
+) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::ffi::c_void;
+        use tauri::Manager as _;
+
+        let w = app
+            .get_webview_window("companion-overlay")
+            .ok_or("companion-overlay window not found")?;
+
+        // Convert CSS logical pixels → physical pixels using the DPI scale factor.
+        let s = if scale > 0.0 { scale } else { 1.0 };
+        let px = (x as f64 * s) as i32;
+        let py = (y as f64 * s) as i32;
+        let pw = ((width  as f64 * s) as i32).max(1);
+        let ph = ((height as f64 * s) as i32).max(1);
+
+        #[link(name = "user32")]
+        extern "system" {
+            fn CreateRectRgn(x1: i32, y1: i32, x2: i32, y2: i32) -> *mut c_void;
+            fn SetWindowRgn(hwnd: *mut c_void, hrgn: *mut c_void, redraw: i32) -> i32;
+        }
+        #[link(name = "gdi32")]
+        extern "system" {
+            fn DeleteObject(h: *mut c_void) -> i32;
+        }
+
+        if let Ok(hwnd_raw) = w.hwnd() {
+            unsafe {
+                // Create a small rectangle region for the hit-zone only.
+                // NULL region (from SetWindowRgn with null) = entire window is interactive,
+                // so we always pass a real rect — even during initialisation.
+                let rgn = CreateRectRgn(px, py, px + pw, py + ph);
+                if !rgn.is_null() {
+                    // SetWindowRgn takes ownership of the region handle on success;
+                    // only delete it ourselves if the call fails.
+                    let ok = SetWindowRgn(hwnd_raw.0, rgn, 1 /* TRUE = repaint */);
+                    if ok == 0 {
+                        DeleteObject(rgn);
+                    }
+                }
+            }
+        }
+        // keep set_ignore_cursor_events(true) — region handles click-routing.
+        let _ = w.set_ignore_cursor_events(true);
+    }
+    #[cfg(not(target_os = "windows"))]
+    let _ = (app, x, y, width, height, scale);
+    Ok(())
 }
 
 /// Hides the companion overlay window.  Called from the main window via IPC.

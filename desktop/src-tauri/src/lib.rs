@@ -513,6 +513,7 @@ pub fn run() -> Result<(), tauri::Error> {
             commands::show_companion_overlay,
             commands::hide_companion_overlay,
             commands::set_companion_passthrough,
+            commands::set_hit_zone_region,
             commands::start_companion_drag,
             commands::get_capture_status,
             commands::get_active_companion,

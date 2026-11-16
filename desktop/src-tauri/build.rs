@@ -24,6 +24,7 @@ fn main() {
             "show_companion_overlay",
             "hide_companion_overlay",
             "set_companion_passthrough",
+            "set_hit_zone_region",
             "start_companion_drag",
             "get_capture_status",
             "get_active_companion",

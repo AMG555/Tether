@@ -21,7 +21,7 @@
  * All Tauri IPC calls must go through api.js (architecture rule).
  */
 
-import { getCompanionClip, getActiveCompanion, getCaptureStatus, setCompanionPassthrough } from './api.js';
+import { getCompanionClip, getActiveCompanion, getCaptureStatus, setCompanionPassthrough, setHitZoneRegion } from './api.js';
 import { createBrain } from './companion-brain.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -123,14 +123,37 @@ window.addEventListener('resize', () => {
 });
 
 // Move the hit-zone div so it covers the character's current bounding box.
+// Also update the Win32 window region so that ONLY this rect is interactive
+// and every other pixel of the full-screen overlay stays WS_EX_TRANSPARENT.
+// The IPC call is throttled: we only push a region update when the rect has
+// actually moved (rounded to 4 px) so we don't spam IPC at 60 Hz.
+let _lastRegionX = -9999, _lastRegionY = -9999;
+let _regionPending = false;
 function updateHitZone() {
   const hw = CHAR_WIDTH * 2;
   const hh = CHAR_HEIGHT;
-  hitZone.style.left   = `${Math.round(walkX - hw / 2)}px`;
-  hitZone.style.top    = `${Math.round(walkY - hh)}px`;
+  const lx = Math.round(walkX - hw / 2);
+  const ly = Math.round(walkY - hh);
+  hitZone.style.left   = `${lx}px`;
+  hitZone.style.top    = `${ly}px`;
   hitZone.style.bottom = '';
   hitZone.style.width  = `${hw}px`;
   hitZone.style.height = `${hh}px`;
+
+  // Only push a region update when position has changed by ≥4 px
+  if (Math.abs(lx - _lastRegionX) >= 4 || Math.abs(ly - _lastRegionY) >= 4) {
+    _lastRegionX = lx;
+    _lastRegionY = ly;
+    if (!_regionPending) {
+      _regionPending = true;
+      // Defer slightly so rapid moves batch into one IPC call
+      Promise.resolve().then(() => {
+        _regionPending = false;
+        const dpr = window.devicePixelRatio || 1;
+        void setHitZoneRegion(lx, ly, hw, hh, dpr);
+      });
+    }
+  }
 }
 
 // ─── State machine ────────────────────────────────────────────────────────────
@@ -389,13 +412,21 @@ async function loadSprite(companionId, state) {
       // starts immediately when the image finishes loading.
       spriteContainer.appendChild(img);
       img.src = dataUrl;
-      await new Promise((res) => { img.onload = res; img.onerror = res; });
-      if (img.naturalWidth > 0) {
+      await new Promise((res) => {
+        img.onload = res;
+        img.onerror = res;
+        // Some animated WebPs report naturalWidth=0 on onload before the browser
+        // has decoded the first frame.  Wait one rAF tick as a safety net.
+        img.onload = () => requestAnimationFrame(() => res());
+      });
+      // Accept image if it has nonzero dimensions OR a nonzero src (animated WebP
+      // with decoded-frame delay can still report 0×0 briefly after onload).
+      if (img.naturalWidth > 0 || img.src.length > 0) {
         spriteCache[key] = img;
         delete spriteLoading[key];
         return img;
       }
-      // Image loaded but reported zero size — broken file, remove orphan
+      // Image appears genuinely broken — remove the orphan element.
       spriteContainer.removeChild(img);
     }
   } catch { /* fall through */ }

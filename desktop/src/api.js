@@ -447,6 +447,24 @@ export async function setCompanionPassthrough(ignore) {
 }
 
 /**
+ * Updates the Win32 window region so that only the companion hit-zone rect
+ * is interactive; every pixel outside it stays WS_EX_TRANSPARENT (click-through).
+ * x, y, width, height are in CSS logical pixels; scale is window.devicePixelRatio.
+ * No-op on non-Windows platforms.
+ * @param {number} x @param {number} y @param {number} width @param {number} height @param {number} scale
+ * @returns {Promise<void>}
+ */
+export async function setHitZoneRegion(x, y, width, height, scale) {
+  const invoke = getInvoker();
+  if (!invoke) return;
+  try {
+    await invoke('set_hit_zone_region', { x, y, width, height, scale });
+  } catch {
+    // Best-effort — non-fatal if the window isn't ready yet.
+  }
+}
+
+/**
  * Starts a native OS drag on the companion overlay window.
  * @returns {Promise<void>}
  */

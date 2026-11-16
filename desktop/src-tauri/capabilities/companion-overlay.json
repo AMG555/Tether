@@ -1,10 +1,11 @@
 {
   "identifier": "companion-overlay",
-  "description": "Companion overlay window — drag and cursor-passthrough toggle",
+  "description": "Companion overlay window — drag, hit-zone region, and cursor-passthrough",
   "windows": ["companion-overlay"],
   "permissions": [
     "allow-start-companion-drag",
     "allow-set-companion-passthrough",
+    "allow-set-hit-zone-region",
     "allow-get-companion-clip",
     "allow-get-active-companion"
   ]

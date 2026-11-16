@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-hit-zone-region"
+description = "Enables the set_hit_zone_region command without any pre-configured scope."
+commands.allow = ["set_hit_zone_region"]
+
+[[permission]]
+identifier = "deny-set-hit-zone-region"
+description = "Denies the set_hit_zone_region command without any pre-configured scope."
+commands.deny = ["set_hit_zone_region"]
