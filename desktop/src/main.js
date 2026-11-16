@@ -892,12 +892,12 @@ async function openCompanionPreview(c) {
     });
   }
 
-  // ── Free Roam toggle — sync from localStorage ──────────────────────────────
+  // ── Free Roam toggle — sync from active companion state ────────────────────
   const roamToggle = document.getElementById('preview-roam-toggle');
   if (roamToggle) {
-    const roamOn = (typeof localStorage !== 'undefined')
-      && localStorage.getItem('tether_companion_free_roam') === 'true';
-    roamToggle.checked = roamOn;
+    getActiveCompanion().then((st) => {
+      if (st && typeof st.freeRoam === 'boolean') roamToggle.checked = st.freeRoam;
+    }).catch(() => {});
   }
 
   // Show real time in the preview taskbar clock
@@ -1336,8 +1336,18 @@ function setupPreviewModalHandlers() {
   // ── Free Roam toggle in customizer ────────────────────────────────
   const roamToggle = document.getElementById('preview-roam-toggle');
   if (roamToggle) {
-    roamToggle.addEventListener('change', () => {
+    getActiveCompanion().then((st) => {
+      if (st && typeof st.freeRoam === 'boolean') roamToggle.checked = st.freeRoam;
+    }).catch(() => {});
+    roamToggle.addEventListener('change', async () => {
       try { localStorage.setItem('tether_companion_free_roam', String(roamToggle.checked)); } catch { /* ignore */ }
+      try {
+        const current = await getActiveCompanion();
+        if (current) {
+          current.freeRoam = roamToggle.checked;
+          await setActiveCompanion(current);
+        }
+      } catch { /* ignore */ }
       showToast(roamToggle.checked ? '🗺️ Free Roam on — companion explores everywhere.' : '🌐 Free Roam off — companion stays at the bottom.', 'ok', 2000);
     });
   }

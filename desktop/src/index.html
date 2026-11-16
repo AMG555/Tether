@@ -435,12 +435,50 @@
               <p class="view-lede">Use <strong>ChatGPT</strong> or <strong>Google Flow</strong> to generate frame-by-frame sprite sheets, then convert them to animated WebP files and import below.</p>
 
               <div class="ai-guide-tabs">
-                <button type="button" class="ai-tab-btn active" data-ai-tab="chatgpt">ChatGPT</button>
-                <button type="button" class="ai-tab-btn" data-ai-tab="googleflow">Google Flow</button>
+                <button type="button" class="ai-tab-btn active" data-ai-tab="image">🖼️ From Any Image</button>
+                <button type="button" class="ai-tab-btn" data-ai-tab="chatgpt">ChatGPT / DALL-E</button>
+                <button type="button" class="ai-tab-btn" data-ai-tab="googleflow">Google Flow / Veo</button>
+              </div>
+
+              <!-- From Any Image flow -->
+              <div class="ai-tab-panel" id="ai-tab-image">
+                <div class="ai-guide-steps">
+                  <div class="ai-guide-step"><span class="ai-guide-num">1</span><div>
+                    <strong>Upload your source image &amp; lock identity</strong><br>
+                    Upload any photo, sketch, avatar, or pet picture to <strong>ChatGPT (GPT-4o)</strong>, <strong>Claude</strong>, or <strong>Midjourney (--cref)</strong> with this prompt:<br>
+                    <code class="ai-prompt-block">I have attached a reference image of my character. Keeping the identical facial features, colors, clothing, and proportions from the reference image, convert this character into a clean front-facing 2D sprite with crisp outlines on a solid green #00FF00 background. Full body standing pose, 264×280px framing, no shadows.</code>
+                  </div></div>
+                  <div class="ai-guide-step"><span class="ai-guide-num">2</span><div>
+                    <strong>Generate consistent animation cycles for the 8 states</strong><br>
+                    Attach the generated character as reference and generate 3–4 frame sprite sheets in a horizontal row on green (#00FF00):<br>
+                    <code class="ai-prompt-block">Using the exact character in the reference image, generate a 4-frame [STATE] animation sprite sheet in a horizontal row on solid green #00FF00. Same colors, clothes, proportions, and outlines.</code><br>
+                    <em class="ai-guide-hint">Replace [STATE] with:
+                      <strong>idle</strong> (gentle chest breathing, blinking, feet still) ·
+                      <strong>walk</strong> (walk cycle facing right: step, neutral, step, neutral) ·
+                      <strong>wave</strong> (waving right hand warmly) ·
+                      <strong>water</strong> (drinking from cup/bottle) ·
+                      <strong>stretch</strong> (raising arms overhead) ·
+                      <strong>happy</strong> (cheerful jump with sparkle eyes) ·
+                      <strong>sad</strong> (tired head droop, resting) ·
+                      <strong>eyes</strong> (blinking and looking away from screen)
+                    </em>
+                  </div></div>
+                  <div class="ai-guide-step"><span class="ai-guide-num">3</span><div>
+                    <strong>Chroma-key background &amp; slice into frames</strong><br>
+                    • Go to <strong>ezgif.com/chroma-key</strong> → upload each sheet → click green to make transparent PNG.<br>
+                    • Go to <strong>ezgif.com/sprite-cutter</strong> → split sheet into equal individual PNG frames.
+                  </div></div>
+                  <div class="ai-guide-step"><span class="ai-guide-num">4</span><div>
+                    <strong>Assemble animated WebP &amp; import into Tether</strong><br>
+                    Go to <strong>ezgif.com/webp-maker</strong> → upload sliced frames → set frame delay to <strong>100ms</strong> → check <strong>Loop forever</strong> → click "Make WebP".<br>
+                    Save each as: <code>idle.webp · walk.webp · wave.webp · water.webp · stretch.webp · happy.webp · sad.webp · eyes.webp</code><br>
+                    Drop into the slots above, or ZIP all 8 and click <strong>Import ZIP Pack</strong>.
+                  </div></div>
+                </div>
               </div>
 
               <!-- ChatGPT flow -->
-              <div class="ai-tab-panel" id="ai-tab-chatgpt">
+              <div class="ai-tab-panel hidden" id="ai-tab-chatgpt">
                 <div class="ai-guide-steps">
                   <div class="ai-guide-step"><span class="ai-guide-num">1</span><div>
                     <strong>Create the base character</strong><br>

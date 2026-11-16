@@ -21,7 +21,7 @@
  * All Tauri IPC calls must go through api.js (architecture rule).
  */
 
-import { getCompanionClip, getActiveCompanion, getCaptureStatus, setCompanionPassthrough, setHitZoneRegion } from './api.js';
+import { getCompanionClip, getActiveCompanion, setActiveCompanion, getCaptureStatus, setCompanionPassthrough, setHitZoneRegion } from './api.js';
 import { createBrain } from './companion-brain.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -39,24 +39,24 @@ const DRAG_RESUME_MS    = 2000;   // ms after drop before auto-walk resumes
 
 // ─── Free Roam mode ───────────────────────────────────────────────────────────
 // When enabled the companion walks to random destinations anywhere on screen
-// instead of only patrolling the bottom edge.  Stored in localStorage so it
-// survives a companion reload.  Completely optional — default is off.
+// instead of only patrolling the bottom edge. Synced across WebViews via IPC
+// and localStorage fallback.
 
 const ROAM_STORAGE_KEY   = 'tether_companion_free_roam';
-const ROAM_SPEED_PX      = 1.8;   // slightly slower for diagonal movement (feels calmer)
-const ROAM_ARRIVE_DIST   = 40;    // px — "close enough" radius to count as arrived
-const ROAM_PAUSE_MIN_MS  = 2000;  // minimum pause at each waypoint
-const ROAM_PAUSE_MAX_MS  = 6000;  // maximum pause at each waypoint
-const ROAM_MARGIN_X      = 80;    // px from horizontal edges (keep companion visible)
-const ROAM_MARGIN_TOP    = CHAR_HEIGHT + 20; // px from top (clear the head)
-const ROAM_MARGIN_BOT    = 20;    // px from bottom
+const ROAM_SPEED_PX      = 2.0;   // lively roam speed
+const ROAM_ARRIVE_DIST   = 35;    // px — arrival threshold
+const ROAM_PAUSE_MIN_MS  = 3000;  // pause at each waypoint
+const ROAM_PAUSE_MAX_MS  = 6500;  // pause at each waypoint
+const ROAM_MARGIN_X      = 70;    // px from horizontal edges
+const ROAM_MARGIN_TOP    = CHAR_HEIGHT + 10; // px from top (clear head)
+const ROAM_MARGIN_BOT    = 10;    // px from bottom
 
 let freeRoam = typeof localStorage !== 'undefined'
   && localStorage.getItem(ROAM_STORAGE_KEY) === 'true';
 
 // Current roam waypoint the companion is walking toward
-let _roamTargetX = 0;
-let _roamTargetY = 0;
+let _roamTargetX = 400;
+let _roamTargetY = 600;
 let _roamPauseUntil = 0; // timestamp — 0 means pick a new waypoint now
 
 // ─── Companion data ───────────────────────────────────────────────────────────
@@ -122,35 +122,65 @@ window.addEventListener('resize', () => {
   updateHitZone();
 });
 
-// Move the hit-zone div so it covers the character's current bounding box.
-// Also update the Win32 window region so that ONLY this rect is interactive
-// and every other pixel of the full-screen overlay stays WS_EX_TRANSPARENT.
-// The IPC call is throttled: we only push a region update when the rect has
-// actually moved (rounded to 4 px) so we don't spam IPC at 60 Hz.
+// Move the hit-zone div so it covers the character's bounding box AND any active
+// speech bubble. Also update the Win32 window region (SetWindowRgn) so the entire
+// character and speech bubble are rendered without being trimmed/clipped by the OS,
+// while keeping the rest of the desktop 100% click-through (WS_EX_TRANSPARENT).
 let _lastRegionX = -9999, _lastRegionY = -9999;
+let _lastRegionW = -9999, _lastRegionH = -9999;
 let _regionPending = false;
+
 function updateHitZone() {
-  const hw = CHAR_WIDTH * 2;
-  const hh = CHAR_HEIGHT;
-  const lx = Math.round(walkX - hw / 2);
-  const ly = Math.round(walkY - hh);
+  const hw = CHAR_WIDTH * 2; // 160px baseline character width
+  const hh = CHAR_HEIGHT;    // 220px baseline character height
+
+  // Dynamically calculate speech bubble dimensions when message is visible
+  let bubbleExtraW = 0;
+  let bubbleExtraTop = 0;
+  if (bubbleAlpha > 0.01 && bubbleText) {
+    ctx.font = 'bold 13px -apple-system, Segoe UI, sans-serif';
+    const tw = ctx.measureText(bubbleText).width;
+    const bw = tw + 28; // text width + horizontal padding
+    if (bw > hw) {
+      bubbleExtraW = Math.ceil((bw - hw) / 2) + 20;
+    }
+    // Bubble sits at by - bh, with shadow & tail: ~52px above character head
+    bubbleExtraTop = 52;
+  }
+
+  // Account for spring physics bounce (springY < 0 means jumping upwards)
+  const springOffset = springY < 0 ? Math.ceil(Math.abs(springY)) + 8 : 0;
+  const topPad = Math.max(bubbleExtraTop, springOffset) + 14;
+  const sidePad = bubbleExtraW + 16;
+
+  const totalW = hw + sidePad * 2;
+  const totalH = hh + topPad + 16;
+  const lx = Math.round(walkX - totalW / 2);
+  const ly = Math.round(walkY - hh - topPad);
+
   hitZone.style.left   = `${lx}px`;
   hitZone.style.top    = `${ly}px`;
   hitZone.style.bottom = '';
-  hitZone.style.width  = `${hw}px`;
-  hitZone.style.height = `${hh}px`;
+  hitZone.style.width  = `${totalW}px`;
+  hitZone.style.height = `${totalH}px`;
 
-  // Only push a region update when position has changed by ≥4 px
-  if (Math.abs(lx - _lastRegionX) >= 4 || Math.abs(ly - _lastRegionY) >= 4) {
+  // Push region update whenever position or dimensions change by ≥4 px
+  if (
+    Math.abs(lx - _lastRegionX) >= 4 ||
+    Math.abs(ly - _lastRegionY) >= 4 ||
+    Math.abs(totalW - _lastRegionW) >= 4 ||
+    Math.abs(totalH - _lastRegionH) >= 4
+  ) {
     _lastRegionX = lx;
     _lastRegionY = ly;
+    _lastRegionW = totalW;
+    _lastRegionH = totalH;
     if (!_regionPending) {
       _regionPending = true;
-      // Defer slightly so rapid moves batch into one IPC call
       Promise.resolve().then(() => {
         _regionPending = false;
         const dpr = window.devicePixelRatio || 1;
-        void setHitZoneRegion(lx, ly, hw, hh, dpr);
+        void setHitZoneRegion(lx, ly, totalW, totalH, dpr);
       });
     }
   }
@@ -211,6 +241,7 @@ function showBubble(text, durationMs = 3000) {
   bubbleText = text;
   bubbleAlpha = 1;
   bubbleTimer = performance.now() + durationMs;
+  updateHitZone();
 }
 
 // ─── Session Brain ────────────────────────────────────────────────────────────
@@ -249,19 +280,26 @@ function _maybeShowStreakGreeting() {
 
 /** Pick a random on-screen waypoint the companion will walk toward. */
 function pickRoamTarget() {
-  _roamTargetX = ROAM_MARGIN_X + Math.random() * (W - ROAM_MARGIN_X * 2);
-  _roamTargetY = ROAM_MARGIN_TOP + Math.random() * (H - ROAM_MARGIN_TOP - ROAM_MARGIN_BOT);
+  const minX = ROAM_MARGIN_X;
+  const maxX = Math.max(minX + 100, W - ROAM_MARGIN_X);
+  const minY = ROAM_MARGIN_TOP;
+  const maxY = H; // feet can reach screen bottom
+  _roamTargetX = minX + Math.random() * (maxX - minX);
+  _roamTargetY = minY + Math.random() * (maxY - minY);
   _roamPauseUntil = 0; // start walking immediately
 }
 
-/** Step companion one frame toward the current roam target. Returns true while still walking. */
+/** Step companion one frame toward current roam target. Returns true while still walking. */
 function stepRoam(timestamp) {
   // Waiting at a waypoint
   if (_roamPauseUntil > 0) {
     if (timestamp < _roamPauseUntil) return false; // still pausing
     _roamPauseUntil = 0;
     pickRoamTarget();
-    return false;
+    walking = true;
+    currentState = 'walk';
+    loadSprite(companion.id, 'walk');
+    return true;
   }
 
   const dx = _roamTargetX - walkX;
@@ -269,9 +307,25 @@ function stepRoam(timestamp) {
   const dist = Math.sqrt(dx * dx + dy * dy);
 
   if (dist < ROAM_ARRIVE_DIST) {
-    // Arrived — pause then pick a new destination
+    // Arrived at destination waypoint! Pause here and perform a resting action
     const pauseMs = ROAM_PAUSE_MIN_MS + Math.random() * (ROAM_PAUSE_MAX_MS - ROAM_PAUSE_MIN_MS);
     _roamPauseUntil = timestamp + pauseMs;
+    walking = false;
+
+    // Pick an expressive resting action while stopped
+    const restActions = ['idle', 'idle', 'wave', 'stretch', 'water', 'happy', 'eyes'];
+    const available = companion.actions && companion.actions.length > 0
+      ? restActions.filter((a) => companion.actions.includes(a))
+      : restActions;
+    currentState = available[Math.floor(Math.random() * available.length)] || 'idle';
+    loadSprite(companion.id, currentState);
+
+    const quotes = getActionQuotes();
+    const text = quotes[currentState]
+      || brain.messageFor(currentState)
+      || DEFAULT_QUOTES[currentState]
+      || '';
+    if (text) showBubble(text, Math.min(pauseMs - 200, 3200));
     return false;
   }
 
@@ -280,7 +334,7 @@ function stepRoam(timestamp) {
   walkY += (dy / dist) * ROAM_SPEED_PX;
   // Keep inside safe bounds
   walkX = Math.max(ROAM_MARGIN_X, Math.min(W - ROAM_MARGIN_X, walkX));
-  walkY = Math.max(ROAM_MARGIN_TOP, Math.min(H - ROAM_MARGIN_BOT, walkY));
+  walkY = Math.max(ROAM_MARGIN_TOP, Math.min(H, walkY));
   // Update face direction based on horizontal movement
   walkDir = dx >= 0 ? 1 : -1;
   return true; // still walking
@@ -291,10 +345,43 @@ function syncRoamBtn() {
   const btn = document.getElementById('roam-btn');
   if (!btn) return;
   btn.classList.toggle('roam-on', freeRoam);
-  btn.textContent = freeRoam ? '🗺️' : '🌐';
+  btn.textContent = freeRoam ? '🗺️ Roam' : '🌐 Bottom';
   btn.title = freeRoam
-    ? 'Free Roam ON — click to return to bottom-walk'
-    : 'Free Roam OFF — click to let companion roam the screen';
+    ? 'Free Roam: ON (exploring screen). Click or right-click to return to bottom.'
+    : 'Free Roam: OFF (bottom walk). Click or right-click to roam everywhere!';
+}
+
+async function toggleFreeRoam() {
+  freeRoam = !freeRoam;
+  if (typeof localStorage !== 'undefined') {
+    try { localStorage.setItem(ROAM_STORAGE_KEY, String(freeRoam)); } catch {}
+  }
+  syncRoamBtn();
+
+  if (freeRoam) {
+    pickRoamTarget();
+    pauseTimer = 0;
+    walking = true;
+    currentState = 'walk';
+    loadSprite(companion.id, 'walk');
+    showBubble('🗺️ Free Roam on! Exploring everywhere.', 2500);
+  } else {
+    walkY = H;
+    _roamPauseUntil = 0;
+    walking = false;
+    currentState = 'idle';
+    loadSprite(companion.id, 'idle');
+    nextStateTimer = performance.now() + 2000;
+    showBubble('🌐 Back to the bottom!', 2000);
+  }
+
+  try {
+    const active = await getActiveCompanion();
+    if (active) {
+      active.freeRoam = freeRoam;
+      await setActiveCompanion(active);
+    }
+  } catch { /* ignore */ }
 }
 
 // ─── Reactive status polling ──────────────────────────────────────────────────
@@ -508,11 +595,10 @@ function renderFrame(timestamp) {
   lastTimestamp = timestamp;
   animTime += dt * 0.001;
 
-  // State transition — but not while dragging and not while an edge-pause is
-  // pending (let the walk resume first, then allow a fresh state pick).
-  // In free-roam mode pauses are handled by the roam state machine, so skip
-  // the standard pauseTimer guard.
-  if (timestamp > nextStateTimer && !_dragActive && (freeRoam || pauseTimer === 0)) pickNextState();
+  // State transition — standard bottom patrol mode only (free-roam manages its own waypoint actions)
+  if (!freeRoam && timestamp > nextStateTimer && !_dragActive && pauseTimer === 0) {
+    pickNextState();
+  }
 
   // Walk position — blocked during drag and briefly after drop
   const walkAllowed = !_dragActive && (_dragResumeAt === 0 || timestamp > _dragResumeAt);
@@ -528,14 +614,7 @@ function renderFrame(timestamp) {
         loadSprite(companion.id, 'walk');
       }
       // Occasional spring bounce to keep it lively
-      if (Math.random() < 0.006) springVY = -5;
-    } else {
-      // Pausing at waypoint — play idle or a random non-walk action
-      if (walking) {
-        walking = false;
-        // Let the normal state machine choose what to show while stopped
-        pickNextState();
-      }
+      if (Math.random() < 0.008) springVY = -4;
     }
   } else {
     // ── Standard mode: patrol along the bottom edge ──────────────────────────
@@ -663,76 +742,84 @@ function drawStatusIndicator() {
   ctx.restore();
 }
 
-/** Draw a loaded WebP sprite image at the companion's current position.
+const spriteImgEl = document.getElementById('companion-sprite');
+let _lastRenderedSrc = '';
+let _lastRenderedFlip = null;
+
+/** Render the loaded animated WebP directly via DOM <img> element.
  *
- * flip — mirror horizontally (for right-to-left walk on a right-facing sprite).
- *         Applied as a canvas transform so the animated WebP frames are still
- *         rendered correctly — just mirrored at draw time each RAF tick.
+ * Chromium/WebView2 canvas drawImage() captures only static frame 0
+ * of an animated WebP (poster frame), making canvas sprites look frozen.
+ * Displaying the <img> in the DOM enables native hardware-accelerated
+ * WebP frame ticking at full 60fps so the companion is truly live.
  */
-function drawSpriteImg(img, flip) {
-  const scale = Math.min(COMPANION_TARGET_H / img.naturalHeight, (W * 0.5) / img.naturalWidth);
-  const dw = img.naturalWidth * scale;
-  const dh = img.naturalHeight * scale;
-  const dx = walkX - dw / 2;
-  const dy = walkY - dh + springY;
-  ctx.save();
-  if (flip) {
-    // Translate so the mirror axis is the character's centre X, then scale -1.
-    // This keeps the character centred at walkX after the flip.
-    ctx.translate(walkX * 2, 0);
-    ctx.scale(-1, 1);
+function renderSprite(img, flip) {
+  if (!spriteImgEl) return;
+  const scale = Math.min(
+    COMPANION_TARGET_H / (img.naturalHeight || COMPANION_TARGET_H),
+    (W * 0.5) / (img.naturalWidth || 160)
+  );
+  const dw = Math.round((img.naturalWidth || 160) * scale);
+  const dh = Math.round((img.naturalHeight || COMPANION_TARGET_H) * scale);
+  const dx = Math.round(walkX - dw / 2);
+  const dy = Math.round(walkY - dh + springY);
+
+  if (spriteImgEl.style.display !== 'block') {
+    spriteImgEl.style.display = 'block';
   }
-  // drawImage on an animated WebP always stamps the browser's current frame —
-  // the browser advances frames on its own clock for free — no manual frame
-  // stepping needed.  Every RAF tick the latest decoded frame is stamped here.
-  ctx.drawImage(img, dx, dy, dw, dh);
-  ctx.restore();
+
+  // Only assign src when changed so the browser doesn't reset the animation clock!
+  if (_lastRenderedSrc !== img.src) {
+    _lastRenderedSrc = img.src;
+    spriteImgEl.src = img.src;
+  }
+
+  spriteImgEl.style.width = `${dw}px`;
+  spriteImgEl.style.height = `${dh}px`;
+  spriteImgEl.style.left = `${dx}px`;
+  spriteImgEl.style.top = `${dy}px`;
+
+  if (_lastRenderedFlip !== flip) {
+    _lastRenderedFlip = flip;
+    spriteImgEl.style.transform = flip ? 'scaleX(-1)' : 'none';
+  }
+}
+
+function hideSprite() {
+  if (spriteImgEl && spriteImgEl.style.display !== 'none') {
+    spriteImgEl.style.display = 'none';
+  }
 }
 
 function drawCompanion() {
   const spriteKey = `${companion.id}:${currentState}`;
 
-  // ── Flip logic ──────────────────────────────────────────────────────────────
-  // Walk WebP sprites are assumed to face RIGHT (the most common convention).
-  // When the companion is walking LEFT we mirror horizontally at draw time so a
-  // single walk.webp serves both directions — no separate asset needed.
-  //
-  // For all other states (idle, wave, water, etc.) we keep the asset's natural
-  // facing direction.  Flipping non-walk states based on walkDir caused the
-  // companion to randomly mirror during idle which looked wrong.
+  // Flip logic: walk WebP sprites face right; mirror when walking left
   const shouldFlip = currentState === 'walk' && walkDir === -1;
 
-  const img = spriteCache[spriteKey]; // undefined = not fetched yet, null = missing
+  const img = spriteCache[spriteKey];
 
   if (img) {
-    // Best case: exact sprite for this state is loaded and ready.
-    drawSpriteImg(img, shouldFlip);
+    renderSprite(img, shouldFlip);
     drawStatusIndicator();
     return;
   }
 
   if (img === undefined) {
-    // Not yet in cache — kick off a load (loadSprite deduplicates concurrent requests).
     loadSprite(companion.id, currentState);
   }
-  // img === null → permanently missing, fall through to bridge/fallback.
 
-  // Bridge: use the idle sprite for any state that hasn't loaded yet.
-  // The idle WebP is pre-warmed first (see prewarmSprites) so it is almost
-  // always available within the first animation frame.  Showing it here means
-  // the companion is NEVER a blank canvas — it always feels alive.
-  // Don't flip the bridge idle sprite for non-walk states.
+  // Bridge: use idle sprite while action sprite is loading
   const idleKey = `${companion.id}:idle`;
   const idleImg = spriteCache[idleKey];
   if (idleImg) {
-    // For the bridge we never flip — idle is always shown facing right.
-    drawSpriteImg(idleImg, false);
+    renderSprite(idleImg, false);
     drawStatusIndicator();
     return;
   }
 
-  // Last resort: procedural animated character (covers brand-new companions
-  // before any sprites have loaded, or companions with no WebP assets at all).
+  // Last resort: procedural animated character
+  hideSprite();
   drawProceduralCompanion(shouldFlip);
   drawStatusIndicator();
 }
@@ -926,6 +1013,7 @@ document.addEventListener('visibilitychange', () => {
 // the cursor left the hit-zone before mousemove arrived.
 
 let _dragActive = false;
+let _dragMoved = false;
 let _dragStartX = 0;
 let _dragStartY = 0;
 let _walkXAtDragStart = 0;
@@ -933,6 +1021,7 @@ let _walkYAtDragStart = 0;
 
 function _beginDrag(clientX, clientY) {
   _dragActive = true;
+  _dragMoved = false;
   _dragStartX = clientX;
   _dragStartY = clientY;
   _walkXAtDragStart = walkX;
@@ -940,6 +1029,9 @@ function _beginDrag(clientX, clientY) {
   hitZone.classList.add('dragging');
   walking = false;
   currentState = 'idle';
+  // Temporarily disable OS cursor passthrough during active drag so fast cursor movements
+  // never slip out of the region and drop the drag
+  void setCompanionPassthrough(false);
 }
 
 function _endDrag() {
@@ -948,12 +1040,20 @@ function _endDrag() {
   hitZone.classList.remove('dragging');
   // Brief cooldown before auto-walk resumes so the companion stays where dropped
   _dragResumeAt = performance.now() + DRAG_RESUME_MS;
-  // Show a friendly drop reaction
-  const drops = ['🎯 Right here!', '📍 Perfect spot!', '👌 Done!'];
-  showBubble(drops[Math.floor(Math.random() * drops.length)], 1500);
+
+  // Restore OS passthrough once drag completes
+  void setCompanionPassthrough(true);
+  updateHitZone();
+
+  if (_dragMoved) {
+    // Show a friendly drop reaction only if actually moved
+    const drops = ['🎯 Right here!', '📍 Perfect spot!', '👌 Done!'];
+    showBubble(drops[Math.floor(Math.random() * drops.length)], 1500);
+  }
 }
 
 hitZone.addEventListener('mousedown', (e) => {
+  if (e.button !== 0) return; // only left click initiates drag
   e.preventDefault();
   _beginDrag(e.clientX, e.clientY);
 });
@@ -962,8 +1062,13 @@ window.addEventListener('mousemove', (e) => {
   if (!_dragActive) return;
   const dx = e.clientX - _dragStartX;
   const dy = e.clientY - _dragStartY;
+  if (!_dragMoved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+    _dragMoved = true;
+  }
+  if (!_dragMoved) return;
+
   walkX = Math.max(CHAR_MARGIN, Math.min(W - CHAR_MARGIN, _walkXAtDragStart + dx));
-  walkY = Math.max(COMPANION_TARGET_H + 10, Math.min(H - 10, _walkYAtDragStart + dy));
+  walkY = Math.max(COMPANION_TARGET_H + 10, Math.min(H, _walkYAtDragStart + dy));
 });
 
 window.addEventListener('mouseup', _endDrag);
@@ -984,8 +1089,13 @@ window.addEventListener('touchmove', (e) => {
   const t = e.touches[0];
   const dx = t.clientX - _dragStartX;
   const dy = t.clientY - _dragStartY;
+  if (!_dragMoved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+    _dragMoved = true;
+  }
+  if (!_dragMoved) return;
+
   walkX = Math.max(CHAR_MARGIN, Math.min(W - CHAR_MARGIN, _walkXAtDragStart + dx));
-  walkY = Math.max(COMPANION_TARGET_H + 10, Math.min(H - 10, _walkYAtDragStart + dy));
+  walkY = Math.max(COMPANION_TARGET_H + 10, Math.min(H, _walkYAtDragStart + dy));
 });
 
 window.addEventListener('touchend', _endDrag);
@@ -1011,10 +1121,8 @@ let _clickReactionIdx = 0;
 let _lastClickTime = 0;
 
 hitZone.addEventListener('click', () => {
-  // Ignore click if the user just finished a drag (moved more than 5px)
-  const movedX = Math.abs(walkX - _walkXAtDragStart);
-  const movedY = Math.abs(walkY - _walkYAtDragStart);
-  if (movedX > 5 || movedY > 5) return;
+  // If user actually dragged the character, do not fire click reactions
+  if (_dragMoved) return;
 
   const now = performance.now();
   const rapid = now - _lastClickTime < 600; // rapid double-ish click
@@ -1046,6 +1154,7 @@ hitZone.addEventListener('click', () => {
 });
 
 hitZone.addEventListener('dblclick', () => {
+  if (_dragMoved) return;
   currentState = 'happy';
   walking = false;
   springVY = -22;
@@ -1058,6 +1167,30 @@ hitZone.addEventListener('dblclick', () => {
 
 async function reloadCompanion() {
   const next = await loadActiveCompanionFromIPC();
+
+  // Sync freeRoam mode if changed from another window
+  if (typeof next.freeRoam === 'boolean' && next.freeRoam !== freeRoam) {
+    freeRoam = next.freeRoam;
+    if (typeof localStorage !== 'undefined') {
+      try { localStorage.setItem(ROAM_STORAGE_KEY, String(freeRoam)); } catch {}
+    }
+    syncRoamBtn();
+    if (freeRoam) {
+      pickRoamTarget();
+      walking = true;
+      currentState = 'walk';
+      loadSprite(companion.id, 'walk');
+      _roamPauseUntil = 0;
+    } else {
+      walkY = H;
+      _roamPauseUntil = 0;
+      walking = false;
+      currentState = 'idle';
+      loadSprite(companion.id, 'idle');
+      nextStateTimer = performance.now() + 2000;
+    }
+  }
+
   if (next.id === companion.id) {
     // Same companion — but actions list might have changed (behavior editor).
     // Update in-place and refresh WALK_STATES without clearing sprites.
@@ -1077,6 +1210,7 @@ async function reloadCompanion() {
   for (const k of Object.keys(spriteLoading)) {
     if (!k.startsWith(companion.id + ':')) delete spriteLoading[k];
   }
+  _lastRenderedSrc = '';
   // Pre-warm all common actions so transitions are instant
   prewarmSprites(companion.id);
   pickNextState();
@@ -1085,6 +1219,15 @@ async function reloadCompanion() {
 // Initial async load — replace the default Grace with the persisted companion.
 loadActiveCompanionFromIPC().then((state) => {
   companion = state;
+  if (typeof state.freeRoam === 'boolean') {
+    freeRoam = state.freeRoam;
+  }
+  syncRoamBtn();
+  if (freeRoam) {
+    pickRoamTarget();
+    walking = true;
+    currentState = 'walk';
+  }
   // Refresh WALK_STATES to reflect this companion's action list.
   WALK_STATES = getWalkStates();
   // Pre-warm all common sprites so the companion appears without a procedural flash.
@@ -1096,35 +1239,20 @@ loadActiveCompanionFromIPC().then((state) => {
 // file is the only cross-window signalling mechanism available.
 setInterval(reloadCompanion, 2000);
 
-// ─── Free Roam toggle button ──────────────────────────────────────────────────
+// ─── Free Roam toggle interactions ──────────────────────────────────────────
 
 syncRoamBtn(); // set initial visual state
+
+// Right-click on companion toggles Free Roam
+hitZone.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  toggleFreeRoam();
+});
 
 const roamBtn = document.getElementById('roam-btn');
 if (roamBtn) {
   roamBtn.addEventListener('click', (e) => {
     e.stopPropagation(); // don't trigger hit-zone events
-    freeRoam = !freeRoam;
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(ROAM_STORAGE_KEY, String(freeRoam));
-    }
-    syncRoamBtn();
-
-    if (freeRoam) {
-      // Kick off roam from current position — pick a first waypoint
-      pickRoamTarget();
-      // Reset bottom-walk state so the companion doesn't snap to the edge
-      pauseTimer = 0;
-      walking = false;
-      showBubble('🗺️ Free Roam on! I\'ll explore.', 2500);
-    } else {
-      // Return companion to bottom of screen gracefully
-      walkY = H;
-      _roamPauseUntil = 0;
-      walking = false;
-      currentState = 'idle';
-      nextStateTimer = performance.now() + 2000;
-      showBubble('🌐 Back to the bottom!', 2000);
-    }
+    toggleFreeRoam();
   });
 }

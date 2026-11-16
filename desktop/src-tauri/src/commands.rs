@@ -736,8 +736,27 @@ fn bundled_companions_dir() -> PathBuf {
         if p.is_dir() {
             return p;
         }
+
+        // 3. Three/four levels up — covers dev binary in desktop/src-tauri/target/debug/
+        //    relative to the workspace root assets/companions/
+        let p = exe_dir.join("../../../assets/companions");
+        if p.is_dir() {
+            return p;
+        }
+        let p = exe_dir.join("../../../../assets/companions");
+        if p.is_dir() {
+            return p;
+        }
     }
-    // 3. Working-directory-relative path — covers `cargo run` from the workspace root.
+    // 4. Working-directory-relative paths — covers `cargo run` from workspace root or `npm run tauri:dev` from desktop/
+    let p = PathBuf::from("assets/companions");
+    if p.is_dir() {
+        return p;
+    }
+    let p = PathBuf::from("../assets/companions");
+    if p.is_dir() {
+        return p;
+    }
     PathBuf::from("assets/companions")
 }
 
@@ -1408,6 +1427,9 @@ pub struct ActiveCompanionState {
     /// machine cycles only through these states (all 8 by default).
     #[serde(default)]
     pub actions: Vec<String>,
+    /// Free roam mode flag shared across WebViews.
+    #[serde(default)]
+    pub free_roam: bool,
 }
 
 /// Returns the currently active companion from the shared state file.
@@ -1437,6 +1459,7 @@ pub fn get_active_companion() -> ActiveCompanionState {
             eyes: "#14120f".into(),
         },
         actions: default_actions(),
+        free_roam: false,
     }
 }
 
