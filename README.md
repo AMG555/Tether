@@ -83,7 +83,6 @@ Tether includes a native desktop application powered by **Tauri 2** and system w
 ![Tether — Recover Texts](shots/desktop-recover.png)
 ![Tether — Companions Catalog](shots/desktop-companions.png)
 ![Tether — Companion Studio](shots/desktop-studio.png)
-![Tether — System Settings](shots/desktop-settings.png)
 
 ### Key Desktop Capabilities
 
