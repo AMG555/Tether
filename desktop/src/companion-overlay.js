@@ -350,10 +350,15 @@ const spriteCache = {};
 const spriteLoading = {};
 
 /** Hidden container that keeps sprite <img> elements alive in the DOM. */
+// The sprite container holds the live <img> elements whose src is the animated WebP.
+// It MUST be visible (non-zero size, non-display:none) so Chromium/WebView2 keeps
+// advancing animation frames.  opacity:0 + pointer-events:none hides it from the
+// user while keeping it in the rendering pipeline — width:0 or display:none would
+// freeze the animation on frame 0, making every sprite appear as a still image.
 const spriteContainer = (() => {
   const el = document.createElement('div');
   el.setAttribute('aria-hidden', 'true');
-  el.style.cssText = 'position:fixed;left:-9999px;top:0;width:0;height:0;overflow:hidden;';
+  el.style.cssText = 'position:fixed;left:0;top:0;opacity:0;pointer-events:none;overflow:hidden;';
   document.body.appendChild(el);
   return el;
 })();
@@ -882,12 +887,12 @@ document.addEventListener('visibilitychange', () => {
 // ─── Hit-zone drag + click ────────────────────────────────────────────────────
 // Full 2D drag — user can move the companion anywhere on screen.
 //
-// OS passthrough note: the overlay window runs with set_ignore_cursor_events(true)
-// (full click-through) so desktop clicks pass beneath it.  On mousedown we call
-// setCompanionPassthrough(false) to claim all cursor events for the duration of
-// the drag — without this, fast drags that move the cursor off the hit-zone lose
-// mousemove/mouseup events at the OS level and the companion gets stuck.
-// On mouseup we restore passthrough immediately.
+// Passthrough model: the overlay window keeps set_ignore_cursor_events(false) at
+// all times so the OS always delivers mouse events to the WebView.  Transparent /
+// non-interactive areas use CSS pointer-events:none so clicks fall through to the
+// desktop at the WebView hit-test level — no window-level OS toggle is needed.
+// This is more reliable than the toggle approach which broke on fast drags where
+// the cursor left the hit-zone before mousemove arrived.
 
 let _dragActive = false;
 let _dragStartX = 0;
@@ -904,17 +909,12 @@ function _beginDrag(clientX, clientY) {
   hitZone.classList.add('dragging');
   walking = false;
   currentState = 'idle';
-  // Disable OS passthrough so we receive ALL cursor events during the drag,
-  // even when the cursor moves far outside the hit-zone div.
-  setCompanionPassthrough(false);
 }
 
 function _endDrag() {
   if (!_dragActive) return;
   _dragActive = false;
   hitZone.classList.remove('dragging');
-  // Restore OS passthrough so the desktop is click-through again.
-  setCompanionPassthrough(true);
   // Brief cooldown before auto-walk resumes so the companion stays where dropped
   _dragResumeAt = performance.now() + DRAG_RESUME_MS;
   // Show a friendly drop reaction

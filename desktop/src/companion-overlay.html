@@ -12,6 +12,11 @@
       width: 100vw;
       height: 100vh;
       -webkit-app-region: no-drag;
+      /* Transparent areas of the body are click-through at the WebView hit-test
+         level — clicks on pointer-events:none fall through to the window below.
+         The overlay window itself keeps set_ignore_cursor_events(false) so the
+         OS always delivers events here; CSS pointer-events decides what's interactive. */
+      pointer-events: none;
     }
     canvas {
       display: block;
