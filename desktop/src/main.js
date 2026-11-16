@@ -782,6 +782,8 @@ let previewActiveAction = 'idle';
 let _previewRafId = null;
 let _previewAnimTime = 0;
 let _previewLastTs = 0;
+// Walk traversal RAF (moves the stage position when no CSS animation is used)
+let _previewWalkRafId = null;
 
 function startPreviewAnim(canvas, companion, action) {
   if (_previewRafId !== null) {
@@ -804,6 +806,10 @@ function stopPreviewAnim() {
   if (_previewRafId !== null) {
     cancelAnimationFrame(_previewRafId);
     _previewRafId = null;
+  }
+  if (_previewWalkRafId !== null) {
+    cancelAnimationFrame(_previewWalkRafId);
+    _previewWalkRafId = null;
   }
 }
 
@@ -873,6 +879,7 @@ async function updatePreviewStage(companion, action) {
   const canvasEl = document.getElementById('preview-companion-canvas');
   const speechText = document.getElementById('preview-speech-text');
   const customQuoteInput = document.getElementById('preview-custom-quote');
+  const stage = document.querySelector('.preview-companion-stage');
 
   const actionBtns = document.querySelectorAll('.modal-action-strip .btn-action');
   actionBtns.forEach((btn) => {
@@ -882,12 +889,24 @@ async function updatePreviewStage(companion, action) {
   const quote = (customQuoteInput?.value?.trim()) || getDefaultQuoteForAction(action);
   if (speechText) speechText.textContent = quote;
 
+  // Remove walking class first — will re-add below if still walk
+  if (stage) stage.classList.remove('walking');
+
   try {
     const clipData = await getCompanionClip(companion.id, action);
     if (clipData && imgEl) {
+      // Cancel any canvas animation
+      stopPreviewAnim();
       imgEl.src = clipData;
       imgEl.hidden = false;
       if (canvasEl) canvasEl.hidden = true;
+      // For walk: add CSS traversal animation so the character actually moves
+      if (action === 'walk' && stage) {
+        stage.classList.add('walking');
+        // Reset to start position so animation begins fresh
+        stage.style.right = '';
+        stage.style.bottom = '0px';
+      }
       return;
     }
   } catch {
@@ -1285,10 +1304,22 @@ function setupPreviewModalHandlers() {
   if (previewStage && wallpaper) {
     previewStage.addEventListener('mousedown', (e) => {
       e.preventDefault();
+      // Stop walk traversal animation so drag takes over position control
+      if (previewStage.classList.contains('walking')) {
+        const compRect = previewStage.getBoundingClientRect();
+        const wpRect   = wallpaper.getBoundingClientRect();
+        // Snapshot current animated right/bottom before removing the class
+        const curRight  = wpRect.right  - compRect.right;
+        const curBottom = compRect.bottom - wpRect.bottom;
+        previewStage.classList.remove('walking');
+        previewStage.style.right  = `${curRight}px`;
+        previewStage.style.bottom = `${-curBottom}px`;
+        previewStage.style.cursor = 'grabbing';
+      }
       _pdragActive = true;
       _pdragStartX = e.clientX;
       _pdragStartY = e.clientY;
-      // Read current right/bottom from inline style (set by previous drags).
+      // Read current right/bottom from inline style (set by previous drags or snapshot above).
       _pdragOrigRight  = parseFloat(previewStage.style.right)  || 16;
       _pdragOrigBottom = parseFloat(previewStage.style.bottom) || 0;
       previewStage.style.cursor = 'grabbing';
@@ -1317,24 +1348,42 @@ function setupPreviewModalHandlers() {
     if (previewStage) previewStage.style.cursor = 'grab';
   });
 
-  // Click (no drag) → cycle through states
-  const PREVIEW_REACTIONS = ['wave', 'happy', 'water', 'stretch', 'idle'];
+  // Click (no drag) → cycle through reactions + play bounce animation
+  const PREVIEW_REACTIONS = ['wave', 'happy', 'water', 'stretch', 'sad', 'wave', 'happy', 'idle'];
   let _previewReactionIdx = 0;
   let _pdragMoved = false;
-  previewStage?.addEventListener('mousedown', () => { _pdragMoved = false; });
-  document.addEventListener('mousemove', () => { if (_pdragActive) _pdragMoved = true; });
+  let _pdragMoveCount = 0;
+  previewStage?.addEventListener('mousedown', () => { _pdragMoved = false; _pdragMoveCount = 0; });
+  // Only flag as a drag after 5+ pixels of movement (avoids suppressing twitchy clicks)
+  document.addEventListener('mousemove', (e) => {
+    if (!_pdragActive) return;
+    _pdragMoveCount++;
+    if (_pdragMoveCount > 3) _pdragMoved = true;
+  });
 
-  previewStage?.addEventListener('click', () => {
+  previewStage?.addEventListener('click', (e) => {
     if (_pdragMoved || !previewCompanion) return;
+    e.stopPropagation(); // don't bubble to backdrop close handler
     const state = PREVIEW_REACTIONS[_previewReactionIdx % PREVIEW_REACTIONS.length];
     _previewReactionIdx++;
     void updatePreviewStage(previewCompanion, state);
     const speechText = document.getElementById('preview-speech-text');
     const bubbles = {
       wave: '👋 Hey there!', happy: '✨ Woohoo!', water: '💧 Drink some water!',
-      stretch: '🧘 Stretch time!', idle: 'Ready to safeguard your writing.',
+      stretch: '🧘 Stretch time!', sad: '😴 Take a break!', idle: 'Ready to safeguard your writing.',
     };
     if (speechText) speechText.textContent = bubbles[state] || '';
+
+    // Play bounce animation on the stage element
+    if (previewStage) {
+      previewStage.classList.remove('reacting');
+      // Force reflow so removing+re-adding the class restarts the animation
+      void previewStage.offsetWidth;
+      previewStage.classList.add('reacting');
+      previewStage.addEventListener('animationend', () => {
+        previewStage.classList.remove('reacting');
+      }, { once: true });
+    }
   });
 
   setActiveBtn?.addEventListener('click', () => {

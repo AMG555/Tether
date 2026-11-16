@@ -1706,6 +1706,38 @@ canvas#studio-canvas {
   cursor: grab;
   user-select: none;
   /* No hover transform — it conflicts with the CSS right/bottom drag approach */
+  transition: filter 0.1s;
+}
+
+/* Walking traversal — stage slides from right to left across the wallpaper */
+@keyframes preview-walk-traverse {
+  0%   { right: -10px; }
+  48%  { right: calc(100% - 170px); }
+  52%  { right: calc(100% - 170px); transform: scaleX(-1); }
+  100% { right: -10px;  transform: scaleX(-1); }
+}
+.preview-companion-stage.walking {
+  animation: preview-walk-traverse 4s linear infinite;
+  cursor: default;
+}
+
+/* Click bounce reaction */
+@keyframes preview-bounce {
+  0%   { transform: translateY(0) scale(1); }
+  25%  { transform: translateY(-18px) scale(1.06); }
+  55%  { transform: translateY(0) scale(0.97); }
+  75%  { transform: translateY(-8px) scale(1.02); }
+  100% { transform: translateY(0) scale(1); }
+}
+.preview-companion-stage.reacting {
+  animation: preview-bounce 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  cursor: pointer;
+}
+
+/* Hover glow — shows it's interactive */
+.preview-companion-stage:not(.walking):hover .preview-companion-img--desktop,
+.preview-companion-stage:not(.walking):hover .preview-companion-canvas--desktop {
+  filter: drop-shadow(0 4px 16px rgba(248,110,96,0.45)) brightness(1.08);
 }
 
 .preview-companion-img--desktop {
@@ -1714,12 +1746,16 @@ canvas#studio-canvas {
   object-fit: contain;
   display: block;
   filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
+  pointer-events: none; /* let clicks pass through to the stage div */
+  transition: filter 0.15s;
 }
 
 .preview-companion-canvas--desktop {
   width: 180px;
   height: 220px;
   display: block;
+  pointer-events: none; /* same — stage div handles all interaction */
+  transition: filter 0.15s;
 }
 
 /* Speech bubble floating above the companion */
