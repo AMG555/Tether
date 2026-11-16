@@ -1375,16 +1375,16 @@ pub fn get_active_companion() -> ActiveCompanionState {
 /// Returns the standard 8-action list that every bundled companion ships with.
 fn default_actions() -> Vec<String> {
     ["idle", "walk", "wave", "water", "stretch", "happy", "sad", "eyes"]
-        .iter().map(|s| (*s).to_string()).collect()
+        .iter()
+        .map(|s| (*s).to_string())
+        .collect()
 }
 
 /// Looks up the companion manifest to get its declared action list.
 /// Falls back to the standard 8 actions if the manifest cannot be read.
 fn resolve_companion_actions(id: &str) -> Vec<String> {
-    let candidates = [
-        tether::default_data_dir().join("companions").join(id),
-        bundled_companions_dir().join(id),
-    ];
+    let candidates =
+        [tether::default_data_dir().join("companions").join(id), bundled_companions_dir().join(id)];
     for dir in &candidates {
         let manifest = dir.join("manifest.json");
         if let Ok(raw) = std::fs::read_to_string(manifest) {
@@ -1417,17 +1417,22 @@ fn set_topmost_noactivate(w: &tauri::WebviewWindow) {
     use std::ffi::c_void;
     // Win32 SetWindowPos constants.
     const TOPMOST: *mut c_void = -1isize as *mut c_void;
-    const SWP_NOMOVE: u32      = 0x0002;
-    const SWP_NOSIZE: u32      = 0x0001;
-    const SWP_NOACTIVATE: u32  = 0x0010;
+    const SWP_NOMOVE: u32 = 0x0002;
+    const SWP_NOSIZE: u32 = 0x0001;
+    const SWP_NOACTIVATE: u32 = 0x0010;
 
     // We call user32 directly — it is always linked on Windows and is already
     // used by lib.rs, so there is no extra linker cost.
     #[link(name = "user32")]
     extern "system" {
         fn SetWindowPos(
-            hwnd: *mut c_void, insert_after: *mut c_void,
-            x: i32, y: i32, cx: i32, cy: i32, flags: u32,
+            hwnd: *mut c_void,
+            insert_after: *mut c_void,
+            x: i32,
+            y: i32,
+            cx: i32,
+            cy: i32,
+            flags: u32,
         ) -> i32;
     }
 

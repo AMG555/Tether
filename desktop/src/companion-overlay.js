@@ -428,40 +428,38 @@ function renderFrame(timestamp) {
         pickNextState();
       }
     }
-  } else if (!freeRoam) {
-    // ── Standard mode: patrol along the bottom edge ───────────────────────────
-  if (walking && walkAllowed) {
-    if (Math.random() < IDLE_PAUSE_CHANCE) {
-      walking = false;
-      currentState = 'idle';
-      // Push the next state timer out so idle has time to show before the next pick
-      nextStateTimer = performance.now() + 3000;
-    } else {
-      walkX += walkDir * WALK_SPEED_PX;
-      if (walkX > W - CHAR_MARGIN) {
-        walkX = W - CHAR_MARGIN;
-        walkDir = -1;
+  } else {
+    // ── Standard mode: patrol along the bottom edge ──────────────────────────
+    if (walking && walkAllowed) {
+      if (Math.random() < IDLE_PAUSE_CHANCE) {
         walking = false;
-        pauseTimer = timestamp + WALK_PAUSE_MS;
         currentState = 'idle';
-        // Extend the state timer so pickNextState can't fire during the pause
-        nextStateTimer = performance.now() + WALK_PAUSE_MS + 1000;
-      } else if (walkX < CHAR_MARGIN) {
-        walkX = CHAR_MARGIN;
-        walkDir = 1;
-        walking = false;
-        pauseTimer = timestamp + WALK_PAUSE_MS;
-        currentState = 'idle';
-        nextStateTimer = performance.now() + WALK_PAUSE_MS + 1000;
+        nextStateTimer = performance.now() + 3000;
+      } else {
+        walkX += walkDir * WALK_SPEED_PX;
+        if (walkX > W - CHAR_MARGIN) {
+          walkX = W - CHAR_MARGIN;
+          walkDir = -1;
+          walking = false;
+          pauseTimer = timestamp + WALK_PAUSE_MS;
+          currentState = 'idle';
+          nextStateTimer = performance.now() + WALK_PAUSE_MS + 1000;
+        } else if (walkX < CHAR_MARGIN) {
+          walkX = CHAR_MARGIN;
+          walkDir = 1;
+          walking = false;
+          pauseTimer = timestamp + WALK_PAUSE_MS;
+          currentState = 'idle';
+          nextStateTimer = performance.now() + WALK_PAUSE_MS + 1000;
+        }
       }
+    } else if (walkAllowed && pauseTimer > 0 && timestamp > pauseTimer) {
+      pauseTimer = 0;
+      walking = true;
+      currentState = 'walk';
+      nextStateTimer = performance.now() + 9000;
     }
-  } else if (walkAllowed && pauseTimer > 0 && timestamp > pauseTimer) {
-    pauseTimer = 0;
-    walking = true;
-    currentState = 'walk';
-    nextStateTimer = performance.now() + 9000;
   }
-  } // end else if (!freeRoam)
 
   // Spring physics — idle gets a small occasional nudge so it never looks frozen
   if (currentState === 'idle' && Math.abs(springVY) < 0.1 && Math.abs(springY) < 0.1) {

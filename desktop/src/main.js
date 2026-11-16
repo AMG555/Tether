@@ -782,9 +782,6 @@ let previewActiveAction = 'idle';
 let _previewRafId = null;
 let _previewAnimTime = 0;
 let _previewLastTs = 0;
-// Walk traversal RAF (moves the stage position when no CSS animation is used)
-let _previewWalkRafId = null;
-
 function startPreviewAnim(canvas, companion, action) {
   if (_previewRafId !== null) {
     cancelAnimationFrame(_previewRafId);
@@ -806,10 +803,6 @@ function stopPreviewAnim() {
   if (_previewRafId !== null) {
     cancelAnimationFrame(_previewRafId);
     _previewRafId = null;
-  }
-  if (_previewWalkRafId !== null) {
-    cancelAnimationFrame(_previewWalkRafId);
-    _previewWalkRafId = null;
   }
 }
 
