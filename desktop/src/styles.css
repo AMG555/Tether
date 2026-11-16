@@ -2086,3 +2086,62 @@ kbd {
   .preview-desktop-mockup { width: 100%; height: 220px; }
   .preview-companion-canvas--desktop,.preview-companion-img--desktop { width: 100px; height: 140px; }
 }
+
+/* ─── Preview modal: action toggle grid ──────────────────────────────────────*/
+.preview-action-toggle-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.preview-action-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1.5px solid var(--rule-strong);
+  background: var(--paper);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.preview-action-pill input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  accent-color: var(--signal);
+  cursor: pointer;
+}
+.preview-action-pill.pill-on {
+  background: color-mix(in srgb, var(--signal) 12%, var(--paper));
+  border-color: var(--signal);
+  color: var(--ink);
+}
+.preview-action-pill:hover { border-color: var(--signal); }
+
+/* ─── AI guide: tab switcher ────────────────────────────────────────────────*/
+.ai-guide-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.ai-tab-btn {
+  padding: 5px 16px;
+  border-radius: 20px;
+  border: 1.5px solid var(--rule-strong);
+  background: var(--paper);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.ai-tab-btn.active,
+.ai-tab-btn:hover {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: #fff;
+}
+.ai-tab-panel.hidden { display: none; }

@@ -432,14 +432,62 @@
           <div class="studio-ai-guide hidden" id="studio-ai-guide">
             <div class="ai-guide-card">
               <h3 class="form-title">🤖 Create Your Own Companion with AI</h3>
-              <p class="view-lede">Use ChatGPT, Google Gemini, or any AI image tool to generate <strong>animated WebP sprites</strong> for each state, then drop them into the slots above.</p>
-              <div class="ai-guide-steps">
-                <div class="ai-guide-step"><span class="ai-guide-num">1</span><div><strong>Design the character</strong> — Prompt: <code class="ai-prompt-block">Cute [animal/robot], front-facing, transparent background PNG, desktop widget style, 200×300px max.</code></div></div>
-                <div class="ai-guide-step"><span class="ai-guide-num">2</span><div><strong>Generate 8 states</strong> — idle, walk, wave, water, stretch, happy, sad, eyes. Same art style across all.<br><em class="ai-guide-hint">Tools: ChatGPT · Google Gemini · Midjourney · Leonardo.ai · Canva AI</em></div></div>
-                <div class="ai-guide-step"><span class="ai-guide-num">3</span><div><strong>Convert to animated WebP</strong> — Ezgif.com/webp-maker (browser), <code>img2webp -d 100 f1.png f2.png -o walk.webp</code> (CLI), or Aseprite → Export → WebP.<br><em class="ai-guide-hint">Name files: idle.webp · walk.webp · wave.webp · water.webp · stretch.webp · happy.webp · sad.webp · eyes.webp</em></div></div>
-                <div class="ai-guide-step"><span class="ai-guide-num">4</span><div><strong>Import</strong> — Drop each <code>.webp</code> into its slot above, or ZIP all 8 and use <strong>Import ZIP Pack</strong>.</div></div>
+              <p class="view-lede">Use <strong>ChatGPT</strong> or <strong>Google Flow</strong> to generate frame-by-frame sprite sheets, then convert them to animated WebP files and import below.</p>
+
+              <div class="ai-guide-tabs">
+                <button type="button" class="ai-tab-btn active" data-ai-tab="chatgpt">ChatGPT</button>
+                <button type="button" class="ai-tab-btn" data-ai-tab="googleflow">Google Flow</button>
               </div>
-              <div class="ai-guide-tips">💡 <strong>Tips:</strong> transparent background · same style across all states · 120–200px wide · 3–8 frames at 80–120ms each.</div>
+
+              <!-- ChatGPT flow -->
+              <div class="ai-tab-panel" id="ai-tab-chatgpt">
+                <div class="ai-guide-steps">
+                  <div class="ai-guide-step"><span class="ai-guide-num">1</span><div>
+                    <strong>Create the base character</strong><br>
+                    <code class="ai-prompt-block">Create a cute pixel-art [cat / robot / bunny] character, front-facing, on a fully transparent background, 200×300px. Chibi proportions. No background, no shadow. PNG format.</code>
+                  </div></div>
+                  <div class="ai-guide-step"><span class="ai-guide-num">2</span><div>
+                    <strong>Generate animation frames for each state</strong> — send one prompt per state, keeping the same style:<br>
+                    <code class="ai-prompt-block">Using the same character from above, draw 4 frames of the <strong>walk</strong> animation as a horizontal sprite sheet (4 frames side by side, each 200×300px, transparent background). Frames should show a smooth walking cycle.</code><br>
+                    <em class="ai-guide-hint">Repeat for: idle (breathing bob, 2–3 frames) · wave (arm waves, 4 frames) · water (drinking motion, 3 frames) · stretch (arms up, 3 frames) · happy (jump/bounce, 4 frames) · sad (drooping, 2 frames) · eyes (blinking, 2 frames)</em>
+                  </div></div>
+                  <div class="ai-guide-step"><span class="ai-guide-num">3</span><div>
+                    <strong>Slice &amp; assemble animated WebP</strong><br>
+                    Go to <strong>ezgif.com/sprite-cutter</strong> → paste the sprite sheet → slice into frames → download PNGs.<br>
+                    Then go to <strong>ezgif.com/webp-maker</strong> → upload frames → set delay to 100ms → click "Make WebP".<br>
+                    Save as <code>walk.webp</code>, <code>idle.webp</code>, etc.
+                  </div></div>
+                  <div class="ai-guide-step"><span class="ai-guide-num">4</span><div>
+                    <strong>Import</strong> — Drop each <code>.webp</code> into its slot above, or ZIP all 8 and use <strong>Import ZIP Pack</strong>.
+                  </div></div>
+                </div>
+              </div>
+
+              <!-- Google Flow -->
+              <div class="ai-tab-panel hidden" id="ai-tab-googleflow">
+                <div class="ai-guide-steps">
+                  <div class="ai-guide-step"><span class="ai-guide-num">1</span><div>
+                    <strong>Open Google Flow (flow.google.com) and create a new image task</strong><br>
+                    <code class="ai-prompt-block">Generate a cute chibi [cat / robot / bear] character on a pure transparent background, front-facing, 200×300px, flat vector style with clean outlines. No drop shadow, no background scene.</code>
+                  </div></div>
+                  <div class="ai-guide-step"><span class="ai-guide-num">2</span><div>
+                    <strong>Generate animation frames per state using the same seed/style</strong><br>
+                    <code class="ai-prompt-block">Using the exact same character design, generate a 4-frame horizontal sprite sheet showing the <strong>walk cycle</strong>: left foot forward → neutral → right foot forward → neutral. Each frame 200×300px, transparent background, same art style.</code><br>
+                    <em class="ai-guide-hint">Use "Edit image" to keep the same character. Repeat for: idle · wave · water · stretch · happy · sad · eyes</em>
+                  </div></div>
+                  <div class="ai-guide-step"><span class="ai-guide-num">3</span><div>
+                    <strong>Export frames and build animated WebP</strong><br>
+                    Download each sprite sheet PNG from Google Flow.<br>
+                    Use <strong>ezgif.com/sprite-cutter</strong> to split into frames, then <strong>ezgif.com/webp-maker</strong> to assemble with 100ms delay.<br>
+                    Name files: <code>idle.webp · walk.webp · wave.webp · water.webp · stretch.webp · happy.webp · sad.webp · eyes.webp</code>
+                  </div></div>
+                  <div class="ai-guide-step"><span class="ai-guide-num">4</span><div>
+                    <strong>Import</strong> — Drop each <code>.webp</code> into its slot above, or ZIP all 8 and use <strong>Import ZIP Pack</strong>.
+                  </div></div>
+                </div>
+              </div>
+
+              <div class="ai-guide-tips">💡 <strong>Key rules for animated sprites:</strong> transparent PNG background on every frame · same character design across all 8 states · 120–200px wide · 2–6 frames per state · 80–120ms per frame delay · Ezgif is free and works in any browser.</div>
             </div>
           </div>
 
@@ -729,7 +777,25 @@
           <!-- Customizer controls -->
           <div class="preview-customizer-wrap">
             <h3 class="form-title">Companion Settings &amp; Personalization</h3>
-            
+
+            <!-- Per-companion action on/off toggles -->
+            <div class="form-group">
+              <label class="setting-label">Active Actions</label>
+              <p class="setting-hint" style="margin-bottom:6px;">Toggle which animations this companion will cycle through on the desktop.</p>
+              <div id="preview-action-toggles" class="preview-action-toggle-grid" role="group" aria-label="Action toggles"></div>
+            </div>
+
+            <!-- Free Roam toggle -->
+            <div class="form-group">
+              <div class="setting-item" style="padding:0;border:none;">
+                <div class="setting-text">
+                  <label for="preview-roam-toggle" class="setting-label">Free Roam Mode</label>
+                  <p class="setting-hint">Let the companion explore every corner of the screen instead of staying at the bottom edge.</p>
+                </div>
+                <input type="checkbox" id="preview-roam-toggle" class="toggle-checkbox" aria-label="Toggle Free Roam mode">
+              </div>
+            </div>
+
             <div class="form-group">
               <label for="preview-scale-select">Display Scale</label>
               <select id="preview-scale-select" class="select-field">

@@ -850,6 +850,56 @@ async function openCompanionPreview(c) {
   if (customQuoteInput) customQuoteInput.value = savedQuote;
   if (speechText) speechText.textContent = savedQuote;
 
+  // ── Action on/off toggles ──────────────────────────────────────────────────
+  // Load per-companion saved action state from localStorage, fall back to all-on.
+  const toggleGrid = document.getElementById('preview-action-toggles');
+  if (toggleGrid) {
+    const savedActions = (() => {
+      try {
+        const raw = localStorage.getItem(`tether-preview-actions-${c.id}`);
+        if (raw) return JSON.parse(raw); // { [actionId]: bool }
+      } catch { /* ignore */ }
+      return null;
+    })();
+    // All 8 canonical actions (matches DEFAULT_ACTIONS + eyes)
+    const ALL_PREVIEW_ACTIONS = [
+      { id: 'idle',    label: 'Idle' },
+      { id: 'walk',    label: 'Walk' },
+      { id: 'wave',    label: 'Wave' },
+      { id: 'water',   label: 'Water' },
+      { id: 'stretch', label: 'Stretch' },
+      { id: 'happy',   label: 'Celebrate' },
+      { id: 'sad',     label: 'Sleepy' },
+      { id: 'eyes',    label: 'Eyes' },
+    ];
+    toggleGrid.innerHTML = '';
+    ALL_PREVIEW_ACTIONS.forEach(({ id, label }) => {
+      const on = savedActions ? (savedActions[id] !== false) : true;
+      const pill = document.createElement('label');
+      pill.className = `preview-action-pill${on ? ' pill-on' : ''}`;
+      pill.innerHTML = `<input type="checkbox" data-action-id="${escapeHtml(id)}"${on ? ' checked' : ''}> ${escapeHtml(label)}`;
+      const cb = pill.querySelector('input');
+      cb.addEventListener('change', () => {
+        pill.classList.toggle('pill-on', cb.checked);
+        // Persist immediately so toggling feels responsive
+        const current = (() => {
+          try { return JSON.parse(localStorage.getItem(`tether-preview-actions-${c.id}`) || '{}'); } catch { return {}; }
+        })();
+        current[id] = cb.checked;
+        try { localStorage.setItem(`tether-preview-actions-${c.id}`, JSON.stringify(current)); } catch { /* ignore */ }
+      });
+      toggleGrid.appendChild(pill);
+    });
+  }
+
+  // ── Free Roam toggle — sync from localStorage ──────────────────────────────
+  const roamToggle = document.getElementById('preview-roam-toggle');
+  if (roamToggle) {
+    const roamOn = (typeof localStorage !== 'undefined')
+      && localStorage.getItem('tether_companion_free_roam') === 'true';
+    roamToggle.checked = roamOn;
+  }
+
   // Show real time in the preview taskbar clock
   const clockEl = document.getElementById('preview-taskbar-clock');
   if (clockEl) {
@@ -1283,6 +1333,26 @@ function setupPreviewModalHandlers() {
     });
   });
 
+  // ── Free Roam toggle in customizer ────────────────────────────────
+  const roamToggle = document.getElementById('preview-roam-toggle');
+  if (roamToggle) {
+    roamToggle.addEventListener('change', () => {
+      try { localStorage.setItem('tether_companion_free_roam', String(roamToggle.checked)); } catch { /* ignore */ }
+      showToast(roamToggle.checked ? '🗺️ Free Roam on — companion explores everywhere.' : '🌐 Free Roam off — companion stays at the bottom.', 'ok', 2000);
+    });
+  }
+
+  // ── AI guide tab switcher ─────────────────────────────────────────
+  document.querySelectorAll('.ai-tab-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.ai-tab-btn').forEach((b) => b.classList.remove('active'));
+      document.querySelectorAll('.ai-tab-panel').forEach((p) => p.classList.add('hidden'));
+      btn.classList.add('active');
+      const panelId = `ai-tab-${btn.dataset.aiTab}`;
+      document.getElementById(panelId)?.classList.remove('hidden');
+    });
+  });
+
   // ── Preview companion stage: drag + click ────────────────────────
   const previewStage = document.querySelector('.preview-companion-stage');
   const wallpaper    = document.querySelector('.preview-desktop-wallpaper');
@@ -1379,6 +1449,17 @@ function setupPreviewModalHandlers() {
     }
   });
 
+  /** Collect currently-checked action IDs from the toggle grid. */
+  function getEnabledActionsFromToggles() {
+    const checked = [];
+    document.querySelectorAll('#preview-action-toggles input[type="checkbox"]').forEach((cb) => {
+      if (cb.checked) checked.push(cb.dataset.actionId);
+    });
+    // Always keep at least 'idle' so the companion has something to show
+    if (checked.length === 0) checked.push('idle');
+    return checked;
+  }
+
   setActiveBtn?.addEventListener('click', () => {
     if (previewCompanion) {
       activePetId = previewCompanion.id;
@@ -1388,17 +1469,20 @@ function setupPreviewModalHandlers() {
         card.classList.toggle('active-pet', card.querySelector(`.companion-avatar-canvas[data-companion-id="${CSS.escape(previewCompanion.id)}"]`) !== null);
       });
 
+      // Collect enabled actions from the toggle grid in the customizer
+      const enabledActions = getEnabledActionsFromToggles();
+
       // Persist via IPC — shared between both WebView windows.
-      // Include the companion's actions list so the overlay state machine cycles
-      // through all available states for this character.
       void setActiveCompanion({
         id: previewCompanion.id,
         name: previewCompanion.name,
         avatarType: previewCompanion.avatarType || 'procedural',
         colors: previewCompanion.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' },
-        actions: previewCompanion.actions?.length ? previewCompanion.actions
-          : ['idle', 'walk', 'wave', 'water', 'stretch', 'happy', 'sad', 'eyes'],
+        actions: enabledActions,
       });
+
+      // Also write to tether-active-actions so the overlay's localStorage poller picks it up.
+      try { localStorage.setItem('tether-active-actions', JSON.stringify(enabledActions)); } catch { /* ignore */ }
 
       // Show the companion overlay window via the IPC bridge then re-render the grid
       showCompanionOverlay();
@@ -1418,6 +1502,9 @@ function setupPreviewModalHandlers() {
       localStorage.setItem(`tether_pet_scale_${previewCompanion.id}`, scale);
       localStorage.setItem(`tether_pet_speed_${previewCompanion.id}`, speed);
       localStorage.setItem(`tether_pet_quote_${previewCompanion.id}`, quote);
+      // Also save action toggles immediately
+      const enabledActions = getEnabledActionsFromToggles();
+      try { localStorage.setItem('tether-active-actions', JSON.stringify(enabledActions)); } catch { /* ignore */ }
       showToast(`Customizations saved for ${previewCompanion.name}.`, 'ok');
     }
   });
