@@ -1299,6 +1299,51 @@ canvas#studio-canvas {
   gap: 8px;
   margin-bottom: 14px;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+/* WebP attach label — styled as a subtle button */
+.behaviors-webp-label {
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.behaviors-webp-label:has(+ #new-action-webp-name:not(:empty)) {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+/* Shortcut record button — inline in table */
+.btn-shortcut-record {
+  font-size: 10.5px;
+  padding: 3px 10px;
+  font-family: var(--mono);
+  border: 1px solid var(--rule-strong);
+  background: var(--paper-raised);
+  color: var(--ink-soft);
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: all 0.1s;
+  white-space: nowrap;
+}
+.btn-shortcut-record:hover { background: var(--paper-float); color: var(--ink); }
+.btn-shortcut-record.recording {
+  background: var(--signal-wash);
+  border-color: var(--signal);
+  color: var(--signal);
+  animation: pulse-capturing 1s ease-in-out infinite;
+}
+.btn-shortcut-record.saved {
+  background: var(--ok-wash);
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+/* Shortcut key display cell */
+.shortcut-key-display {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink);
 }
 
 .state-card {

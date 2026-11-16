@@ -457,6 +457,11 @@
               <!-- Add custom action row -->
               <div class="behaviors-add-row">
                 <input type="text" id="new-action-name" class="input-text-compact" placeholder="New action name (e.g. dance, coffee, focus…)" maxlength="32" style="flex:1;">
+                <label class="btn btn-subtle behaviors-webp-label" title="Attach an animated WebP clip for this action" aria-label="Attach WebP animation">
+                  📎 WebP
+                  <input type="file" id="new-action-webp" accept="image/webp" class="sr-only" tabindex="-1">
+                </label>
+                <span id="new-action-webp-name" class="clip-status-pill" style="font-size:10px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
                 <button type="button" id="add-action-btn" class="btn btn-secondary">+ Add Action</button>
               </div>
 
@@ -593,6 +598,27 @@
             </div>
 
             <!-- Danger Zone & Uninstall Options -->
+            <!-- Keyboard Shortcut Customisation -->
+            <div class="settings-card">
+              <h3 class="card-title">Keyboard Shortcut Customisation</h3>
+              <p class="setting-hint" style="margin-bottom:12px;">Click <strong>Record</strong> next to any action, then press your desired key combination. Changes are saved automatically.</p>
+              <table class="shortcuts-table" id="shortcut-customise-table" aria-label="Customisable keyboard shortcuts">
+                <thead>
+                  <tr>
+                    <th scope="col">Action</th>
+                    <th scope="col">Current Shortcut</th>
+                    <th scope="col" style="width:90px;"></th>
+                  </tr>
+                </thead>
+                <tbody id="shortcut-customise-tbody">
+                  <!-- Populated by setupShortcutCustomiser() -->
+                </tbody>
+              </table>
+              <div class="form-footer" style="margin-top:12px;">
+                <button type="button" id="reset-shortcuts-btn" class="btn btn-secondary">Reset All to Defaults</button>
+              </div>
+            </div>
+
             <div class="settings-card danger-zone">
               <h3 class="card-title danger-title">Danger Zone &amp; Uninstall</h3>
               <p class="setting-hint">Cleanly remove system integration, purge stored writing history, or completely uninstall Tether.</p>
@@ -776,51 +802,8 @@
                 <th scope="col">Action</th>
               </tr>
             </thead>
-            <tbody>
-              <tr>
-                <td><kbd>Ctrl</kbd> + <kbd>1</kbd></td>
-                <td>Switch to Recover Texts</td>
-              </tr>
-              <tr>
-                <td><kbd>Ctrl</kbd> + <kbd>2</kbd></td>
-                <td>Switch to Companions Catalog</td>
-              </tr>
-              <tr>
-                <td><kbd>Ctrl</kbd> + <kbd>3</kbd></td>
-                <td>Switch to Companion Studio</td>
-              </tr>
-              <tr>
-                <td><kbd>Ctrl</kbd> + <kbd>4</kbd></td>
-                <td>Switch to Settings</td>
-              </tr>
-              <tr>
-                <td><kbd>Ctrl</kbd> + <kbd>F</kbd> or <kbd>/</kbd></td>
-                <td>Focus search input in drafts</td>
-              </tr>
-              <tr>
-                <td><kbd>Ctrl</kbd> + <kbd>R</kbd></td>
-                <td>Refresh drafts list from vault</td>
-              </tr>
-              <tr>
-                <td><kbd>Ctrl</kbd> + <kbd>C</kbd></td>
-                <td>Copy selected draft text</td>
-              </tr>
-              <tr>
-                <td><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>H</kbd></td>
-                <td>Hide / show desktop companion overlay</td>
-              </tr>
-              <tr>
-                <td><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>T</kbd></td>
-                <td>Bring Tether window to foreground</td>
-              </tr>
-              <tr>
-                <td><kbd>?</kbd> or <kbd>Ctrl</kbd> + <kbd>/</kbd></td>
-                <td>Open / close shortcuts cheatsheet</td>
-              </tr>
-              <tr>
-                <td><kbd>Esc</kbd></td>
-                <td>Close any open modal or search</td>
-              </tr>
+            <tbody id="shortcuts-cheatsheet-tbody">
+              <!-- populated dynamically from loadShortcutMap() in main.js -->
             </tbody>
           </table>
         </div>

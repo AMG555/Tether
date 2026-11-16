@@ -2047,6 +2047,23 @@ function setupBehaviors(currentAction, actionLabel, actionButtons) {
     updateCount();
   }
 
+  // Stage the selected WebP as a base-64 data-URL so it can be saved when "Add" is clicked.
+  let _stagedActionWebp = null;
+  const webpInput = document.getElementById('new-action-webp');
+  const webpNameEl = document.getElementById('new-action-webp-name');
+  if (webpInput) {
+    webpInput.addEventListener('change', () => {
+      const file = webpInput.files?.[0];
+      if (!file) { _stagedActionWebp = null; if (webpNameEl) webpNameEl.textContent = ''; return; }
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        _stagedActionWebp = ev.target.result; // data:image/webp;base64,...
+        if (webpNameEl) webpNameEl.textContent = file.name;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
   // Add custom action
   if (addBtn) {
     addBtn.addEventListener('click', () => {
@@ -2058,7 +2075,19 @@ function setupBehaviors(currentAction, actionLabel, actionButtons) {
         return;
       }
       actions.push({ id: name, label: nameInput.value.trim(), quote: '', enabled: true, builtin: false });
+      // Persist the WebP clip for this action under the active companion
+      if (_stagedActionWebp) {
+        try {
+          // Key is companion-agnostic so the action's clip works for any companion
+          // that gets this action assigned; companion-specific overrides use
+          // 'tether-custom-webp-{companionId}-{actionId}'.
+          localStorage.setItem(`tether-custom-webp-${name}`, _stagedActionWebp);
+        } catch { /* quota — silently skip */ }
+      }
       if (nameInput) nameInput.value = '';
+      if (webpInput) webpInput.value = '';
+      if (webpNameEl) webpNameEl.textContent = '';
+      _stagedActionWebp = null;
       renderGrid();
     });
   }
@@ -2354,6 +2383,10 @@ async function setupSettingsView() {
       });
     }
   }
+
+  // Shortcut customiser — renders the remappable shortcut table in Settings
+  setupShortcutCustomiser();
+
 }
 
 // -----------------------------------------------------------------------------
@@ -2377,14 +2410,79 @@ function toggleCompanionVisibility() {
   }
 }
 
+// ── Shortcut map ──────────────────────────────────────────────────────────────
+// Each entry: { id, label, defaultKey, action }
+// defaultKey is the canonical string we match against (e.g. "ctrl+1").
+// Stored in localStorage as tether-shortcuts: { [id]: "ctrl+shift+1" }
+
+const SHORTCUT_STORAGE_KEY = 'tether-shortcuts';
+
+const DEFAULT_SHORTCUT_MAP = [
+  { id: 'tab-recover',     label: 'Switch to Recover Texts',          defaultKey: 'ctrl+1' },
+  { id: 'tab-companions',  label: 'Switch to Companions',             defaultKey: 'ctrl+2' },
+  { id: 'tab-studio',      label: 'Switch to Studio',                 defaultKey: 'ctrl+3' },
+  { id: 'tab-settings',    label: 'Switch to Settings',               defaultKey: 'ctrl+4' },
+  { id: 'search-drafts',   label: 'Focus draft search',               defaultKey: 'ctrl+f' },
+  { id: 'refresh-drafts',  label: 'Refresh drafts list',              defaultKey: 'ctrl+r' },
+  { id: 'toggle-companion',label: 'Hide / show companion overlay',    defaultKey: 'ctrl+alt+h' },
+  { id: 'show-window',     label: 'Bring Tether to foreground',       defaultKey: 'ctrl+alt+t' },
+  { id: 'toggle-shortcuts',label: 'Open / close shortcuts cheatsheet',defaultKey: '?' },
+];
+
+/** Normalise a KeyboardEvent into a canonical string like "ctrl+shift+a". */
+function eventToShortcutKey(e) {
+  const parts = [];
+  if (e.ctrlKey || e.metaKey) parts.push('ctrl');
+  if (e.altKey)   parts.push('alt');
+  if (e.shiftKey) parts.push('shift');
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  parts.push(k);
+  return parts.join('+');
+}
+
+/** Returns the current key map (defaults merged with any user customisations). */
+function loadShortcutMap() {
+  let custom = {};
+  try { custom = JSON.parse(localStorage.getItem(SHORTCUT_STORAGE_KEY) || '{}'); } catch { /* ignore */ }
+  return DEFAULT_SHORTCUT_MAP.map((s) => ({ ...s, currentKey: custom[s.id] ?? s.defaultKey }));
+}
+
+function saveShortcutOverride(id, key) {
+  let custom = {};
+  try { custom = JSON.parse(localStorage.getItem(SHORTCUT_STORAGE_KEY) || '{}'); } catch { /* ignore */ }
+  custom[id] = key;
+  try { localStorage.setItem(SHORTCUT_STORAGE_KEY, JSON.stringify(custom)); } catch { /* ignore */ }
+}
+
+function resetAllShortcuts() {
+  try { localStorage.removeItem(SHORTCUT_STORAGE_KEY); } catch { /* ignore */ }
+}
+
 function setupKeyboardShortcuts() {
   const shortcutsBtn = document.getElementById('shortcuts-btn');
   const shortcutsModal = document.getElementById('shortcuts-modal');
   const closeShortcutsBtn = document.getElementById('close-shortcuts-modal-btn');
   const closeShortcutsBottomBtn = document.getElementById('close-shortcuts-bottom-btn');
 
+  function populateCheatsheet() {
+    const tb = document.getElementById('shortcuts-cheatsheet-tbody');
+    if (!tb) return;
+    const map = loadShortcutMap();
+    tb.innerHTML = map.map((sc) => {
+      const keys = sc.currentKey.split('+')
+        .map((p) => `<kbd>${escapeHtml(p === '?' ? '?' : p.toUpperCase())}</kbd>`)
+        .join(' + ');
+      return `<tr><td>${keys}</td><td>${escapeHtml(sc.label)}</td></tr>`;
+    }).join('') +
+    // Always append the fixed non-remappable Esc row
+    `<tr><td><kbd>Esc</kbd></td><td>Close any open modal</td></tr>`;
+  }
+
   function toggleShortcuts() {
-    if (shortcutsModal) shortcutsModal.classList.toggle('hidden');
+    if (!shortcutsModal) return;
+    const willOpen = shortcutsModal.classList.contains('hidden');
+    shortcutsModal.classList.toggle('hidden');
+    if (willOpen) populateCheatsheet();
   }
 
   function closeAllModals() {
@@ -2405,64 +2503,142 @@ function setupKeyboardShortcuts() {
 
     const tag = e.target?.tagName?.toLowerCase();
     const isEditing = tag === 'input' || tag === 'textarea' || tag === 'select';
+    const pressed = eventToShortcutKey(e);
+    const map = loadShortcutMap();
 
-    if (e.key === '?' && !isEditing) {
+    // Find matching shortcut action — skip if user is typing in an input unless
+    // the shortcut uses a modifier key (Ctrl/Alt), which is unambiguous.
+    for (const sc of map) {
+      const hasModifier = sc.currentKey.includes('ctrl') || sc.currentKey.includes('alt');
+      if (isEditing && !hasModifier) continue;
+      if (pressed !== sc.currentKey) continue;
+
       e.preventDefault();
-      toggleShortcuts();
-      return;
-    }
-
-    if ((e.ctrlKey || e.metaKey) && e.key === '/') {
-      e.preventDefault();
-      toggleShortcuts();
-      return;
-    }
-
-    if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F') && !isEditing) {
-      e.preventDefault();
-      const searchInput = document.getElementById('draft-search-input');
-      const recoverTab = document.querySelector('.tab-btn[data-tab="recover"]');
-      recoverTab?.click();
-      searchInput?.focus();
-      return;
-    }
-
-    if ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R') && !isEditing) {
-      e.preventDefault();
-      document.getElementById('refresh-drafts-btn')?.click();
-      return;
-    }
-
-    if (e.ctrlKey || e.metaKey) {
-      if (e.key === '1') {
-        e.preventDefault();
-        document.querySelector('.tab-btn[data-tab="recover"]')?.click();
-      } else if (e.key === '2') {
-        e.preventDefault();
-        document.querySelector('.tab-btn[data-tab="companions"]')?.click();
-      } else if (e.key === '3') {
-        e.preventDefault();
-        document.querySelector('.tab-btn[data-tab="studio"]')?.click();
-      } else if (e.key === '4') {
-        e.preventDefault();
-        document.querySelector('.tab-btn[data-tab="settings"]')?.click();
+      switch (sc.id) {
+        case 'tab-recover':
+          document.querySelector('.tab-btn[data-tab="recover"]')?.click(); break;
+        case 'tab-companions':
+          document.querySelector('.tab-btn[data-tab="companions"]')?.click(); break;
+        case 'tab-studio':
+          document.querySelector('.tab-btn[data-tab="studio"]')?.click(); break;
+        case 'tab-settings':
+          document.querySelector('.tab-btn[data-tab="settings"]')?.click(); break;
+        case 'search-drafts': {
+          const searchInput = document.getElementById('draft-search-input');
+          document.querySelector('.tab-btn[data-tab="recover"]')?.click();
+          searchInput?.focus();
+          break;
+        }
+        case 'refresh-drafts':
+          document.getElementById('refresh-drafts-btn')?.click(); break;
+        case 'toggle-companion':
+          toggleCompanionVisibility(); break;
+        case 'show-window':
+          showMainWindow(); break;
+        case 'toggle-shortcuts':
+          toggleShortcuts(); break;
       }
-    }
-
-    // Ctrl+Alt+T: bring the window back to the foreground.
-    if (e.ctrlKey && e.altKey && (e.key === 't' || e.key === 'T')) {
-      e.preventDefault();
-      showMainWindow();
-      return;
-    }
-
-    // Ctrl+Alt+H: toggle companion overlay visibility.
-    if (e.ctrlKey && e.altKey && (e.key === 'h' || e.key === 'H')) {
-      e.preventDefault();
-      toggleCompanionVisibility();
       return;
     }
   });
+}
+
+// ── Shortcut customiser UI (renders in Settings) ──────────────────────────────
+function setupShortcutCustomiser() {
+  const tbody = document.getElementById('shortcut-customise-tbody');
+  const resetBtn = document.getElementById('reset-shortcuts-btn');
+  if (!tbody) return;
+
+  let _recordingId = null;    // id of shortcut currently being recorded
+  let _recordHandler = null;  // the keydown handler during recording
+
+  function formatKey(key) {
+    return key.split('+').map((p) => `<kbd>${escapeHtml(p === '?' ? '?' : p.toUpperCase())}</kbd>`).join(' + ');
+  }
+
+  function renderTable() {
+    const map = loadShortcutMap();
+    tbody.innerHTML = '';
+    map.forEach((sc) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(sc.label)}</td>
+        <td class="shortcut-key-display">${formatKey(sc.currentKey)}</td>
+        <td style="text-align:right;">
+          <button type="button" class="btn-shortcut-record" data-sc-id="${escapeHtml(sc.id)}">Record</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    // Wire record buttons
+    tbody.querySelectorAll('.btn-shortcut-record').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.scId;
+        if (_recordingId === id) {
+          // Cancel recording
+          stopRecording();
+          return;
+        }
+        // Cancel any previous recording first
+        stopRecording();
+        _recordingId = id;
+        btn.textContent = '⏺ Press keys…';
+        btn.classList.add('recording');
+
+        _recordHandler = (e) => {
+          // Ignore lone modifier keys
+          if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const newKey = eventToShortcutKey(e);
+          saveShortcutOverride(id, newKey);
+          stopRecording();
+          renderTable();
+          showToast(`Shortcut updated to ${newKey}`, 'ok', 2000);
+        };
+        // Capture on the window so it fires regardless of focus
+        window.addEventListener('keydown', _recordHandler, { capture: true, once: true });
+
+        // Auto-cancel after 6 s
+        setTimeout(() => { if (_recordingId === id) stopRecording(); }, 6000);
+      });
+    });
+  }
+
+  function stopRecording() {
+    if (_recordHandler) {
+      window.removeEventListener('keydown', _recordHandler, { capture: true });
+      _recordHandler = null;
+    }
+    _recordingId = null;
+    // Reset all record buttons
+    tbody.querySelectorAll('.btn-shortcut-record').forEach((b) => {
+      b.textContent = 'Record';
+      b.classList.remove('recording', 'saved');
+    });
+  }
+
+  resetBtn?.addEventListener('click', () => {
+    if (resetBtn.dataset.pendingReset) {
+      resetAllShortcuts();
+      renderTable();
+      delete resetBtn.dataset.pendingReset;
+      resetBtn.textContent = 'Reset All to Defaults';
+      showToast('All shortcuts reset to defaults.', 'ok');
+    } else {
+      resetBtn.dataset.pendingReset = '1';
+      resetBtn.textContent = 'Click Again to Confirm Reset';
+      setTimeout(() => {
+        if (resetBtn.dataset.pendingReset) {
+          delete resetBtn.dataset.pendingReset;
+          resetBtn.textContent = 'Reset All to Defaults';
+        }
+      }, 3000);
+    }
+  });
+
+  renderTable();
 }
 
 // -----------------------------------------------------------------------------

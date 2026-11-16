@@ -320,7 +320,17 @@ async function loadSprite(companionId, state) {
   if (spriteLoading[key]) return undefined;
   spriteLoading[key] = true;
   try {
-    const dataUrl = await getCompanionClip(companionId, state);
+    // Check localStorage for a custom WebP uploaded via the Behaviors tab.
+    // Keys checked in preference order:
+    //   1. companion-specific: tether-custom-webp-{companionId}-{state}
+    //   2. action-generic:     tether-custom-webp-{state}
+    let dataUrl = null;
+    try {
+      dataUrl = localStorage.getItem(`tether-custom-webp-${companionId}-${state}`)
+             || localStorage.getItem(`tether-custom-webp-${state}`)
+             || null;
+    } catch { /* storage unavailable */ }
+    if (!dataUrl) dataUrl = await getCompanionClip(companionId, state);
     if (dataUrl) {
       const img = new Image();
       // Insert into DOM *before* setting src so the browser animation clock
