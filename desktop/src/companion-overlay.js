@@ -22,6 +22,7 @@
  */
 
 import { getCompanionClip, getActiveCompanion, getCaptureStatus, setCompanionPassthrough } from './api.js';
+import { createBrain } from './companion-brain.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -189,6 +190,38 @@ function showBubble(text, durationMs = 3000) {
   bubbleTimer = performance.now() + durationMs;
 }
 
+// ─── Session Brain ────────────────────────────────────────────────────────────
+// Pure-logic model imported from companion-brain.js.  The onCelebrate callback
+// drives the companion animation (state change + spring + bubble) so the brain
+// module itself has no DOM dependency and can be unit-tested in Node.
+
+const brain = createBrain({
+  storage: typeof localStorage !== 'undefined' ? localStorage : null,
+  onCelebrate(_milestone, text) {
+    // Delay 400 ms so a celebration doesn't clash with an in-progress poll bubble.
+    setTimeout(() => {
+      currentState = 'happy';
+      walking = false;
+      springVY = -14;
+      nextStateTimer = performance.now() + 4000;
+      showBubble(text, 3800);
+      loadSprite(companion.id, 'happy');
+    }, 400);
+  },
+});
+
+// Returning-user streak greeting — fires once per day, 5 s after first capture.
+// The brain emits the streak count via streakDays; we show the bubble here so
+// that the greeting text can reference showBubble (a DOM-layer concern).
+let _streakGreetingShown = false;
+function _maybeShowStreakGreeting() {
+  if (_streakGreetingShown) return;
+  if (brain.streakDays > 1) {
+    _streakGreetingShown = true;
+    setTimeout(() => showBubble(`🌟 Day ${brain.streakDays} — welcome back!`, 3500), 5000);
+  }
+}
+
 // ─── Free Roam helpers ────────────────────────────────────────────────────────
 
 /** Pick a random on-screen waypoint the companion will walk toward. */
@@ -251,21 +284,34 @@ async function pollCaptureStatus() {
     const wasCapturing = _captureStatus.capturing;
     _captureStatus = s;
 
+    // Feed the brain before we act on the data so its velocity and milestone
+    // calculations are current for any reactive decisions below.
+    if (s.capturing) brain.observe(s.eventsSeen, s.draftsSaved, s.capturing);
+
     // New events arrived since last poll → companion reacts
     if (s.eventsSeen > _lastEventsSeen && s.eventsSeen - _lastEventsSeen >= 10) {
       const delta = s.eventsSeen - _lastEventsSeen;
-      const msgs = [
-        `📝 ${delta} new events!`,
-        `🧠 Thinking hard… ${s.eventsSeen} events`,
-        `⚡ ${delta} keystrokes captured`,
-        `💾 ${s.draftsSaved} drafts saved`,
-      ];
-      showBubble(msgs[Math.floor(Math.random() * msgs.length)], 3000);
+      // Brain-aware reactive messages: use velocity context rather than a fixed pool
+      const velocity = brain.currentVelocity();
+      let msg;
+      if (velocity > 60) {
+        msg = `🔥 ${delta} keystrokes — you're in the zone!`;
+      } else if (s.draftsSaved > 0 && Math.random() < 0.35) {
+        msg = `💾 ${s.draftsSaved} draft${s.draftsSaved > 1 ? 's' : ''} saved`;
+      } else {
+        const pool = [
+          `📝 ${delta} new events!`,
+          `⚡ ${delta} keystrokes captured`,
+          `🧠 ${s.eventsSeen} events total`,
+        ];
+        msg = pool[Math.floor(Math.random() * pool.length)];
+      }
+      showBubble(msg, 3000);
       springVY = -7;
     }
     _lastEventsSeen = s.eventsSeen;
 
-    // Companion just started capturing → celebrate
+    // Companion just started capturing → celebrate + check returning-user greeting
     if (!wasCapturing && s.capturing) {
       currentState = 'happy';
       walking = false;
@@ -273,6 +319,7 @@ async function pollCaptureStatus() {
       springVY = -12;
       showBubble('🔴 Recording started!', 2500);
       loadSprite(companion.id, 'happy');
+      _maybeShowStreakGreeting();
     }
 
     // Companion just stopped capturing → note it
@@ -378,8 +425,20 @@ function pickNextState() {
   WALK_STATES = getWalkStates();
   if (WALK_STATES.length === 0) WALK_STATES = ['idle'];
 
-  const idx = Math.floor(Math.random() * WALK_STATES.length);
-  currentState = WALK_STATES[idx];
+  // ── Brain-weighted state selection ──────────────────────────────────────
+  // Build a weighted pool: each state appears proportional to its brain weight.
+  // States absent from the weights object keep their default count of 1.
+  const weights = brain.stateWeights();
+  const pool = [];
+  for (const s of WALK_STATES) {
+    const w = weights[s] ?? 1;
+    // Convert to integer slots (round up to at least 1 so no state disappears)
+    const slots = Math.max(1, Math.round(w));
+    for (let i = 0; i < slots; i++) pool.push(s);
+  }
+  currentState = pool[Math.floor(Math.random() * pool.length)];
+  // ────────────────────────────────────────────────────────────────────────
+
   walking = currentState === 'walk';
   // Schedule next transition 5–12 s from now.
   // Use performance.now() so it stays consistent with the RAF timestamp clock.
@@ -388,8 +447,12 @@ function pickNextState() {
   pauseTimer = 0;
   loadSprite(companion.id, currentState);
 
+  // Brain-aware message: prefer a contextual line; fall back to static default.
   const quotes = getActionQuotes();
-  const text = quotes[currentState] || DEFAULT_QUOTES[currentState] || '';
+  const text = quotes[currentState]
+    || brain.messageFor(currentState)
+    || DEFAULT_QUOTES[currentState]
+    || '';
   if (text) showBubble(text, 2800);
 }
 
