@@ -152,3 +152,15 @@ test('activating a companion in main.js preserves freeRoam state instead of rese
   const previewActivate = src.match(/setActiveCompanion\(\{\s*id:\s*previewCompanion\.id[\s\S]*?\}\)/);
   assert.ok(previewActivate && /\bfreeRoam\b/.test(previewActivate[0]), 'preview Activate setActiveCompanion must include freeRoam');
 });
+
+test('sticky masthead header is not broken by overflow-x: hidden on ancestors', async () => {
+  const raw = await readFile(path.join(desktopRoot, 'src/styles.css'), 'utf8');
+  const css = raw.replace(/\/\*[\s\S]*?\*\//g, '');
+  const winBlock = css.match(/\.window\s*\{[^}]*\}/);
+  const rootBlock = css.match(/html,\s*body\s*\{[^}]*\}/);
+  const mastBlock = css.match(/\.masthead\s*\{[^}]*\}/);
+  assert.ok(winBlock && rootBlock && mastBlock, 'html/body, .window, and .masthead rules must exist');
+  assert.match(mastBlock[0], /position:\s*sticky/);
+  assert.doesNotMatch(winBlock[0], /overflow-x:\s*hidden/, '.window must use overflow-x: clip so sticky header stays fixed');
+  assert.doesNotMatch(rootBlock[0], /overflow-x:\s*hidden/, 'html, body must use overflow-x: clip so sticky header stays fixed');
+});

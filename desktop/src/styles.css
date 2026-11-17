@@ -87,7 +87,8 @@ html, body {
   min-width: 320px;
   min-height: 100%;
   margin: 0;
-  overflow-x: hidden;
+  /* Use clip (not hidden) so position: sticky on .masthead keeps working */
+  overflow-x: clip;
   background: var(--paper);
   color: var(--ink);
   font-family: var(--sans);
@@ -103,7 +104,9 @@ html, body {
   flex-direction: column;
   min-height: 100vh;
   width: 100%;
-  overflow-x: hidden;
+  /* Use clip (not hidden) — overflow-x: hidden implicitly creates a scroll
+     container and breaks position: sticky on the top .masthead header. */
+  overflow-x: clip;
   /* Fills the full desktop screen cleanly */
 }
 
