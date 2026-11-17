@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+
+const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 test('companion-overlay boots cleanly when performance.now() < 200ms and starts animation', async (t) => {
   const rafCallbacks = [];
@@ -59,15 +64,16 @@ test('companion-overlay boots cleanly when performance.now() < 200ms and starts 
   };
 
   t.after(() => {
-    for (const id of intervals) saved.setInterval && clearInterval(id);
+    for (const id of intervals) clearInterval(id);
     for (const id of timeouts) clearTimeout(id);
     Object.assign(globalThis, saved);
   });
 
   globalThis.window = {
-    innerWidth: 1920,
-    innerHeight: 1076,
+    innerWidth: 360,
+    innerHeight: 310,
     devicePixelRatio: 1,
+    screen: { width: 1920, height: 1080 },
     addEventListener() {},
   };
   globalThis.document = {
@@ -114,4 +120,23 @@ test('companion-overlay boots cleanly when performance.now() < 200ms and starts 
 
   // Execute one animation frame to ensure renderFrame runs without throwing
   rafCallbacks[0](42);
+});
+
+test('companion-overlay canvas stacks above sprite so captions never render behind head', async () => {
+  const html = await readFile(path.join(desktopRoot, 'src/companion-overlay.html'), 'utf8');
+  const spriteBlock = html.match(/#companion-sprite\s*\{[^}]*\}/);
+  const canvasBlock = html.match(/canvas\s*\{[^}]*\}/);
+  assert.ok(spriteBlock && canvasBlock, 'both #companion-sprite and canvas rules must exist');
+
+  const spriteZ = Number(spriteBlock[0].match(/z-index:\s*(\d+)/)?.[1]);
+  const canvasZ = Number(canvasBlock[0].match(/z-index:\s*(\d+)/)?.[1]);
+  assert.ok(canvasZ > spriteZ, `canvas z-index (${canvasZ}) must be greater than #companion-sprite (${spriteZ})`);
+});
+
+test('companion-overlay window stays compact to prevent browser occlusion and white flashing', async () => {
+  const cfg = JSON.parse(await readFile(path.join(desktopRoot, 'src-tauri/tauri.conf.json'), 'utf8'));
+  const overlay = cfg.app.windows.find((w) => w.label === 'companion-overlay');
+  assert.ok(overlay, 'companion-overlay window must be configured');
+  assert.ok(overlay.width <= 480 && overlay.height <= 400,
+    `overlay must be compact (got ${overlay.width}x${overlay.height}) so Chromium occlusion never blanks browsers`);
 });

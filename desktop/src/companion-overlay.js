@@ -58,7 +58,7 @@ const ROAM_ARRIVE_DIST   = 35;    // px — arrival threshold
 const ROAM_PAUSE_MIN_MS  = 3000;  // pause at each waypoint
 const ROAM_PAUSE_MAX_MS  = 6500;  // pause at each waypoint
 const ROAM_MARGIN_X      = 70;    // px from horizontal edges
-const ROAM_MARGIN_TOP    = CHAR_HEIGHT + 10; // px from top (clear head)
+const ROAM_MARGIN_TOP    = CHAR_HEIGHT + 56; // px from top (clear head + speech bubble)
 const ROAM_MARGIN_BOT    = 10;    // px from bottom
 
 let freeRoam = typeof localStorage !== 'undefined'
@@ -98,17 +98,32 @@ const canvas  = document.getElementById('companion-canvas');
 const ctx     = canvas.getContext('2d');
 const hitZone = document.getElementById('hit-zone');
 
-// Logical dimensions — always CSS pixels.  All draw code uses these.
-let W = window.innerWidth;
-let H = window.innerHeight;
+// Local compact window dimensions (360×310 CSS px) + full desktop screen bounds.
+// Walking moves the compact window across screenW×screenH via DWM SetWindowPos —
+// never full-screen, so browsers never go blank from occlusion and no GDI
+// SetWindowRgn clipping is needed (zero white-box flashing).
+let W = window.innerWidth || 360;
+let H = window.innerHeight || 310;
+let screenW = (typeof window !== 'undefined' && window.screen?.width) || 1920;
+let screenH = (typeof window !== 'undefined' && window.screen?.height) || 1080;
+
+function refreshScreenBounds() {
+  if (typeof window !== 'undefined' && window.screen) {
+    if (window.screen.width > 0) screenW = window.screen.width;
+    if (window.screen.height > 0) screenH = window.screen.height;
+  }
+}
 
 let _appliedDpr = 1;
 function resizeCanvas() {
   const dpr = window.devicePixelRatio || 1;
-  const w = Math.round(window.innerWidth * dpr);
-  const h = Math.round(window.innerHeight * dpr);
-  W = window.innerWidth;
-  H = window.innerHeight;
+  const cw = window.innerWidth || 360;
+  const ch = window.innerHeight || 310;
+  const w = Math.round(cw * dpr);
+  const h = Math.round(ch * dpr);
+  W = cw;
+  H = ch;
+  refreshScreenBounds();
   if (canvas.width !== w || canvas.height !== h) {
     canvas.width  = w;
     canvas.height = h;
@@ -118,17 +133,20 @@ function resizeCanvas() {
 }
 resizeCanvas();
 
+function getScreenMargins() {
+  const minX = Math.max(CHAR_MARGIN, Math.round(W / 2));
+  const maxX = Math.max(minX + 40, screenW - minX);
+  const minY = Math.max(ROAM_MARGIN_TOP, H - 10);
+  const maxY = Math.max(minY, screenH - 8);
+  return { minX, maxX, minY, maxY };
+}
+
 window.addEventListener('resize', () => {
   resizeCanvas();
-  if (freeRoam) {
-    walkX = Math.max(ROAM_MARGIN_X, Math.min(W - ROAM_MARGIN_X, walkX));
-    walkY = Math.max(ROAM_MARGIN_TOP, Math.min(H - ROAM_MARGIN_BOT, walkY));
-    // Current roam target may now be out-of-bounds — pick a fresh one
-    pickRoamTarget();
-  } else {
-    walkX = Math.max(CHAR_MARGIN, Math.min(W - CHAR_MARGIN, walkX));
-    walkY = Math.max(CHAR_HEIGHT + 10, Math.min(H - 6, walkY));
-  }
+  const { minX, maxX, minY, maxY } = getScreenMargins();
+  walkX = Math.max(minX, Math.min(maxX, walkX));
+  walkY = freeRoam ? Math.max(minY, Math.min(maxY, walkY)) : maxY;
+  if (freeRoam) pickRoamTarget();
   updateHitZone(true);
 });
 
@@ -140,70 +158,36 @@ let _dragStartY = 0;
 let _walkXAtDragStart = 0;
 let _walkYAtDragStart = 0;
 
-// Move the hit-zone div so it covers the character's bounding box AND any active
-// speech bubble. Also update the Win32 window region (SetWindowRgn) so the entire
-// character and speech bubble are rendered without being trimmed/clipped by the OS,
-// while keeping the rest of the desktop 100% click-through.
-let _lastRegionX = -9999, _lastRegionY = -9999;
-let _lastRegionW = -9999, _lastRegionH = -9999;
-let _lastRegionTime = -1000;
+// Keep #hit-zone aligned over the character inside the compact window and move
+// the OS window smoothly to follow (walkX, walkY) across the desktop.
+let _lastWinX = -9999, _lastWinY = -9999;
 let _regionPending = false;
 
 function updateHitZone(force = false) {
-  const hw = CHAR_WIDTH * 2; // 160px baseline character width
-  const hh = CHAR_HEIGHT;    // 220px baseline character height
+  const totalW = CHAR_WIDTH * 2; // 160px interactive body width
+  const totalH = CHAR_HEIGHT;    // 220px interactive body height
+  const localX = Math.round(W / 2 - totalW / 2);
+  const localY = Math.round((H - 10) - totalH + springY);
 
-  // Dynamically calculate speech bubble dimensions when message is visible
-  let bubbleExtraW = 0;
-  let bubbleExtraTop = 0;
-  if (bubbleAlpha > 0.01 && bubbleText) {
-    ctx.font = 'bold 13px -apple-system, Segoe UI, sans-serif';
-    const tw = ctx.measureText(bubbleText).width;
-    const bw = tw + 28; // text width + horizontal padding
-    if (bw > hw) {
-      bubbleExtraW = Math.ceil((bw - hw) / 2) + 20;
-    }
-    // Bubble sits at by - bh, with shadow & tail: ~52px above character head
-    bubbleExtraTop = 52;
-  }
-
-  // Account for spring physics bounce (springY < 0 means jumping upwards)
-  const springOffset = springY < 0 ? Math.ceil(Math.abs(springY)) + 8 : 0;
-  const topPad = Math.max(bubbleExtraTop, springOffset) + 14;
-  const sidePad = bubbleExtraW + 16;
-
-  const totalW = hw + sidePad * 2;
-  const totalH = hh + topPad + 16;
-  const lx = Math.round(walkX - totalW / 2);
-  const ly = Math.round(walkY - hh - topPad);
-
-  hitZone.style.left   = `${lx}px`;
-  hitZone.style.top    = `${ly}px`;
+  hitZone.style.left   = `${localX}px`;
+  hitZone.style.top    = `${localY}px`;
   hitZone.style.bottom = '';
   hitZone.style.width  = `${totalW}px`;
   hitZone.style.height = `${totalH}px`;
 
-  // Push region update throttled to ~5 Hz (200 ms) during walk, or immediately
-  // on forced transitions (boot, resize, bubble appear, active drag).
-  const now = performance.now();
-  const moved =
-    Math.abs(lx - _lastRegionX) >= 12 ||
-    Math.abs(ly - _lastRegionY) >= 12 ||
-    Math.abs(totalW - _lastRegionW) >= 12 ||
-    Math.abs(totalH - _lastRegionH) >= 12;
+  const winLeft = Math.round(walkX - W / 2);
+  const winTop  = Math.round(walkY - (H - 10));
+  const moved = Math.abs(winLeft - _lastWinX) >= 2 || Math.abs(winTop - _lastWinY) >= 2;
 
-  if (force || (moved && (now - _lastRegionTime >= 200 || _dragActive))) {
-    _lastRegionTime = now;
-    _lastRegionX = lx;
-    _lastRegionY = ly;
-    _lastRegionW = totalW;
-    _lastRegionH = totalH;
+  if (force || moved) {
+    _lastWinX = winLeft;
+    _lastWinY = winTop;
     if (!_regionPending) {
       _regionPending = true;
       Promise.resolve().then(() => {
         _regionPending = false;
         const dpr = window.devicePixelRatio || 1;
-        void setHitZoneRegion(lx, ly, totalW, totalH, dpr);
+        void setHitZoneRegion(_lastWinX, _lastWinY, totalW, totalH, dpr);
       });
     }
   }
@@ -236,8 +220,8 @@ let WALK_STATES = getWalkStates();
 let currentState = 'idle';
 let nextStateTimer = 0;
 let walkDir = 1;           // 1 = right, -1 = left
-let walkX = W / 2;         // start at horizontal centre so companion is visible immediately
-let walkY = H - 6;         // feet Y position (rests neatly above bottom edge)
+let walkX = screenW / 2;   // desktop X (centred on primary screen)
+let walkY = screenH - 8;   // desktop feet Y (above auto-hide taskbar edge)
 let walking = false;
 let pauseTimer = 0;
 let animTime = 0;
@@ -303,10 +287,8 @@ function _maybeShowStreakGreeting() {
 
 /** Pick a random on-screen waypoint the companion will walk toward. */
 function pickRoamTarget() {
-  const minX = ROAM_MARGIN_X;
-  const maxX = Math.max(minX + 100, W - ROAM_MARGIN_X);
-  const minY = ROAM_MARGIN_TOP;
-  const maxY = H - 6; // feet rest cleanly above bottom edge
+  refreshScreenBounds();
+  const { minX, maxX, minY, maxY } = getScreenMargins();
   _roamTargetX = minX + Math.random() * (maxX - minX);
   _roamTargetY = minY + Math.random() * (maxY - minY);
   _roamPauseUntil = 0; // start walking immediately
@@ -355,9 +337,10 @@ function stepRoam(timestamp) {
   // Move toward target — normalise direction and scale by speed
   walkX += (dx / dist) * ROAM_SPEED_PX;
   walkY += (dy / dist) * ROAM_SPEED_PX;
-  // Keep inside safe bounds
-  walkX = Math.max(ROAM_MARGIN_X, Math.min(W - ROAM_MARGIN_X, walkX));
-  walkY = Math.max(ROAM_MARGIN_TOP, Math.min(H - 6, walkY));
+  // Keep inside safe desktop bounds
+  const { minX, maxX, minY, maxY } = getScreenMargins();
+  walkX = Math.max(minX, Math.min(maxX, walkX));
+  walkY = Math.max(minY, Math.min(maxY, walkY));
   // Update face direction based on horizontal movement
   walkDir = dx >= 0 ? 1 : -1;
   return true; // still walking
@@ -377,7 +360,7 @@ async function toggleFreeRoam() {
     loadSprite(companion.id, 'walk');
     showBubble('🗺️ Free Roam on! Exploring everywhere.', 2500);
   } else {
-    walkY = H - 6;
+    walkY = getScreenMargins().maxY;
     _roamPauseUntil = 0;
     walking = false;
     currentState = 'idle';
@@ -479,7 +462,7 @@ const spriteLoading = {};
 const spriteContainer = (() => {
   const el = document.createElement('div');
   el.setAttribute('aria-hidden', 'true');
-  el.style.cssText = 'position:fixed;left:0;top:0;opacity:0;pointer-events:none;overflow:hidden;';
+  el.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden;';
   document.body.appendChild(el);
   return el;
 })();
@@ -629,23 +612,24 @@ function renderFrame(timestamp) {
         if (Math.random() < 0.008) springVY = -4;
       }
     } else {
-      // ── Standard mode: patrol along the bottom edge ──────────────────────────
+      // ── Standard mode: patrol along the bottom edge of the desktop ───────────
       if (walking && walkAllowed) {
         if (Math.random() < IDLE_PAUSE_CHANCE) {
           walking = false;
           currentState = 'idle';
           nextStateTimer = performance.now() + 3000;
         } else {
+          const { minX, maxX } = getScreenMargins();
           walkX += walkDir * WALK_SPEED_PX;
-          if (walkX > W - CHAR_MARGIN) {
-            walkX = W - CHAR_MARGIN;
+          if (walkX > maxX) {
+            walkX = maxX;
             walkDir = -1;
             walking = false;
             pauseTimer = timestamp + WALK_PAUSE_MS;
             currentState = 'idle';
             nextStateTimer = performance.now() + WALK_PAUSE_MS + 1000;
-          } else if (walkX < CHAR_MARGIN) {
-            walkX = CHAR_MARGIN;
+          } else if (walkX < minX) {
+            walkX = minX;
             walkDir = 1;
             walking = false;
             pauseTimer = timestamp + WALK_PAUSE_MS;
@@ -694,29 +678,61 @@ function renderFrame(timestamp) {
 }
 
 function drawBubble() {
-  const bx = walkX;
-  const by = walkY - COMPANION_TARGET_H + 40 + springY;
+  const localX = W / 2;
+  const localY = H - 10;
   const pad = 12;
+  const maxTextW = Math.max(120, W - 40);
   ctx.font = 'bold 13px -apple-system, Segoe UI, sans-serif';
-  const tw = ctx.measureText(bubbleText).width;
-  const bw = tw + pad * 2;
-  const bh = 32;
+
+  // Wrap long captions cleanly onto up to 2 lines so nothing is ever trimmed.
+  const lines = [];
+  if (ctx.measureText(bubbleText).width <= maxTextW) {
+    lines.push(bubbleText);
+  } else {
+    const words = bubbleText.split(/\s+/);
+    let line = '';
+    for (const word of words) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (ctx.measureText(candidate).width <= maxTextW || !line) {
+        line = candidate;
+      } else {
+        lines.push(line);
+        line = word;
+        if (lines.length === 1) break;
+      }
+    }
+    if (line) {
+      const rest = words.slice(lines[0] ? lines[0].split(/\s+/).length : 0).join(' ');
+      let second = lines.length === 1 && rest ? rest : line;
+      while (second.length > 4 && ctx.measureText(second).width > maxTextW) {
+        second = second.slice(0, -2) + '…';
+      }
+      lines.push(second);
+    }
+  }
+
+  const maxLineW = Math.max(...lines.map((l) => ctx.measureText(l).width));
+  const bw = Math.min(W - 16, maxLineW + pad * 2);
+  const lineH = 16;
+  const bh = lines.length > 1 ? 46 : 32;
+
+  // Position bubble cleanly ABOVE the character's head (never overlapping the face).
+  const by = Math.max(bh + 8, localY - COMPANION_TARGET_H - 12 + springY);
 
   ctx.save();
-  ctx.globalAlpha = Math.min(bubbleAlpha, 0.95);
+  ctx.globalAlpha = Math.min(bubbleAlpha, 0.96);
 
-  // Clamp bubble horizontally so it stays on-screen
-  const clampedBx = Math.max(bw / 2 + 8, Math.min(W - bw / 2 - 8, bx));
+  const clampedBx = Math.max(bw / 2 + 8, Math.min(W - bw / 2 - 8, localX));
   const rx = clampedBx - bw / 2;
   const ry = by - bh;
 
   // Drop shadow
-  ctx.shadowColor = 'rgba(0,0,0,0.12)';
+  ctx.shadowColor = 'rgba(0,0,0,0.14)';
   ctx.shadowBlur = 8;
   ctx.shadowOffsetY = 2;
 
   ctx.fillStyle = '#fff';
-  ctx.strokeStyle = 'rgba(0,0,0,0.10)';
+  ctx.strokeStyle = 'rgba(0,0,0,0.12)';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.roundRect(rx, ry, bw, bh, 10);
@@ -727,8 +743,8 @@ function drawBubble() {
   ctx.shadowBlur = 0;
   ctx.shadowOffsetY = 0;
 
-  // Tail — point from clamped bubble toward actual companion centre
-  const tailX = Math.max(rx + 12, Math.min(rx + bw - 12, bx));
+  // Tail — points down from bubble toward top of companion's head
+  const tailX = Math.max(rx + 12, Math.min(rx + bw - 12, localX));
   ctx.fillStyle = '#fff';
   ctx.beginPath();
   ctx.moveTo(tailX - 7, by);
@@ -740,7 +756,12 @@ function drawBubble() {
   ctx.fillStyle = '#1f2328';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(bubbleText, clampedBx, ry + bh / 2);
+  if (lines.length === 1) {
+    ctx.fillText(lines[0], clampedBx, ry + bh / 2);
+  } else {
+    ctx.fillText(lines[0], clampedBx, ry + bh / 2 - lineH / 2);
+    ctx.fillText(lines[1], clampedBx, ry + bh / 2 + lineH / 2);
+  }
 
   ctx.restore();
 }
@@ -748,12 +769,14 @@ function drawBubble() {
 // Draw the live status indicator (e.g. 🔴 when capturing) above the companion
 function drawStatusIndicator() {
   if (!_statusIndicator) return;
+  const localX = W / 2;
+  const localY = H - 10;
   ctx.save();
   ctx.font = '14px -apple-system, Segoe UI, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.globalAlpha = 0.9;
-  ctx.fillText(_statusIndicator, walkX + CHAR_WIDTH * 0.6, walkY - COMPANION_TARGET_H + springY - 8);
+  ctx.fillText(_statusIndicator, localX + CHAR_WIDTH * 0.6, localY - COMPANION_TARGET_H + springY - 8);
   ctx.restore();
 }
 
@@ -770,14 +793,16 @@ let _lastRenderedFlip = null;
  */
 function renderSprite(img, flip) {
   if (!spriteImgEl) return;
+  const localX = W / 2;
+  const localY = H - 10;
   const scale = Math.min(
     COMPANION_TARGET_H / (img.naturalHeight || COMPANION_TARGET_H),
-    (W * 0.5) / (img.naturalWidth || 160)
+    (W * 0.72) / (img.naturalWidth || 160)
   );
   const dw = Math.round((img.naturalWidth || 160) * scale);
   const dh = Math.round((img.naturalHeight || COMPANION_TARGET_H) * scale);
-  const dx = Math.round(walkX - dw / 2);
-  const dy = Math.round(walkY - dh + springY);
+  const dx = Math.round(localX - dw / 2);
+  const dy = Math.round(localY - dh + springY);
 
   if (spriteImgEl.style.display !== 'block') {
     spriteImgEl.style.display = 'block';
@@ -841,9 +866,9 @@ function drawCompanion() {
 
 function drawProceduralCompanion(flip) {
   const colors = companion.colors || DEFAULT_COMPANION.colors;
-  const cx = walkX;
-  // Feet at walkY, spring offset shifts entire body
-  const baseY = walkY;
+  const cx = W / 2;
+  // Feet at bottom anchor of compact window, spring offset shifts entire body
+  const baseY = H - 10;
   const sc = CHAR_SCALE;
 
   let bob = Math.sin(animTime * 2.5) * 2.5 * sc + springY;
@@ -1049,7 +1074,8 @@ function _endDrag() {
   // Brief cooldown before auto-walk resumes so the companion stays where dropped
   _dragResumeAt = performance.now() + DRAG_RESUME_MS;
 
-  // Sync the interactive hit-zone region immediately after drop
+  // Release Rust DRAG_LOCK so cursor hover tracker resumes immediately
+  void setCompanionPassthrough(true);
   updateHitZone(true);
 
   if (_dragMoved) {
@@ -1062,20 +1088,23 @@ function _endDrag() {
 hitZone.addEventListener('mousedown', (e) => {
   if (e.button !== 0) return; // only left click initiates drag
   e.preventDefault();
-  _beginDrag(e.clientX, e.clientY);
+  _beginDrag(e.screenX ?? e.clientX, e.screenY ?? e.clientY);
 });
 
 window.addEventListener('mousemove', (e) => {
   if (!_dragActive) return;
-  const dx = e.clientX - _dragStartX;
-  const dy = e.clientY - _dragStartY;
+  const sx = e.screenX ?? e.clientX;
+  const sy = e.screenY ?? e.clientY;
+  const dx = sx - _dragStartX;
+  const dy = sy - _dragStartY;
   if (!_dragMoved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
     _dragMoved = true;
   }
   if (!_dragMoved) return;
 
-  walkX = Math.max(CHAR_MARGIN, Math.min(W - CHAR_MARGIN, _walkXAtDragStart + dx));
-  walkY = Math.max(COMPANION_TARGET_H + 10, Math.min(H - 6, _walkYAtDragStart + dy));
+  const { minX, maxX, minY, maxY } = getScreenMargins();
+  walkX = Math.max(minX, Math.min(maxX, _walkXAtDragStart + dx));
+  walkY = Math.max(minY, Math.min(maxY, _walkYAtDragStart + dy));
 });
 
 window.addEventListener('mouseup', _endDrag);
@@ -1088,21 +1117,24 @@ hitZone.addEventListener('touchstart', (e) => {
   if (e.touches.length !== 1) return;
   e.preventDefault();
   const t = e.touches[0];
-  _beginDrag(t.clientX, t.clientY);
+  _beginDrag(t.screenX ?? t.clientX, t.screenY ?? t.clientY);
 }, { passive: false });
 
 window.addEventListener('touchmove', (e) => {
   if (!_dragActive || e.touches.length !== 1) return;
   const t = e.touches[0];
-  const dx = t.clientX - _dragStartX;
-  const dy = t.clientY - _dragStartY;
+  const sx = t.screenX ?? t.clientX;
+  const sy = t.screenY ?? t.clientY;
+  const dx = sx - _dragStartX;
+  const dy = sy - _dragStartY;
   if (!_dragMoved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
     _dragMoved = true;
   }
   if (!_dragMoved) return;
 
-  walkX = Math.max(CHAR_MARGIN, Math.min(W - CHAR_MARGIN, _walkXAtDragStart + dx));
-  walkY = Math.max(COMPANION_TARGET_H + 10, Math.min(H - 6, _walkYAtDragStart + dy));
+  const { minX, maxX, minY, maxY } = getScreenMargins();
+  walkX = Math.max(minX, Math.min(maxX, _walkXAtDragStart + dx));
+  walkY = Math.max(minY, Math.min(maxY, _walkYAtDragStart + dy));
 });
 
 window.addEventListener('touchend', _endDrag);
@@ -1188,7 +1220,7 @@ async function reloadCompanion() {
       loadSprite(companion.id, 'walk');
       _roamPauseUntil = 0;
     } else {
-      walkY = H - 6;
+      walkY = getScreenMargins().maxY;
       _roamPauseUntil = 0;
       walking = false;
       currentState = 'idle';

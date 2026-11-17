@@ -13,6 +13,19 @@
       height: 100vh;
       -webkit-app-region: no-drag;
     }
+    /* Live hardware-accelerated animated WebP sprite — sits beneath canvas
+       so speech bubbles and status indicators always draw in front of the head */
+    #companion-sprite {
+      position: fixed;
+      display: none;
+      pointer-events: none;
+      z-index: 2;
+      -webkit-user-drag: none;
+      user-select: none;
+      -webkit-user-select: none;
+      image-rendering: auto;
+      will-change: transform, left, top;
+    }
     canvas {
       display: block;
       position: fixed;
@@ -21,19 +34,7 @@
       height: 100vh;
       background: transparent;
       pointer-events: none;
-      z-index: 2;
-    }
-    /* Live hardware-accelerated animated WebP sprite */
-    #companion-sprite {
-      position: fixed;
-      display: none;
-      pointer-events: none;
       z-index: 4;
-      -webkit-user-drag: none;
-      user-select: none;
-      -webkit-user-select: none;
-      image-rendering: auto;
-      will-change: transform, left, top;
     }
     /* Invisible hit zone — follows character position, captures mouse events */
     #hit-zone {

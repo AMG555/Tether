@@ -1238,66 +1238,162 @@ pub fn show_main_window(window: tauri::Window) -> Result<(), String> {
     window.set_focus().map_err(|e| e.to_string())
 }
 
-/// Shows the companion overlay window, covering the full primary monitor so the
-/// companion can walk across the whole desktop.  The window is fully transparent
-/// except for the character itself; click-through is handled in JS via hit-testing.
+/// Logical CSS dimensions of the compact floating companion overlay window.
+/// Sized tightly around the 160×220 companion + headroom for speech bubbles (~5%
+/// of a 1080p screen) instead of full-screen so:
+/// 1. Chromium browsers (Chrome/Edge/Brave/DuckDuckGo) never trigger Native Window
+///    Occlusion and blank out pages underneath.
+/// 2. Windows Explorer never classifies the overlay as fullscreen, so the auto-hide
+///    taskbar always reveals on edge hover.
+/// 3. No Win32 `SetWindowRgn` GDI clipping is needed — eliminating white-box flashes.
+const OVERLAY_LOGICAL_W: f64 = 360.0;
+const OVERLAY_LOGICAL_H: f64 = 310.0;
+
+#[cfg(target_os = "windows")]
+mod hit_tracker {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Mutex;
+
+    /// Physical screen-space rect `(left, top, right, bottom)` of the companion's
+    /// interactive body inside the compact overlay window.
+    static HIT_RECT: Mutex<(i32, i32, i32, i32)> = Mutex::new((0, 0, 0, 0));
+    /// Held true while the user is actively dragging so fast cursor moves never drop drag.
+    pub static DRAG_LOCK: AtomicBool = AtomicBool::new(false);
+    /// Tracks whether the overlay window is currently shown.
+    pub static OVERLAY_VISIBLE: AtomicBool = AtomicBool::new(false);
+    /// Cached `set_ignore_cursor_events` state so we only flip `WS_EX_TRANSPARENT`
+    /// on hover enter/leave transitions (zero repaint churn).
+    pub static CURRENTLY_IGNORING: AtomicBool = AtomicBool::new(true);
+    /// Ensures at most one lightweight cursor-tracking thread is spawned.
+    static STARTED: AtomicBool = AtomicBool::new(false);
+
+    #[repr(C)]
+    struct Point {
+        x: i32,
+        y: i32,
+    }
+
+    #[link(name = "user32")]
+    extern "system" {
+        fn GetCursorPos(lp_point: *mut Point) -> i32;
+    }
+
+    pub fn set_rect(left: i32, top: i32, right: i32, bottom: i32) {
+        let mut g = HIT_RECT.lock().unwrap_or_else(|e| e.into_inner());
+        *g = (left, top, right, bottom);
+    }
+
+    pub fn ensure_started(app: tauri::AppHandle) {
+        use tauri::Manager as _;
+        if STARTED.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        std::thread::spawn(move || loop {
+            if !OVERLAY_VISIBLE.load(Ordering::Relaxed) {
+                if !CURRENTLY_IGNORING.load(Ordering::Relaxed) {
+                    if let Some(w) = app.get_webview_window("companion-overlay") {
+                        let _ = w.set_ignore_cursor_events(true);
+                    }
+                    CURRENTLY_IGNORING.store(true, Ordering::Relaxed);
+                }
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                continue;
+            }
+
+            let should_ignore = if DRAG_LOCK.load(Ordering::Relaxed) {
+                false
+            } else {
+                let (l, t, r, b) = *HIT_RECT.lock().unwrap_or_else(|e| e.into_inner());
+                if r <= l || b <= t {
+                    true
+                } else {
+                    let mut pt = Point { x: 0, y: 0 };
+                    let ok = unsafe { GetCursorPos(&mut pt) } != 0;
+                    if ok {
+                        !(pt.x >= l && pt.x <= r && pt.y >= t && pt.y <= b)
+                    } else {
+                        true
+                    }
+                }
+            };
+
+            if should_ignore != CURRENTLY_IGNORING.load(Ordering::Relaxed) {
+                if let Some(w) = app.get_webview_window("companion-overlay") {
+                    if w.set_ignore_cursor_events(should_ignore).is_ok() {
+                        CURRENTLY_IGNORING.store(should_ignore, Ordering::Relaxed);
+                    }
+                } else {
+                    break;
+                }
+            }
+
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        });
+    }
+}
+
+/// Shows the compact transparent companion overlay window near the bottom centre
+/// of the primary monitor without stealing focus or triggering browser occlusion.
 #[tauri::command]
 pub fn show_companion_overlay(app: tauri::AppHandle) -> Result<(), String> {
     use tauri::{Manager as _, PhysicalPosition, PhysicalSize};
     let w =
         app.get_webview_window("companion-overlay").ok_or("companion-overlay window not found")?;
 
-    // Always size and position the overlay to the primary monitor so it covers
-    // the full desktop — even after a resolution change or multi-monitor switch.
-    // Leave the bottom 4 physical pixels uncovered so Windows Explorer never flags
-    // this transparent overlay as a fullscreen exclusive window, and so the auto-hide
-    // taskbar edge hit-sensor receives mouse hover directly without requiring a Win key press.
     if let Ok(Some(monitor)) = app.primary_monitor() {
         let pos = monitor.position();
         let size = monitor.size();
-        let h = size.height.saturating_sub(4);
-        let _ = w.set_size(PhysicalSize::new(size.width, h));
-        let _ = w.set_position(PhysicalPosition::new(pos.x, pos.y));
+        let scale = monitor.scale_factor();
+        let pw = (OVERLAY_LOGICAL_W * scale).round() as u32;
+        let ph = (OVERLAY_LOGICAL_H * scale).round() as u32;
+        let start_x = pos.x + ((size.width as i32 - pw as i32) / 2).max(0);
+        let start_y = pos.y + (size.height as i32 - ph as i32 - (8.0 * scale).round() as i32).max(0);
+        let _ = w.set_size(PhysicalSize::new(pw, ph));
+        let _ = w.set_position(PhysicalPosition::new(start_x, start_y));
     }
 
-    // Make the transparent overlay fully click-through at the OS level.
-    // The hit-zone rect is carved out as the ONLY interactive region via
-    // set_hit_zone_region() — a Win32 SetWindowRgn call that marks just the
-    // character's bounding rect as non-transparent.  Everything else stays
-    // WS_EX_TRANSPARENT so desktop clicks pass straight through.
+    // Start click-through; the hover tracker clears WS_EX_TRANSPARENT only when
+    // the cursor hovers over the companion's body.
     let _ = w.set_ignore_cursor_events(true);
 
     // Show without stealing keyboard focus — the overlay is purely visual.
     w.show().map_err(|e| e.to_string())?;
 
-    // On Windows: use SetWindowPos with HWND_TOPMOST but SWP_NOACTIVATE so the
-    // companion floats above app windows WITHOUT blocking the taskbar auto-hide
-    // mechanism.  Setting alwaysOnTop via Tauri's config uses a different flag
-    // combination that suppresses WM_APPACTIVATE and breaks taskbar reveal.
-    // Using the Win32 API directly gives us precise control over the Z-order flags.
     #[cfg(target_os = "windows")]
-    set_topmost_noactivate(&w);
+    {
+        use std::sync::atomic::Ordering;
+        set_topmost_noactivate(&w);
+        hit_tracker::DRAG_LOCK.store(false, Ordering::Relaxed);
+        hit_tracker::CURRENTLY_IGNORING.store(true, Ordering::Relaxed);
+        hit_tracker::OVERLAY_VISIBLE.store(true, Ordering::Relaxed);
+        hit_tracker::ensure_started(app.clone());
+    }
 
     Ok(())
 }
 
 /// Toggles OS-level cursor passthrough on the companion overlay window.
+/// Pass `ignore = false` during active drag so fast cursor movement never drops it.
 #[tauri::command]
 pub fn set_companion_passthrough(app: tauri::AppHandle, ignore: bool) -> Result<(), String> {
     use tauri::Manager as _;
     let w =
         app.get_webview_window("companion-overlay").ok_or("companion-overlay window not found")?;
+    #[cfg(target_os = "windows")]
+    {
+        use std::sync::atomic::Ordering;
+        hit_tracker::DRAG_LOCK.store(!ignore, Ordering::Relaxed);
+        hit_tracker::CURRENTLY_IGNORING.store(ignore, Ordering::Relaxed);
+    }
     w.set_ignore_cursor_events(ignore).map_err(|e| e.to_string())
 }
 
-/// Update the interactive region of the companion overlay to exactly the
-/// hit-zone rectangle (in CSS/logical pixels).  Everything outside this rect
-/// stays WS_EX_TRANSPARENT (fully click-through); inside the rect events are
-/// delivered normally so the user can click and drag the companion.
+/// Repositions the compact companion overlay window to logical screen position
+/// `(x, y)` and updates the character body's interactive hitbox `(width, height)`.
 ///
-/// Called from the overlay JS every frame (throttled to ~10 Hz) via IPC.
-/// On non-Windows platforms this is a no-op — macOS/Linux handle transparency
-/// differently and don't need a region update.
+/// Uses DWM-composited `SetWindowPos(SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE)`
+/// without any `SetWindowRgn` GDI clipping — zero white-box flashing, zero browser
+/// occlusion, and smooth 60 fps movement across the entire desktop.
 #[tauri::command]
 pub fn set_hit_zone_region(
     app: tauri::AppHandle,
@@ -1307,64 +1403,84 @@ pub fn set_hit_zone_region(
     height: i32,
     scale: f64,
 ) -> Result<(), String> {
+    use tauri::Manager as _;
+    let w =
+        app.get_webview_window("companion-overlay").ok_or("companion-overlay window not found")?;
+
+    let s = if scale > 0.0 { scale } else { 1.0 };
+    let win_size = w.outer_size().ok();
+    let (win_pw, win_ph) = match win_size {
+        Some(sz) if sz.width > 0 && sz.height > 0 => (sz.width as i32, sz.height as i32),
+        _ => ((OVERLAY_LOGICAL_W * s).round() as i32, (OVERLAY_LOGICAL_H * s).round() as i32),
+    };
+
+    let (mon_x, mon_y, mon_w, mon_h) = match app.primary_monitor() {
+        Ok(Some(m)) => {
+            let p = m.position();
+            let sz = m.size();
+            (p.x, p.y, sz.width as i32, sz.height as i32)
+        }
+        _ => (0, 0, (1920.0 * s) as i32, (1080.0 * s) as i32),
+    };
+
+    // Keep the overlay within primary monitor bounds with at least 6 logical px
+    // clearance from the bottom edge so the Windows auto-hide taskbar always triggers.
+    let bottom_pad = (6.0 * s).round() as i32;
+    let max_x = mon_x + (mon_w - win_pw).max(0);
+    let max_y = mon_y + (mon_h - win_ph - bottom_pad).max(0);
+    let wx = (mon_x + (x as f64 * s).round() as i32).clamp(mon_x, max_x);
+    let wy = (mon_y + (y as f64 * s).round() as i32).clamp(mon_y, max_y);
+
     #[cfg(target_os = "windows")]
     {
         use std::ffi::c_void;
-        use tauri::Manager as _;
-
-        let w = app
-            .get_webview_window("companion-overlay")
-            .ok_or("companion-overlay window not found")?;
-
-        // Convert CSS logical pixels → physical pixels using the DPI scale factor.
-        // Clamp region size so a bad call can never block the full desktop.
-        let s = if scale > 0.0 { scale } else { 1.0 };
-        let px = (x as f64 * s) as i32;
-        let py = (y as f64 * s) as i32;
-        let pw = ((width as f64 * s) as i32).clamp(1, 1200);
-        let ph = ((height as f64 * s) as i32).clamp(1, 900);
-
-        const GWL_EXSTYLE: i32 = -20;
-        const WS_EX_TRANSPARENT: i32 = 0x0000_0020;
+        const SWP_NOSIZE: u32 = 0x0001;
+        const SWP_NOZORDER: u32 = 0x0004;
+        const SWP_NOACTIVATE: u32 = 0x0010;
 
         #[link(name = "user32")]
         extern "system" {
-            fn GetWindowLongW(hwnd: *mut c_void, index: i32) -> i32;
-            fn SetWindowRgn(hwnd: *mut c_void, hrgn: *mut c_void, redraw: i32) -> i32;
-        }
-        #[link(name = "gdi32")]
-        extern "system" {
-            fn CreateRectRgn(x1: i32, y1: i32, x2: i32, y2: i32) -> *mut c_void;
-            fn DeleteObject(h: *mut c_void) -> i32;
+            fn SetWindowPos(
+                hwnd: *mut c_void,
+                insert_after: *mut c_void,
+                x: i32,
+                y: i32,
+                cx: i32,
+                cy: i32,
+                flags: u32,
+            ) -> i32;
         }
 
         if let Ok(hwnd_raw) = w.hwnd() {
             unsafe {
-                // Create a rectangle region for the hit-zone only.
-                // NULL region (from SetWindowRgn with null) = entire window is interactive,
-                // so we always pass a real rect — even during initialisation.
-                let left = px.max(0);
-                let top = py.max(0);
-                let rgn = CreateRectRgn(left, top, left + pw, top + ph);
-                if !rgn.is_null() {
-                    // SetWindowRgn takes ownership of the region handle on success;
-                    // only delete it ourselves if the call fails.
-                    // Pass redraw = 1 so Windows repaints the window within the interactive region.
-                    let ok = SetWindowRgn(hwnd_raw.0, rgn, 1 /* TRUE = repaint region */);
-                    if ok == 0 {
-                        DeleteObject(rgn);
-                    } else if (GetWindowLongW(hwnd_raw.0, GWL_EXSTYLE) & WS_EX_TRANSPARENT) != 0 {
-                        // Region is carved to ONLY the character box; everything outside it is
-                        // excluded by the OS (click-through). Clear WS_EX_TRANSPARENT once so
-                        // clicks and drags inside the character box work normally.
-                        let _ = w.set_ignore_cursor_events(false);
-                    }
-                }
+                SetWindowPos(
+                    hwnd_raw.0,
+                    std::ptr::null_mut(),
+                    wx,
+                    wy,
+                    0,
+                    0,
+                    SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+                );
             }
         }
+
+        // Update physical screen-space hitbox of the character body centered in the window.
+        let hit_pw = ((width as f64 * s).round() as i32).clamp(1, win_pw);
+        let hit_ph = ((height as f64 * s).round() as i32).clamp(1, win_ph);
+        let hit_l = wx + (win_pw - hit_pw) / 2;
+        let hit_b = wy + win_ph - (10.0 * s).round() as i32;
+        let hit_t = (hit_b - hit_ph).max(wy);
+        hit_tracker::set_rect(hit_l, hit_t, hit_l + hit_pw, hit_b);
     }
+
     #[cfg(not(target_os = "windows"))]
-    let _ = (app, x, y, width, height, scale);
+    {
+        use tauri::PhysicalPosition;
+        let _ = (width, height);
+        let _ = w.set_position(PhysicalPosition::new(wx, wy));
+    }
+
     Ok(())
 }
 
@@ -1374,6 +1490,12 @@ pub fn hide_companion_overlay(app: tauri::AppHandle) -> Result<(), String> {
     use tauri::Manager as _;
     let w =
         app.get_webview_window("companion-overlay").ok_or("companion-overlay window not found")?;
+    #[cfg(target_os = "windows")]
+    {
+        use std::sync::atomic::Ordering;
+        hit_tracker::OVERLAY_VISIBLE.store(false, Ordering::Relaxed);
+        hit_tracker::DRAG_LOCK.store(false, Ordering::Relaxed);
+    }
     w.hide().map_err(|e| e.to_string())
 }
 

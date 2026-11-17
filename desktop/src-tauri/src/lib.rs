@@ -349,6 +349,14 @@ impl AppState {
 }
 
 pub fn run() -> Result<(), tauri::Error> {
+    // Prevent WebView2 from flashing a solid white backing surface during cold
+    // boot or window moves on transparent overlays (Alpha = 0). The main window
+    // paints an opaque CSS background immediately so it is unaffected.
+    #[cfg(target_os = "windows")]
+    if std::env::var_os("WEBVIEW2_DEFAULT_BACKGROUND_COLOR").is_none() {
+        std::env::set_var("WEBVIEW2_DEFAULT_BACKGROUND_COLOR", "0");
+    }
+
     tauri::Builder::default()
         .manage(std::sync::Mutex::new(AppState::new()))
         // Intercept the X-button: hide the main window instead of closing it.
