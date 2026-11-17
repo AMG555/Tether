@@ -1352,6 +1352,12 @@ pub fn show_companion_overlay(app: tauri::AppHandle) -> Result<(), String> {
         let _ = w.set_position(PhysicalPosition::new(start_x, start_y));
     }
 
+    // Disable native window shadow and Windows 11 1px DWM border ring so the
+    // transparent overlay has zero visible box around the companion.
+    let _ = w.set_shadow(false);
+    #[cfg(target_os = "windows")]
+    strip_dwm_border(&w);
+
     // Start click-through; the hover tracker clears WS_EX_TRANSPARENT only when
     // the cursor hovers over the companion's body.
     let _ = w.set_ignore_cursor_events(true);
@@ -1683,6 +1689,48 @@ fn set_topmost_noactivate(w: &tauri::WebviewWindow) {
             // This ensures the companion floats above normal application windows
             // while remaining non-intrusive.
             SetWindowPos(hwnd_raw.0, TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
+    }
+}
+
+/// On Windows 11, DWM draws a 1px hairline border and rounded corner chrome even
+/// on borderless transparent windows unless both attributes are explicitly turned
+/// off. Setting `DWMWA_BORDER_COLOR = DWMWA_COLOR_NONE` and `DWMWCP_DONOTROUND`
+/// removes the visible box while preserving per-pixel alpha transparency.
+#[cfg(target_os = "windows")]
+fn strip_dwm_border(w: &tauri::WebviewWindow) {
+    use std::ffi::c_void;
+    const DWMWA_WINDOW_CORNER_PREFERENCE: u32 = 33;
+    const DWMWA_BORDER_COLOR: u32 = 34;
+    const DWMWCP_DONOTROUND: u32 = 1;
+    const DWMWA_COLOR_NONE: u32 = 0xFFFF_FFFE;
+
+    #[link(name = "dwmapi")]
+    extern "system" {
+        fn DwmSetWindowAttribute(
+            hwnd: *mut c_void,
+            dw_attribute: u32,
+            pv_attribute: *const c_void,
+            cb_attribute: u32,
+        ) -> i32;
+    }
+
+    if let Ok(hwnd_raw) = w.hwnd() {
+        unsafe {
+            let corner = DWMWCP_DONOTROUND;
+            let _ = DwmSetWindowAttribute(
+                hwnd_raw.0,
+                DWMWA_WINDOW_CORNER_PREFERENCE,
+                &corner as *const u32 as *const c_void,
+                std::mem::size_of::<u32>() as u32,
+            );
+            let border = DWMWA_COLOR_NONE;
+            let _ = DwmSetWindowAttribute(
+                hwnd_raw.0,
+                DWMWA_BORDER_COLOR,
+                &border as *const u32 as *const c_void,
+                std::mem::size_of::<u32>() as u32,
+            );
         }
     }
 }

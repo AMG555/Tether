@@ -133,10 +133,11 @@ test('companion-overlay canvas stacks above sprite so captions never render behi
   assert.ok(canvasZ > spriteZ, `canvas z-index (${canvasZ}) must be greater than #companion-sprite (${spriteZ})`);
 });
 
-test('companion-overlay window stays compact to prevent browser occlusion and white flashing', async () => {
+test('companion-overlay window stays compact and shadowless to prevent browser occlusion and Win11 border box', async () => {
   const cfg = JSON.parse(await readFile(path.join(desktopRoot, 'src-tauri/tauri.conf.json'), 'utf8'));
   const overlay = cfg.app.windows.find((w) => w.label === 'companion-overlay');
   assert.ok(overlay, 'companion-overlay window must be configured');
+  assert.equal(overlay.shadow, false, 'shadow must be false so Windows 11 DWM does not draw a 1px border box');
   assert.ok(overlay.width <= 480 && overlay.height <= 400,
     `overlay must be compact (got ${overlay.width}x${overlay.height}) so Chromium occlusion never blanks browsers`);
 });
