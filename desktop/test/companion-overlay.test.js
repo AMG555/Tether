@@ -141,3 +141,14 @@ test('companion-overlay window stays compact and shadowless to prevent browser o
   assert.ok(overlay.width <= 480 && overlay.height <= 400,
     `overlay must be compact (got ${overlay.width}x${overlay.height}) so Chromium occlusion never blanks browsers`);
 });
+
+test('activating a companion in main.js preserves freeRoam state instead of resetting to false', async () => {
+  const src = await readFile(path.join(desktopRoot, 'src/main.js'), 'utf8');
+  // Every object literal passed directly to setActiveCompanion (or assigned to companionState)
+  // must explicitly include freeRoam so Rust serde default does not silently reset it to false.
+  const cardState = src.match(/const companionState = \{[\s\S]*?\};/);
+  assert.ok(cardState && /\bfreeRoam\b/.test(cardState[0]), 'card Activate companionState must include freeRoam');
+
+  const previewActivate = src.match(/setActiveCompanion\(\{\s*id:\s*previewCompanion\.id[\s\S]*?\}\)/);
+  assert.ok(previewActivate && /\bfreeRoam\b/.test(previewActivate[0]), 'preview Activate setActiveCompanion must include freeRoam');
+});

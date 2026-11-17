@@ -730,10 +730,18 @@ async function setupCompanionsView() {
         openCompanionPreview(c);
       });
 
-      card.querySelector('.btn-select-pet')?.addEventListener('click', () => {
+      card.querySelector('.btn-select-pet')?.addEventListener('click', async () => {
         activePetId = c.id;
         const activeName = document.getElementById('active-companion-name');
         if (activeName) activeName.textContent = c.name;
+
+        // Preserve the user's Free Roam setting so switching companions never
+        // resets roaming back to bottom-only patrol.
+        const prev = await getActiveCompanion().catch(() => null);
+        const roamEl = document.getElementById('preview-roam-toggle');
+        const freeRoam = typeof prev?.freeRoam === 'boolean'
+          ? prev.freeRoam
+          : Boolean(roamEl?.checked || (typeof localStorage !== 'undefined' && localStorage.getItem('tether_companion_free_roam') === 'true'));
 
         // Persist via IPC so the companion-overlay window (separate WebView,
         // isolated localStorage) can read the choice via get_active_companion.
@@ -745,6 +753,7 @@ async function setupCompanionsView() {
           colors: c.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' },
           actions: c.actions?.length ? c.actions
             : ['idle', 'walk', 'wave', 'water', 'stretch', 'happy', 'sad', 'eyes'],
+          freeRoam,
           visible: true,
         };
         void setActiveCompanion(companionState);
@@ -1505,8 +1514,12 @@ function setupPreviewModalHandlers() {
         card.classList.toggle('active-pet', card.querySelector(`.companion-avatar-canvas[data-companion-id="${CSS.escape(previewCompanion.id)}"]`) !== null);
       });
 
-      // Collect enabled actions from the toggle grid in the customizer
+      // Collect enabled actions and Free Roam state from the customizer
       const enabledActions = getEnabledActionsFromToggles();
+      const roamEl = document.getElementById('preview-roam-toggle');
+      const freeRoam = roamEl
+        ? roamEl.checked
+        : (typeof localStorage !== 'undefined' && localStorage.getItem('tether_companion_free_roam') === 'true');
 
       // Persist via IPC — shared between both WebView windows.
       void setActiveCompanion({
@@ -1515,6 +1528,7 @@ function setupPreviewModalHandlers() {
         avatarType: previewCompanion.avatarType || 'procedural',
         colors: previewCompanion.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' },
         actions: enabledActions,
+        freeRoam,
         visible: true,
       });
 

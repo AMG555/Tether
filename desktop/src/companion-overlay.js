@@ -289,8 +289,16 @@ function _maybeShowStreakGreeting() {
 function pickRoamTarget() {
   refreshScreenBounds();
   const { minX, maxX, minY, maxY } = getScreenMargins();
-  _roamTargetX = minX + Math.random() * (maxX - minX);
-  _roamTargetY = minY + Math.random() * (maxY - minY);
+  // Prefer a waypoint clearly away from the current spot so Free Roam visibly
+  // leaves the bottom edge immediately instead of pausing right where it started.
+  let tx = minX + Math.random() * (maxX - minX);
+  let ty = minY + Math.random() * (maxY - minY);
+  for (let i = 0; i < 4 && Math.hypot(tx - walkX, ty - walkY) < 160; i++) {
+    tx = minX + Math.random() * (maxX - minX);
+    ty = minY + Math.random() * (maxY - minY);
+  }
+  _roamTargetX = tx;
+  _roamTargetY = ty;
   _roamPauseUntil = 0; // start walking immediately
 }
 
@@ -1251,7 +1259,15 @@ async function reloadCompanion() {
   _lastRenderedSrc = '';
   // Pre-warm all common actions so transitions are instant
   prewarmSprites(companion.id);
-  pickNextState();
+  if (freeRoam) {
+    pauseTimer = 0;
+    pickRoamTarget();
+    walking = true;
+    currentState = 'walk';
+    loadSprite(companion.id, 'walk');
+  } else {
+    pickNextState();
+  }
 }
 
 // Initial async load — replace the default Grace with the persisted companion.
@@ -1259,11 +1275,16 @@ loadActiveCompanionFromIPC().then((state) => {
   companion = state;
   if (typeof state.freeRoam === 'boolean') {
     freeRoam = state.freeRoam;
+    if (typeof localStorage !== 'undefined') {
+      try { localStorage.setItem(ROAM_STORAGE_KEY, String(freeRoam)); } catch {}
+    }
   }
   if (freeRoam) {
+    pauseTimer = 0;
     pickRoamTarget();
     walking = true;
     currentState = 'walk';
+    loadSprite(companion.id, 'walk');
   }
   // Refresh WALK_STATES to reflect this companion's action list.
   WALK_STATES = getWalkStates();
