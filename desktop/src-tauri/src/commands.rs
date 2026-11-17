@@ -1340,16 +1340,23 @@ pub fn show_companion_overlay(app: tauri::AppHandle) -> Result<(), String> {
     let w =
         app.get_webview_window("companion-overlay").ok_or("companion-overlay window not found")?;
 
+    let already_visible = w.is_visible().unwrap_or(false);
+
     if let Ok(Some(monitor)) = app.primary_monitor() {
         let pos = monitor.position();
         let size = monitor.size();
         let scale = monitor.scale_factor();
         let pw = (OVERLAY_LOGICAL_W * scale).round() as u32;
         let ph = (OVERLAY_LOGICAL_H * scale).round() as u32;
-        let start_x = pos.x + ((size.width as i32 - pw as i32) / 2).max(0);
-        let start_y = pos.y + (size.height as i32 - ph as i32 - (8.0 * scale).round() as i32).max(0);
         let _ = w.set_size(PhysicalSize::new(pw, ph));
-        let _ = w.set_position(PhysicalPosition::new(start_x, start_y));
+        // Only place at bottom-centre when showing from hidden — never teleport
+        // an already-visible roaming companion back to the bottom on character switch.
+        if !already_visible {
+            let start_x = pos.x + ((size.width as i32 - pw as i32) / 2).max(0);
+            let start_y =
+                pos.y + (size.height as i32 - ph as i32 - (8.0 * scale).round() as i32).max(0);
+            let _ = w.set_position(PhysicalPosition::new(start_x, start_y));
+        }
     }
 
     // Disable native window shadow and Windows 11 1px DWM border ring so the
