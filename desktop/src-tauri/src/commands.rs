@@ -1317,19 +1317,24 @@ pub fn set_hit_zone_region(
             .ok_or("companion-overlay window not found")?;
 
         // Convert CSS logical pixels → physical pixels using the DPI scale factor.
+        // Clamp region size so a bad call can never block the full desktop.
         let s = if scale > 0.0 { scale } else { 1.0 };
         let px = (x as f64 * s) as i32;
         let py = (y as f64 * s) as i32;
-        let pw = ((width  as f64 * s) as i32).max(1);
-        let ph = ((height as f64 * s) as i32).max(1);
+        let pw = ((width as f64 * s) as i32).clamp(1, 1200);
+        let ph = ((height as f64 * s) as i32).clamp(1, 900);
+
+        const GWL_EXSTYLE: i32 = -20;
+        const WS_EX_TRANSPARENT: i32 = 0x0000_0020;
 
         #[link(name = "user32")]
         extern "system" {
-            fn CreateRectRgn(x1: i32, y1: i32, x2: i32, y2: i32) -> *mut c_void;
+            fn GetWindowLongW(hwnd: *mut c_void, index: i32) -> i32;
             fn SetWindowRgn(hwnd: *mut c_void, hrgn: *mut c_void, redraw: i32) -> i32;
         }
         #[link(name = "gdi32")]
         extern "system" {
+            fn CreateRectRgn(x1: i32, y1: i32, x2: i32, y2: i32) -> *mut c_void;
             fn DeleteObject(h: *mut c_void) -> i32;
         }
 
@@ -1338,7 +1343,9 @@ pub fn set_hit_zone_region(
                 // Create a rectangle region for the hit-zone only.
                 // NULL region (from SetWindowRgn with null) = entire window is interactive,
                 // so we always pass a real rect — even during initialisation.
-                let rgn = CreateRectRgn(px.max(0), py.max(0), (px + pw).max(1), (py + ph).max(1));
+                let left = px.max(0);
+                let top = py.max(0);
+                let rgn = CreateRectRgn(left, top, left + pw, top + ph);
                 if !rgn.is_null() {
                     // SetWindowRgn takes ownership of the region handle on success;
                     // only delete it ourselves if the call fails.
@@ -1346,6 +1353,11 @@ pub fn set_hit_zone_region(
                     let ok = SetWindowRgn(hwnd_raw.0, rgn, 1 /* TRUE = repaint region */);
                     if ok == 0 {
                         DeleteObject(rgn);
+                    } else if (GetWindowLongW(hwnd_raw.0, GWL_EXSTYLE) & WS_EX_TRANSPARENT) != 0 {
+                        // Region is carved to ONLY the character box; everything outside it is
+                        // excluded by the OS (click-through). Clear WS_EX_TRANSPARENT once so
+                        // clicks and drags inside the character box work normally.
+                        let _ = w.set_ignore_cursor_events(false);
                     }
                 }
             }

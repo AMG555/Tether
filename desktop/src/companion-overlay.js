@@ -127,21 +127,29 @@ window.addEventListener('resize', () => {
     pickRoamTarget();
   } else {
     walkX = Math.max(CHAR_MARGIN, Math.min(W - CHAR_MARGIN, walkX));
-    walkY = Math.max(CHAR_HEIGHT + 10, Math.min(H - 10, walkY));
+    walkY = Math.max(CHAR_HEIGHT + 10, Math.min(H - 6, walkY));
   }
-  updateHitZone();
+  updateHitZone(true);
 });
+
+// Drag state — declared before updateHitZone() to avoid TDZ errors on initial boot.
+let _dragActive = false;
+let _dragMoved = false;
+let _dragStartX = 0;
+let _dragStartY = 0;
+let _walkXAtDragStart = 0;
+let _walkYAtDragStart = 0;
 
 // Move the hit-zone div so it covers the character's bounding box AND any active
 // speech bubble. Also update the Win32 window region (SetWindowRgn) so the entire
 // character and speech bubble are rendered without being trimmed/clipped by the OS,
-// while keeping the rest of the desktop 100% click-through (WS_EX_TRANSPARENT).
+// while keeping the rest of the desktop 100% click-through.
 let _lastRegionX = -9999, _lastRegionY = -9999;
 let _lastRegionW = -9999, _lastRegionH = -9999;
-let _lastRegionTime = 0;
+let _lastRegionTime = -1000;
 let _regionPending = false;
 
-function updateHitZone() {
+function updateHitZone(force = false) {
   const hw = CHAR_WIDTH * 2; // 160px baseline character width
   const hh = CHAR_HEIGHT;    // 220px baseline character height
 
@@ -175,16 +183,16 @@ function updateHitZone() {
   hitZone.style.width  = `${totalW}px`;
   hitZone.style.height = `${totalH}px`;
 
-  // Push region update throttled to ~5 Hz (200 ms) or active drag to prevent IPC spam
-  // and avoid continuous Win32 DWM composition thrashing while the character walks.
+  // Push region update throttled to ~5 Hz (200 ms) during walk, or immediately
+  // on forced transitions (boot, resize, bubble appear, active drag).
   const now = performance.now();
-  if (
-    (Math.abs(lx - _lastRegionX) >= 12 ||
-     Math.abs(ly - _lastRegionY) >= 12 ||
-     Math.abs(totalW - _lastRegionW) >= 12 ||
-     Math.abs(totalH - _lastRegionH) >= 12) &&
-    (now - _lastRegionTime >= 200 || _dragActive)
-  ) {
+  const moved =
+    Math.abs(lx - _lastRegionX) >= 12 ||
+    Math.abs(ly - _lastRegionY) >= 12 ||
+    Math.abs(totalW - _lastRegionW) >= 12 ||
+    Math.abs(totalH - _lastRegionH) >= 12;
+
+  if (force || (moved && (now - _lastRegionTime >= 200 || _dragActive))) {
     _lastRegionTime = now;
     _lastRegionX = lx;
     _lastRegionY = ly;
@@ -256,7 +264,7 @@ function showBubble(text, durationMs = 3000) {
   bubbleText = text;
   bubbleAlpha = 1;
   bubbleTimer = performance.now() + durationMs;
-  updateHitZone();
+  updateHitZone(true);
 }
 
 // ─── Session Brain ────────────────────────────────────────────────────────────
@@ -1001,30 +1009,24 @@ function stopAnim() {
 
 // Initialise hit-zone to the starting character position immediately so it is
 // grabbable before the first animation frame fires.
-updateHitZone();
+updateHitZone(true);
 
 startAnim();
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) stopAnim(); else startAnim();
+  if (document.hidden) {
+    stopAnim();
+  } else {
+    updateHitZone(true);
+    startAnim();
+  }
 });
 
 // ─── Hit-zone drag + click ────────────────────────────────────────────────────
 // Full 2D drag — user can move the companion anywhere on screen.
-//
-// Passthrough model: the overlay window keeps set_ignore_cursor_events(false) at
-// all times so the OS always delivers mouse events to the WebView.  Transparent /
-// non-interactive areas use CSS pointer-events:none so clicks fall through to the
-// desktop at the WebView hit-test level — no window-level OS toggle is needed.
-// This is more reliable than the toggle approach which broke on fast drags where
-// the cursor left the hit-zone before mousemove arrived.
-
-let _dragActive = false;
-let _dragMoved = false;
-let _dragStartX = 0;
-let _dragStartY = 0;
-let _walkXAtDragStart = 0;
-let _walkYAtDragStart = 0;
+// On Windows, SetWindowRgn restricts the window shape to the hit-zone rect so
+// everything outside it stays 100% click-through while the character remains
+// clickable and draggable inside the region.
 
 function _beginDrag(clientX, clientY) {
   _dragActive = true;
@@ -1036,8 +1038,7 @@ function _beginDrag(clientX, clientY) {
   hitZone.classList.add('dragging');
   walking = false;
   currentState = 'idle';
-  // Temporarily disable OS cursor passthrough during active drag so fast cursor movements
-  // never slip out of the region and drop the drag
+  // Ensure OS cursor passthrough is disabled during drag
   void setCompanionPassthrough(false);
 }
 
@@ -1048,9 +1049,8 @@ function _endDrag() {
   // Brief cooldown before auto-walk resumes so the companion stays where dropped
   _dragResumeAt = performance.now() + DRAG_RESUME_MS;
 
-  // Restore OS passthrough once drag completes
-  void setCompanionPassthrough(true);
-  updateHitZone();
+  // Sync the interactive hit-zone region immediately after drop
+  updateHitZone(true);
 
   if (_dragMoved) {
     // Show a friendly drop reaction only if actually moved
