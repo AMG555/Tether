@@ -229,7 +229,7 @@ let currentState = 'idle';
 let nextStateTimer = 0;
 let walkDir = 1;           // 1 = right, -1 = left
 let walkX = W / 2;         // start at horizontal centre so companion is visible immediately
-let walkY = H;             // feet Y position (bottom of screen by default)
+let walkY = H - 6;         // feet Y position (rests neatly above bottom edge)
 let walking = false;
 let pauseTimer = 0;
 let animTime = 0;
@@ -298,7 +298,7 @@ function pickRoamTarget() {
   const minX = ROAM_MARGIN_X;
   const maxX = Math.max(minX + 100, W - ROAM_MARGIN_X);
   const minY = ROAM_MARGIN_TOP;
-  const maxY = H; // feet can reach screen bottom
+  const maxY = H - 6; // feet rest cleanly above bottom edge
   _roamTargetX = minX + Math.random() * (maxX - minX);
   _roamTargetY = minY + Math.random() * (maxY - minY);
   _roamPauseUntil = 0; // start walking immediately
@@ -349,7 +349,7 @@ function stepRoam(timestamp) {
   walkY += (dy / dist) * ROAM_SPEED_PX;
   // Keep inside safe bounds
   walkX = Math.max(ROAM_MARGIN_X, Math.min(W - ROAM_MARGIN_X, walkX));
-  walkY = Math.max(ROAM_MARGIN_TOP, Math.min(H, walkY));
+  walkY = Math.max(ROAM_MARGIN_TOP, Math.min(H - 6, walkY));
   // Update face direction based on horizontal movement
   walkDir = dx >= 0 ? 1 : -1;
   return true; // still walking
@@ -369,7 +369,7 @@ async function toggleFreeRoam() {
     loadSprite(companion.id, 'walk');
     showBubble('🗺️ Free Roam on! Exploring everywhere.', 2500);
   } else {
-    walkY = H;
+    walkY = H - 6;
     _roamPauseUntil = 0;
     walking = false;
     currentState = 'idle';
@@ -1075,7 +1075,7 @@ window.addEventListener('mousemove', (e) => {
   if (!_dragMoved) return;
 
   walkX = Math.max(CHAR_MARGIN, Math.min(W - CHAR_MARGIN, _walkXAtDragStart + dx));
-  walkY = Math.max(COMPANION_TARGET_H + 10, Math.min(H, _walkYAtDragStart + dy));
+  walkY = Math.max(COMPANION_TARGET_H + 10, Math.min(H - 6, _walkYAtDragStart + dy));
 });
 
 window.addEventListener('mouseup', _endDrag);
@@ -1102,7 +1102,7 @@ window.addEventListener('touchmove', (e) => {
   if (!_dragMoved) return;
 
   walkX = Math.max(CHAR_MARGIN, Math.min(W - CHAR_MARGIN, _walkXAtDragStart + dx));
-  walkY = Math.max(COMPANION_TARGET_H + 10, Math.min(H, _walkYAtDragStart + dy));
+  walkY = Math.max(COMPANION_TARGET_H + 10, Math.min(H - 6, _walkYAtDragStart + dy));
 });
 
 window.addEventListener('touchend', _endDrag);
@@ -1188,7 +1188,7 @@ async function reloadCompanion() {
       loadSprite(companion.id, 'walk');
       _roamPauseUntil = 0;
     } else {
-      walkY = H;
+      walkY = H - 6;
       _roamPauseUntil = 0;
       walking = false;
       currentState = 'idle';

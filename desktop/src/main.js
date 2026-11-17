@@ -745,10 +745,14 @@ async function setupCompanionsView() {
           colors: c.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' },
           actions: c.actions?.length ? c.actions
             : ['idle', 'walk', 'wave', 'water', 'stretch', 'happy', 'sad', 'eyes'],
+          visible: true,
         };
         void setActiveCompanion(companionState);
 
         // Show the companion overlay window via the IPC bridge
+        _companionVisible = true;
+        const btn = document.getElementById('hide-companion-btn');
+        if (btn) btn.textContent = 'Hide Companion';
         showCompanionOverlay();
 
         renderGrid();
@@ -1511,12 +1515,16 @@ function setupPreviewModalHandlers() {
         avatarType: previewCompanion.avatarType || 'procedural',
         colors: previewCompanion.colors || { body: '#2563eb', accent: '#c2331a', eyes: '#14120f' },
         actions: enabledActions,
+        visible: true,
       });
 
       // Also write to tether-active-actions so the overlay's localStorage poller picks it up.
       try { localStorage.setItem('tether-active-actions', JSON.stringify(enabledActions)); } catch { /* ignore */ }
 
       // Show the companion overlay window via the IPC bridge then re-render the grid
+      _companionVisible = true;
+      const hideBtn = document.getElementById('hide-companion-btn');
+      if (hideBtn) hideBtn.textContent = 'Hide Companion';
       showCompanionOverlay();
       renderGrid();
 

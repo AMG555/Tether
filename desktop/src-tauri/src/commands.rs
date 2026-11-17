@@ -1249,13 +1249,13 @@ pub fn show_companion_overlay(app: tauri::AppHandle) -> Result<(), String> {
 
     // Always size and position the overlay to the primary monitor so it covers
     // the full desktop — even after a resolution change or multi-monitor switch.
-    // Leave the bottom 2 physical pixels uncovered so Windows Explorer never flags
+    // Leave the bottom 4 physical pixels uncovered so Windows Explorer never flags
     // this transparent overlay as a fullscreen exclusive window, and so the auto-hide
     // taskbar edge hit-sensor receives mouse hover directly without requiring a Win key press.
     if let Ok(Some(monitor)) = app.primary_monitor() {
         let pos = monitor.position();
         let size = monitor.size();
-        let h = size.height.saturating_sub(2);
+        let h = size.height.saturating_sub(4);
         let _ = w.set_size(PhysicalSize::new(size.width, h));
         let _ = w.set_position(PhysicalPosition::new(pos.x, pos.y));
     }
@@ -1335,15 +1335,15 @@ pub fn set_hit_zone_region(
 
         if let Ok(hwnd_raw) = w.hwnd() {
             unsafe {
-                // Create a small rectangle region for the hit-zone only.
+                // Create a rectangle region for the hit-zone only.
                 // NULL region (from SetWindowRgn with null) = entire window is interactive,
                 // so we always pass a real rect — even during initialisation.
-                let rgn = CreateRectRgn(px, py, px + pw, py + ph);
+                let rgn = CreateRectRgn(px.max(0), py.max(0), (px + pw).max(1), (py + ph).max(1));
                 if !rgn.is_null() {
                     // SetWindowRgn takes ownership of the region handle on success;
                     // only delete it ourselves if the call fails.
-                    // Pass redraw = 0 to avoid DWM composition thrashing.
-                    let ok = SetWindowRgn(hwnd_raw.0, rgn, 0 /* FALSE = no DWM repaint churn */);
+                    // Pass redraw = 1 so Windows repaints the window within the interactive region.
+                    let ok = SetWindowRgn(hwnd_raw.0, rgn, 1 /* TRUE = repaint region */);
                     if ok == 0 {
                         DeleteObject(rgn);
                     }
@@ -1532,7 +1532,6 @@ fn set_topmost_noactivate(w: &tauri::WebviewWindow) {
     // used by lib.rs, so there is no extra linker cost.
     #[link(name = "user32")]
     extern "system" {
-        fn FindWindowA(class_name: *const i8, window_name: *const i8) -> *mut c_void;
         fn SetWindowPos(
             hwnd: *mut c_void,
             insert_after: *mut c_void,
@@ -1546,12 +1545,10 @@ fn set_topmost_noactivate(w: &tauri::WebviewWindow) {
 
     if let Ok(hwnd_raw) = w.hwnd() {
         unsafe {
-            // Find Windows Taskbar ("Shell_TrayWnd"). If present, place the companion
-            // directly below the taskbar in Z-order so the taskbar is always cleanly on top
-            // when it pops up, rather than being covered by the companion.
-            let tray = FindWindowA(b"Shell_TrayWnd\0".as_ptr() as *const i8, std::ptr::null());
-            let target_z = if !tray.is_null() { tray } else { TOPMOST };
-            SetWindowPos(hwnd_raw.0, target_z, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            // Position as HWND_TOPMOST without stealing activation/focus.
+            // This ensures the companion floats above normal application windows
+            // while remaining non-intrusive.
+            SetWindowPos(hwnd_raw.0, TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         }
     }
 }
