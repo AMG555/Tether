@@ -314,8 +314,7 @@ pub fn install_autostart(exe: &Path) -> Result<std::path::PathBuf, String> {
 
         // Standard Windows startup launcher: clean .cmd script that starts detached without console window
         let path = dir.join("tether.cmd");
-        std::fs::write(&path, format!("@start \"\" \"{}\"\r\n", exe))
-            .map_err(|e| e.to_string())?;
+        std::fs::write(&path, format!("@start \"\" \"{}\"\r\n", exe)).map_err(|e| e.to_string())?;
         Ok(path)
     }
 
