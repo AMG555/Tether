@@ -271,9 +271,11 @@ pub fn get_autostart_status() -> Result<bool, String> {
     #[cfg(target_os = "windows")]
     {
         let appdata = std::env::var_os("APPDATA").ok_or("cannot find %APPDATA%")?;
-        let p =
-            PathBuf::from(appdata).join("Microsoft/Windows/Start Menu/Programs/Startup/tether.url");
-        Ok(p.exists())
+        let startup = PathBuf::from(appdata).join("Microsoft/Windows/Start Menu/Programs/Startup");
+        let active = startup.join("tether.cmd").exists()
+            || startup.join("tether.url").exists()
+            || startup.join("tether.lnk").exists();
+        Ok(active)
     }
     #[cfg(target_os = "macos")]
     {
@@ -1247,10 +1249,14 @@ pub fn show_companion_overlay(app: tauri::AppHandle) -> Result<(), String> {
 
     // Always size and position the overlay to the primary monitor so it covers
     // the full desktop — even after a resolution change or multi-monitor switch.
+    // Leave the bottom 2 physical pixels uncovered so Windows Explorer never flags
+    // this transparent overlay as a fullscreen exclusive window, and so the auto-hide
+    // taskbar edge hit-sensor receives mouse hover directly without requiring a Win key press.
     if let Ok(Some(monitor)) = app.primary_monitor() {
         let pos = monitor.position();
         let size = monitor.size();
-        let _ = w.set_size(PhysicalSize::new(size.width, size.height));
+        let h = size.height.saturating_sub(2);
+        let _ = w.set_size(PhysicalSize::new(size.width, h));
         let _ = w.set_position(PhysicalPosition::new(pos.x, pos.y));
     }
 
@@ -1336,15 +1342,14 @@ pub fn set_hit_zone_region(
                 if !rgn.is_null() {
                     // SetWindowRgn takes ownership of the region handle on success;
                     // only delete it ourselves if the call fails.
-                    let ok = SetWindowRgn(hwnd_raw.0, rgn, 1 /* TRUE = repaint */);
+                    // Pass redraw = 0 to avoid DWM composition thrashing.
+                    let ok = SetWindowRgn(hwnd_raw.0, rgn, 0 /* FALSE = no DWM repaint churn */);
                     if ok == 0 {
                         DeleteObject(rgn);
                     }
                 }
             }
         }
-        // keep set_ignore_cursor_events(true) — region handles click-routing.
-        let _ = w.set_ignore_cursor_events(true);
     }
     #[cfg(not(target_os = "windows"))]
     let _ = (app, x, y, width, height, scale);
@@ -1430,6 +1435,16 @@ pub struct ActiveCompanionState {
     /// Free roam mode flag shared across WebViews.
     #[serde(default)]
     pub free_roam: bool,
+    /// Whether the companion overlay window should be visible.
+    /// Persisted so the user's show/hide choice survives a system restart.
+    /// Defaults to `true` on first run and when reading older state files
+    /// that pre-date this field.
+    #[serde(default = "default_visible")]
+    pub visible: bool,
+}
+
+fn default_visible() -> bool {
+    true
 }
 
 /// Returns the currently active companion from the shared state file.
@@ -1460,6 +1475,7 @@ pub fn get_active_companion() -> ActiveCompanionState {
         },
         actions: default_actions(),
         free_roam: false,
+        visible: true,
     }
 }
 
@@ -1516,6 +1532,7 @@ fn set_topmost_noactivate(w: &tauri::WebviewWindow) {
     // used by lib.rs, so there is no extra linker cost.
     #[link(name = "user32")]
     extern "system" {
+        fn FindWindowA(class_name: *const i8, window_name: *const i8) -> *mut c_void;
         fn SetWindowPos(
             hwnd: *mut c_void,
             insert_after: *mut c_void,
@@ -1529,7 +1546,12 @@ fn set_topmost_noactivate(w: &tauri::WebviewWindow) {
 
     if let Ok(hwnd_raw) = w.hwnd() {
         unsafe {
-            SetWindowPos(hwnd_raw.0, TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            // Find Windows Taskbar ("Shell_TrayWnd"). If present, place the companion
+            // directly below the taskbar in Z-order so the taskbar is always cleanly on top
+            // when it pops up, rather than being covered by the companion.
+            let tray = FindWindowA(b"Shell_TrayWnd\0".as_ptr() as *const i8, std::ptr::null());
+            let target_z = if !tray.is_null() { tray } else { TOPMOST };
+            SetWindowPos(hwnd_raw.0, target_z, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         }
     }
 }

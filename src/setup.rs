@@ -301,14 +301,20 @@ pub fn install_autostart(exe: &Path) -> Result<std::path::PathBuf, String> {
 
     #[cfg(target_os = "windows")]
     {
-        // A .url shortcut in the Startup folder needs no script host and no admin rights.
         let appdata = std::env::var_os("APPDATA").ok_or("cannot find %APPDATA%")?;
         let dir =
             std::path::PathBuf::from(appdata).join("Microsoft/Windows/Start Menu/Programs/Startup");
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-        let path = dir.join("tether.url");
-        // `run` in a console window is not ideal on Windows; point at the same command.
-        std::fs::write(&path, format!("[InternetShortcut]\nURL=file:///{exe}\n"))
+
+        // Clean up legacy .url shortcut if present
+        let old_url = dir.join("tether.url");
+        if old_url.exists() {
+            let _ = std::fs::remove_file(old_url);
+        }
+
+        // Standard Windows startup launcher: clean .cmd script that starts detached without console window
+        let path = dir.join("tether.cmd");
+        std::fs::write(&path, format!("@start \"\" \"{}\"\r\n", exe))
             .map_err(|e| e.to_string())?;
         Ok(path)
     }
@@ -369,15 +375,12 @@ pub fn uninstall_autostart() -> Result<bool, String> {
         if let Some(appdata) = std::env::var_os("APPDATA") {
             let dir = std::path::PathBuf::from(appdata)
                 .join("Microsoft/Windows/Start Menu/Programs/Startup");
-            let p1 = dir.join("tether.url");
-            if p1.exists() {
-                let _ = std::fs::remove_file(p1);
-                removed = true;
-            }
-            let p2 = dir.join("tether.lnk");
-            if p2.exists() {
-                let _ = std::fs::remove_file(p2);
-                removed = true;
+            for name in &["tether.cmd", "tether.url", "tether.lnk"] {
+                let p = dir.join(name);
+                if p.exists() {
+                    let _ = std::fs::remove_file(p);
+                    removed = true;
+                }
             }
         }
         Ok(removed)
@@ -457,6 +460,8 @@ mod tests {
         std::env::set_var("XDG_CONFIG_HOME", d.path());
         #[cfg(target_os = "macos")]
         std::env::set_var("HOME", d.path());
+        #[cfg(target_os = "windows")]
+        std::env::set_var("APPDATA", d.path());
 
         match install_autostart(Path::new("/usr/local/bin/tether")) {
             Ok(path) => {

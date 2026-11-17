@@ -60,11 +60,25 @@ mod clipboard_poller {
     /// Reads the current CF_UNICODETEXT clipboard contents.
     /// Returns `None` if the clipboard is empty, unavailable, or non-text.
     pub fn read_clipboard_text() -> Option<String> {
+        // Yield briefly (40 ms) so the copying application can finish populating
+        // and close its clipboard handle. This avoids clipboard lock contention
+        // that can cause third-party apps to crash or report "Cannot open clipboard".
+        std::thread::sleep(std::time::Duration::from_millis(40));
+
         unsafe {
             if IsClipboardFormatAvailable(CF_UNICODETEXT) == 0 {
                 return None;
             }
-            if OpenClipboard(std::ptr::null_mut()) == 0 {
+            // Retry OpenClipboard up to 3 times in case the source app is still releasing it
+            let mut opened = false;
+            for _ in 0..3 {
+                if OpenClipboard(std::ptr::null_mut()) != 0 {
+                    opened = true;
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(15));
+            }
+            if !opened {
                 return None;
             }
             let hmem = GetClipboardData(CF_UNICODETEXT);
@@ -487,6 +501,15 @@ pub fn run() -> Result<(), tauri::Error> {
             if !started {
                 eprintln!("tether: capture not started — check data directory permissions");
             }
+
+            // Automatically display the companion overlay if active companion is visible.
+            // This ensures the companion shows up immediately on system restart/login
+            // without having to wait for the main window to open or load.
+            let active = commands::get_active_companion();
+            if active.visible {
+                let _ = commands::show_companion_overlay(app.handle().clone());
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

@@ -591,6 +591,18 @@ async function setupCompanionsView() {
     try {
       const saved = await getActiveCompanion();
       if (saved && saved.id) activePetId = saved.id;
+      // Restore the companion's visibility from the last run.  The overlay
+      // window starts hidden (tauri.conf.json visible:false); we re-show it
+      // here if the user had it visible when they last shut down.
+      // `visible` defaults to true for first-run and old state files.
+      if (saved && saved.visible !== false) {
+        showCompanionOverlay();
+        _companionVisible = true;
+      } else if (saved && saved.visible === false) {
+        _companionVisible = false;
+        const btn = document.getElementById('hide-companion-btn');
+        if (btn) btn.textContent = 'Show Companion';
+      }
     } catch { /* non-fatal — keep default */ }
 
     try {
@@ -2515,6 +2527,12 @@ function toggleCompanionVisibility() {
     if (btn) btn.textContent = 'Hide Companion';
     showToast('Companion visible.', 'ok');
   }
+  // Persist the new visibility so the companion reappears (or stays hidden)
+  // correctly after a system restart.  We read the current state, patch
+  // `visible`, and write it back — leaving all other fields unchanged.
+  getActiveCompanion().then((current) => {
+    if (current) setActiveCompanion({ ...current, visible: _companionVisible });
+  }).catch(() => { /* non-fatal */ });
 }
 
 // ── Shortcut map ──────────────────────────────────────────────────────────────

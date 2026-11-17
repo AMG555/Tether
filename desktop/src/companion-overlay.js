@@ -138,6 +138,7 @@ window.addEventListener('resize', () => {
 // while keeping the rest of the desktop 100% click-through (WS_EX_TRANSPARENT).
 let _lastRegionX = -9999, _lastRegionY = -9999;
 let _lastRegionW = -9999, _lastRegionH = -9999;
+let _lastRegionTime = 0;
 let _regionPending = false;
 
 function updateHitZone() {
@@ -174,13 +175,17 @@ function updateHitZone() {
   hitZone.style.width  = `${totalW}px`;
   hitZone.style.height = `${totalH}px`;
 
-  // Push region update whenever position or dimensions change by ≥4 px
+  // Push region update throttled to ~5 Hz (200 ms) or active drag to prevent IPC spam
+  // and avoid continuous Win32 DWM composition thrashing while the character walks.
+  const now = performance.now();
   if (
-    Math.abs(lx - _lastRegionX) >= 4 ||
-    Math.abs(ly - _lastRegionY) >= 4 ||
-    Math.abs(totalW - _lastRegionW) >= 4 ||
-    Math.abs(totalH - _lastRegionH) >= 4
+    (Math.abs(lx - _lastRegionX) >= 12 ||
+     Math.abs(ly - _lastRegionY) >= 12 ||
+     Math.abs(totalW - _lastRegionW) >= 12 ||
+     Math.abs(totalH - _lastRegionH) >= 12) &&
+    (now - _lastRegionTime >= 200 || _dragActive)
   ) {
+    _lastRegionTime = now;
     _lastRegionX = lx;
     _lastRegionY = ly;
     _lastRegionW = totalW;

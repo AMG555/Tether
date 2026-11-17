@@ -109,6 +109,7 @@ extern "system" {
 
 static TX: Mutex<Option<Sender<Event>>> = Mutex::new(None);
 static CACHE: Mutex<Option<HashMap<u32, String>>> = Mutex::new(None);
+static LAST_FOREGROUND: Mutex<(usize, String)> = Mutex::new((0, String::new()));
 
 pub struct WindowsHook;
 
@@ -202,7 +203,12 @@ unsafe extern "system" fn hook_proc(code: i32, w_param: Wparam, l_param: Lparam)
 /// (modifiers, shortcuts, escape) so the ring is not polluted with noise.
 unsafe fn translate(info: &KbdLlHookStruct) -> Option<Event> {
     let vk = info.vk_code as usize;
-    let app = frontmost_app();
+
+    // Fast-path: drop pure modifier and navigation keys BEFORE any expensive calls
+    match vk {
+        VK_TAB | VK_ESCAPE | VK_SHIFT | VK_CONTROL | VK_MENU | VK_CAPITAL => return None,
+        _ => {}
+    }
 
     // `GetKeyboardState` is unreliable in a WH_KEYBOARD_LL callback because it reads the
     // per-thread queue state, which may not yet reflect the hardware modifier state at
@@ -232,6 +238,9 @@ unsafe fn translate(info: &KbdLlHookStruct) -> Option<Event> {
         // Ctrl+V is special: the paste itself arrives as a separate clipboard event.
         return None;
     }
+
+    // Only query frontmost app for keys that will actually be recorded
+    let app = frontmost_app();
 
     match vk {
         VK_BACK => {
@@ -286,6 +295,12 @@ pub fn frontmost_app() -> String {
         if hwnd.is_null() {
             return String::new();
         }
+        // Microsecond fast-path: if foreground window hasn't changed, return cached name directly
+        if let Ok(guard) = LAST_FOREGROUND.lock() {
+            if guard.0 == hwnd as usize && !guard.1.is_empty() {
+                return guard.1.clone();
+            }
+        }
         let mut pid: u32 = 0;
         GetWindowThreadProcessId(hwnd, &mut pid);
         if pid == 0 {
@@ -294,6 +309,9 @@ pub fn frontmost_app() -> String {
         if let Ok(cache) = CACHE.lock() {
             if let Some(map) = cache.as_ref() {
                 if let Some(name) = map.get(&pid) {
+                    if let Ok(mut guard) = LAST_FOREGROUND.lock() {
+                        *guard = (hwnd as usize, name.clone());
+                    }
                     return name.clone();
                 }
             }
@@ -319,6 +337,9 @@ pub fn frontmost_app() -> String {
                 }
                 map.insert(pid, base.clone());
             }
+        }
+        if let Ok(mut guard) = LAST_FOREGROUND.lock() {
+            *guard = (hwnd as usize, base.clone());
         }
         base
     }
