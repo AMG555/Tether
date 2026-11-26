@@ -1582,6 +1582,9 @@ pub struct ActiveCompanionState {
     /// Free roam mode flag shared across WebViews.
     #[serde(default)]
     pub free_roam: bool,
+    /// Target animation FPS mode: 60 for ultra-smooth rendering, 30 for battery/resource saver.
+    #[serde(default = "default_fps")]
+    pub target_fps: u32,
     /// Whether the companion overlay window should be visible.
     /// Persisted so the user's show/hide choice survives a system restart.
     /// Defaults to `true` on first run and when reading older state files
@@ -1592,6 +1595,10 @@ pub struct ActiveCompanionState {
 
 fn default_visible() -> bool {
     true
+}
+
+fn default_fps() -> u32 {
+    60
 }
 
 /// Returns the currently active companion from the shared state file.
@@ -1622,6 +1629,7 @@ pub fn get_active_companion() -> ActiveCompanionState {
         },
         actions: default_actions(),
         free_roam: false,
+        target_fps: 60,
         visible: true,
     }
 }

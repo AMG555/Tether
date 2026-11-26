@@ -2415,6 +2415,30 @@ async function setupSettingsView() {
     });
   }
 
+  // Companion animation FPS setting
+  const companionFpsSelect = document.getElementById('setting-companion-fps');
+  if (companionFpsSelect) {
+    getActiveCompanion().then((active) => {
+      if (active) {
+        const currentFps = active.targetFps || active.target_fps || 60;
+        companionFpsSelect.value = String(currentFps);
+      }
+    }).catch(() => {});
+
+    companionFpsSelect.addEventListener('change', async () => {
+      const fpsVal = parseInt(companionFpsSelect.value, 10) || 60;
+      try {
+        const current = await getActiveCompanion();
+        if (current) {
+          await setActiveCompanion({ ...current, targetFps: fpsVal, target_fps: fpsVal });
+          showToast(`Companion animation set to ${fpsVal} FPS`, 'ok');
+        }
+      } catch (err) {
+        showToast(`Could not update FPS: ${err.message}`, 'error');
+      }
+    });
+  }
+
   // Show main window (after it was hidden via close button)
   const showWindowBtn = document.getElementById('show-window-btn');
   if (showWindowBtn) {

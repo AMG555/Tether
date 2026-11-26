@@ -591,12 +591,18 @@ pickNextState();
 
 let lastTimestamp = 0;
 let lastRenderTime = 0;
-const TARGET_FRAME_MS = 1000 / 30; // 30 FPS cap for idle companion animation saves 50% CPU/GPU and drops RAM footprint
+let _targetFps = 60;
+let _targetFrameMs = 1000 / 60;
+
+function setTargetFps(fps) {
+  _targetFps = fps === 30 ? 30 : 60;
+  _targetFrameMs = 1000 / _targetFps;
+}
 
 function renderFrame(timestamp) {
   rafId = null;
   try {
-    if (lastRenderTime > 0 && timestamp - lastRenderTime < TARGET_FRAME_MS) {
+    if (_targetFps <= 30 && lastRenderTime > 0 && timestamp - lastRenderTime < _targetFrameMs) {
       rafId = requestAnimationFrame(renderFrame);
       return;
     }
@@ -1244,6 +1250,14 @@ async function reloadCompanion() {
     }
   }
 
+  // Sync FPS setting if changed from Settings view
+  if (typeof next.targetFps === 'number' || typeof next.target_fps === 'number') {
+    const fps = next.targetFps || next.target_fps;
+    if (fps !== _targetFps) {
+      setTargetFps(fps);
+    }
+  }
+
   if (next.id === companion.id) {
     // Same companion — but actions list might have changed (behavior editor).
     // Update in-place and refresh WALK_STATES without clearing sprites.
@@ -1280,6 +1294,9 @@ async function reloadCompanion() {
 // Initial async load — replace the default Grace with the persisted companion.
 loadActiveCompanionFromIPC().then((state) => {
   companion = state;
+  if (typeof state.targetFps === 'number' || typeof state.target_fps === 'number') {
+    setTargetFps(state.targetFps || state.target_fps);
+  }
   if (typeof state.freeRoam === 'boolean') {
     freeRoam = state.freeRoam;
     if (typeof localStorage !== 'undefined') {

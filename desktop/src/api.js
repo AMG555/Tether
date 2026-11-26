@@ -540,8 +540,8 @@ export async function checkForUpdates() {
   const invoke = getInvoker();
   if (!invoke) {
     return {
-      currentVersion: '0.1.35',
-      latestVersion: '0.1.35',
+      currentVersion: '0.1.36',
+      latestVersion: '0.1.36',
       updateAvailable: false,
       releaseNotes: 'Running in browser/offline dev mode.',
       releaseUrl: '',
