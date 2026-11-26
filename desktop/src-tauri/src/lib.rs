@@ -357,6 +357,19 @@ pub fn run() -> Result<(), tauri::Error> {
         std::env::set_var("WEBVIEW2_DEFAULT_BACKGROUND_COLOR", "0");
     }
 
+    // Configure WebView2 browser arguments to minimise RAM, GPU memory overhead,
+    // and idle CPU consumption across all child webview processes.
+    #[cfg(target_os = "windows")]
+    if std::env::var_os("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").is_none() {
+        std::env::set_var(
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+            "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,TranslateUI,OptimizationHints \
+             --enable-low-end-device-mode \
+             --disable-renderer-backgrounding \
+             --disable-background-networking",
+        );
+    }
+
     tauri::Builder::default()
         .manage(std::sync::Mutex::new(AppState::new()))
         // Intercept the X-button: hide the main window instead of closing it.

@@ -590,12 +590,19 @@ pickNextState();
 // ─── Render loop ──────────────────────────────────────────────────────────────
 
 let lastTimestamp = 0;
+let lastRenderTime = 0;
+const TARGET_FRAME_MS = 1000 / 30; // 30 FPS cap for idle companion animation saves 50% CPU/GPU and drops RAM footprint
 
 function renderFrame(timestamp) {
   rafId = null;
   try {
-    const dt = Math.min(timestamp - lastTimestamp, 50);
+    if (lastRenderTime > 0 && timestamp - lastRenderTime < TARGET_FRAME_MS) {
+      rafId = requestAnimationFrame(renderFrame);
+      return;
+    }
+    const dt = Math.min(timestamp - (lastRenderTime || timestamp), 50);
     lastTimestamp = timestamp;
+    lastRenderTime = timestamp;
     animTime += dt * 0.001;
 
     // State transition — standard bottom patrol mode only (free-roam manages its own waypoint actions)
