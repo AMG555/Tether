@@ -98,7 +98,6 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ─── App shell ──────────────────────────────────────────────────────────────*/
 .window {
   display: flex;
   flex-direction: column;
@@ -107,10 +106,8 @@ html, body {
   /* Use clip (not hidden) — overflow-x: hidden implicitly creates a scroll
      container and breaks position: sticky on the top .masthead header. */
   overflow-x: clip;
-  /* Fills the full desktop screen cleanly */
-}
+  }
 
-/* ─── Masthead ───────────────────────────────────────────────────────────────*/
 .masthead {
   display: flex;
   align-items: center;
@@ -120,8 +117,7 @@ html, body {
   border-bottom: 1px solid var(--rule);
   background: var(--paper-sunk);
   flex-shrink: 0;
-  /* Keep the header visible while scrolling */
-  position: sticky;
+    position: sticky;
   top: 0;
   z-index: 100;
 }
@@ -157,7 +153,6 @@ html, body {
   display: block;
 }
 
-/* Nav */
 .nav-tabs {
   display: flex;
   gap: 2px;
@@ -231,7 +226,6 @@ html, body {
   50% { opacity: 0.65; }
 }
 
-/* ─── Main content area ──────────────────────────────────────────────────────*/
 main {
   flex: 1;
   padding: 20px 32px;
@@ -264,7 +258,6 @@ main {
   color: var(--ink);
 }
 
-/* Tab views */
 .tab-view { display: none; }
 .tab-view.active { display: block; }
 
@@ -292,7 +285,6 @@ main {
   max-width: 60ch;
 }
 
-/* ─── Buttons ────────────────────────────────────────────────────────────────*/
 .btn {
   font-family: var(--sans);
   font-size: 12.5px;
@@ -359,7 +351,6 @@ main {
 }
 .btn-theme-toggle:hover { border-color: var(--rule-strong); color: var(--ink); }
 
-/* ─── Status pills / badges ──────────────────────────────────────────────────*/
 .status-pill {
   font-family: var(--mono);
   font-size: 10.5px;
@@ -394,7 +385,6 @@ main {
   border-radius: var(--radius);
 }
 
-/* ─── Live capture activity banner ──────────────────────────────────────────*/
 .capture-live-bar {
   display: flex;
   align-items: center;
@@ -431,7 +421,22 @@ main {
   font-size: 11px;
 }
 
-/* Revision diff — deleted text pill */
+/* ─── Update banner ──────────────────────────────────────────────────────────*/
+.update-banner {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: var(--paper-sunk);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  font-size: 12px;
+  color: var(--ink);
+  line-height: 1.4;
+}
+.update-banner.hidden { display: none; }
+.update-banner-text strong {
+  color: var(--signal);
+}
+
 .revision-deleted-badge {
   display: inline-flex;
   align-items: center;
@@ -447,7 +452,6 @@ main {
   white-space: nowrap;
 }
 
-/* Deleted text highlighted inline in pre */
 .detail-text mark.deleted {
   background: var(--signal-wash);
   color: var(--signal);
@@ -462,7 +466,6 @@ main {
   padding: 0 1px;
 }
 
-/* ─── Recover Texts view ─────────────────────────────────────────────────────*/
 .retention-badge {
   display: flex;
   align-items: center;
@@ -507,7 +510,6 @@ main {
 .search-input:focus { outline: 2px solid var(--signal); outline-offset: -1px; }
 .search-input::placeholder { color: var(--ink-faint); }
 
-/* Master-detail grid */
 .master-detail-grid {
   display: grid;
   grid-template-columns: minmax(280px, 340px) 1fr;
@@ -585,7 +587,6 @@ main {
 
 .expiry-tag { color: var(--signal); font-weight: 600; }
 
-/* Detail pane */
 .draft-detail-pane {
   min-width: 0;
   display: flex;
@@ -665,7 +666,6 @@ main {
 }
 .toast.hidden { display: none; }
 
-/* Global floating toast notification */
 .global-toast {
   position: fixed;
   bottom: 28px;
@@ -702,7 +702,6 @@ main {
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
-/* ─── Companions view ────────────────────────────────────────────────────────*/
 .active-pet-pill {
   display: flex;
   align-items: center;
@@ -728,7 +727,6 @@ main {
   font-family: var(--mono);
 }
 
-/* Filter chips */
 .catalog-filters {
   display: flex;
   gap: 6px;
@@ -756,7 +754,6 @@ main {
   font-weight: 600;
 }
 
-/* Companion cards grid */
 .companions-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
@@ -781,7 +778,6 @@ main {
   border: 2px solid var(--signal);
 }
 
-/* Avatar area */
 .companion-card-avatar {
   width: 100%;
   aspect-ratio: 1;
@@ -858,7 +854,6 @@ main {
   border-radius: 999px;
 }
 
-/* Card body */
 .companion-card-body {
   padding: 12px 14px;
   flex: 1;
@@ -907,7 +902,6 @@ main {
   font-family: var(--mono);
 }
 
-/* Card footer */
 .card-footer {
   display: flex;
   justify-content: space-between;
@@ -926,7 +920,6 @@ main {
   flex-shrink: 0;
 }
 
-/* The action-buttons container inside the footer must not shrink */
 .card-footer > div:last-child {
   display: flex;
   gap: 5px;
@@ -940,9 +933,7 @@ main {
   font-family: var(--mono);
 }
 
-/* ─── Studio view ────────────────────────────────────────────────────────────*/
 
-/* Sub-tabs inside Studio panel */
 .studio-tabs {
   display: flex;
   gap: 2px;
@@ -975,7 +966,6 @@ main {
 .studio-tab-panel { display: block; }
 .studio-tab-panel.hidden { display: none; }
 
-/* Clip Pack Import panel */
 .clip-import-header {
   display: flex;
   justify-content: space-between;
@@ -1047,7 +1037,6 @@ main {
   background: var(--signal-wash);
 }
 
-/* Clip slots 2-col grid */
 .clip-slots-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1085,7 +1074,6 @@ main {
   font-style: italic;
 }
 
-/* Drop zone */
 .clip-drop-zone {
   display: flex;
   flex-direction: column;
@@ -1225,7 +1213,6 @@ canvas#studio-canvas {
   font-weight: 600;
 }
 
-/* Form styles */
 .form-title {
   margin: 0 0 14px;
   font-family: var(--serif);
@@ -1309,7 +1296,6 @@ canvas#studio-canvas {
   margin-top: 14px;
 }
 
-/* Behaviors add-row */
 .behaviors-add-row {
   display: flex;
   gap: 8px;
@@ -1318,7 +1304,6 @@ canvas#studio-canvas {
   flex-wrap: wrap;
 }
 
-/* WebP attach label — styled as a subtle button */
 .behaviors-webp-label {
   cursor: pointer;
   flex-shrink: 0;
@@ -1329,7 +1314,6 @@ canvas#studio-canvas {
   color: var(--ok);
 }
 
-/* Shortcut record button — inline in table */
 .btn-shortcut-record {
   font-size: 10.5px;
   padding: 3px 10px;
@@ -1355,7 +1339,6 @@ canvas#studio-canvas {
   color: var(--ok);
 }
 
-/* Shortcut key display cell */
 .shortcut-key-display {
   font-family: var(--mono);
   font-size: 11px;
@@ -1372,7 +1355,6 @@ canvas#studio-canvas {
   gap: 6px;
 }
 
-/* Disabled state card */
 .state-card.action-disabled {
   opacity: 0.45;
 }
@@ -1433,7 +1415,6 @@ canvas#studio-canvas {
   font-style: italic;
 }
 
-/* ─── Settings view ──────────────────────────────────────────────────────────*/
 .settings-sections {
   display: flex;
   flex-direction: column;
@@ -1543,7 +1524,6 @@ canvas#studio-canvas {
   word-break: break-all;
 }
 
-/* Danger zone */
 .danger-zone {
   border-color: rgba(224,92,75,0.35);
   background: color-mix(in srgb, var(--signal-wash) 60%, var(--paper-raised));
@@ -1573,7 +1553,6 @@ canvas#studio-canvas {
   color: var(--ink);
 }
 
-/* ─── Modals ─────────────────────────────────────────────────────────────────*/
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -1669,7 +1648,6 @@ canvas#studio-canvas {
   isolation: isolate;
 }
 
-/* Wallpaper — dark space gradient with subtle star-like dots */
 .preview-desktop-wallpaper {
   flex: 1;
   position: relative;
@@ -1680,7 +1658,6 @@ canvas#studio-canvas {
   overflow: hidden;
 }
 
-/* Desktop icon grid in top-left of wallpaper */
 .preview-desktop-icons {
   position: absolute;
   top: 10px;
@@ -1721,7 +1698,6 @@ canvas#studio-canvas {
   line-height: 1.2;
 }
 
-/* Taskbar app slots */
 .preview-taskbar-apps {
   display: flex;
   gap: 4px;
@@ -1741,7 +1717,6 @@ canvas#studio-canvas {
   line-height: 1;
 }
 
-/* Tiny star particles drawn via repeating dots */
 .preview-desktop-wallpaper::before {
   content: '';
   position: absolute;
@@ -1755,7 +1730,6 @@ canvas#studio-canvas {
   pointer-events: none;
 }
 
-/* Companion sits at the bottom-right of the wallpaper, mirroring real overlay position */
 .preview-companion-stage {
   position: absolute;
   bottom: 0;
@@ -1770,7 +1744,6 @@ canvas#studio-canvas {
   transition: filter 0.1s;
 }
 
-/* Walking traversal — stage slides from right to left across the wallpaper */
 @keyframes preview-walk-traverse {
   0%   { right: -10px; }
   48%  { right: calc(100% - 170px); }
@@ -1782,7 +1755,6 @@ canvas#studio-canvas {
   cursor: default;
 }
 
-/* Click bounce reaction */
 @keyframes preview-bounce {
   0%   { transform: translateY(0) scale(1); }
   25%  { transform: translateY(-18px) scale(1.06); }
@@ -1819,7 +1791,6 @@ canvas#studio-canvas {
   transition: filter 0.15s;
 }
 
-/* Speech bubble floating above the companion */
 .preview-speech-bubble--desktop {
   background: rgba(255,255,255,0.92);
   border: 1px solid rgba(255,255,255,0.4);
@@ -1835,7 +1806,6 @@ canvas#studio-canvas {
   white-space: normal;
 }
 
-/* Tail triangle on the speech bubble */
 .preview-speech-bubble--desktop::after {
   content: '';
   position: absolute;
@@ -1849,7 +1819,6 @@ canvas#studio-canvas {
   border-top: 7px solid rgba(255,255,255,0.92);
 }
 
-/* Taskbar strip */
 .preview-desktop-taskbar {
   height: 30px;
   background: rgba(10, 12, 18, 0.96);
@@ -1944,7 +1913,6 @@ canvas#studio-canvas {
   flex-wrap: wrap;
 }
 
-/* Shortcuts table */
 .shortcuts-table {
   width: 100%;
   border-collapse: collapse;
@@ -1995,7 +1963,6 @@ kbd {
   font-weight: 600;
 }
 
-/* ─── Footer ─────────────────────────────────────────────────────────────────*/
 .footer {
   display: flex;
   justify-content: space-between;
@@ -2008,7 +1975,6 @@ kbd {
   font-family: var(--mono);
 }
 
-/* ─── Utility ────────────────────────────────────────────────────────────────*/
 .sr-only {
   position: absolute;
   width: 1px; height: 1px;
@@ -2023,7 +1989,6 @@ kbd {
   padding: 5px 10px;
 }
 
-/* ─── Responsive ─────────────────────────────────────────────────────────────*/
 @media (max-width: 920px) {
   .master-detail-grid {
     grid-template-columns: 1fr;
@@ -2106,7 +2071,6 @@ kbd {
   .preview-companion-canvas--desktop,.preview-companion-img--desktop { width: 100px; height: 140px; }
 }
 
-/* ─── Preview modal: action toggle grid ──────────────────────────────────────*/
 .preview-action-toggle-grid {
   display: flex;
   flex-wrap: wrap;
@@ -2140,7 +2104,6 @@ kbd {
 }
 .preview-action-pill:hover { border-color: var(--signal); }
 
-/* ─── AI guide: tab switcher ────────────────────────────────────────────────*/
 .ai-guide-tabs {
   display: flex;
   gap: 6px;
@@ -2164,3 +2127,7 @@ kbd {
   color: #fff;
 }
 .ai-tab-panel.hidden { display: none; }
+
+.update-banner { margin-top: 12px; padding: 10px 14px; background: var(--paper-sunk); border: 1px solid var(--rule-strong); border-radius: var(--radius); font-size: 12px; color: var(--ink); line-height: 1.4; }
+.update-banner.hidden { display: none; }
+.update-banner-text strong { color: var(--signal); }

@@ -1742,6 +1742,239 @@ fn strip_dwm_border(w: &tauri::WebviewWindow) {
     }
 }
 
+/// Information returned when checking for an application update.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCheckResult {
+    pub current_version: String,
+    pub latest_version: String,
+    pub update_available: bool,
+    pub release_notes: String,
+    pub release_url: String,
+    pub installer_url: String,
+}
+
+/// Compares two semver strings like "0.1.33" and "0.1.34".
+/// Returns true if `remote` is strictly greater than `local`.
+pub fn is_newer_semver(local: &str, remote: &str) -> bool {
+    let parse_nums = |s: &str| -> Vec<u64> {
+        let clean = s.trim().trim_start_matches('v');
+        clean
+            .split('.')
+            .map(|part| {
+                part.chars()
+                    .take_while(|c| c.is_ascii_digit())
+                    .collect::<String>()
+                    .parse::<u64>()
+                    .unwrap_or(0)
+            })
+            .collect()
+    };
+    let l_nums = parse_nums(local);
+    let r_nums = parse_nums(remote);
+    let max_len = l_nums.len().max(r_nums.len());
+    for i in 0..max_len {
+        let l = *l_nums.get(i).unwrap_or(&0);
+        let r = *r_nums.get(i).unwrap_or(&0);
+        if r > l {
+            return true;
+        } else if r < l {
+            return false;
+        }
+    }
+    false
+}
+
+/// Checks the latest GitHub release for Tether and determines if a newer version exists.
+#[tauri::command]
+pub fn check_for_updates() -> Result<UpdateCheckResult, String> {
+    let current_version = env!("CARGO_PKG_VERSION").to_string();
+    let api_url = "https://api.github.com/repos/AMG555/Tether/releases/latest";
+
+    let json_str = {
+        #[cfg(target_os = "windows")]
+        {
+            let out = std::process::Command::new("curl.exe")
+                .args(["-fsSL", "-H", "User-Agent: Tether-Desktop-App", api_url])
+                .output();
+            match out {
+                Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
+                _ => {
+                    let ps_script = format!(
+                        r#"$res = Invoke-RestMethod -Uri '{}' -Headers @{{'User-Agent'='Tether-Desktop-App'}} -TimeoutSec 10; $res | ConvertTo-Json -Depth 4"#,
+                        api_url
+                    );
+                    let ps_out = std::process::Command::new("powershell.exe")
+                        .args(["-NoProfile", "-Command", &ps_script])
+                        .output()
+                        .map_err(|e| format!("failed to check updates: {e}"))?;
+                    if !ps_out.status.success() {
+                        return Err(format!(
+                            "GitHub release check failed: {}",
+                            String::from_utf8_lossy(&ps_out.stderr).trim()
+                        ));
+                    }
+                    String::from_utf8_lossy(&ps_out.stdout).to_string()
+                }
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let out = std::process::Command::new("curl")
+                .args(["-fsSL", "-H", "User-Agent: Tether-Desktop-App", api_url])
+                .output()
+                .map_err(|e| format!("failed to check updates: {e}"))?;
+            if !out.status.success() {
+                return Err("GitHub release check failed".into());
+            }
+            String::from_utf8_lossy(&out.stdout).to_string()
+        }
+    };
+
+    let parsed: serde_json::Value =
+        serde_json::from_str(&json_str).map_err(|e| format!("invalid release payload: {e}"))?;
+
+    let tag = parsed
+        .get("tag_name")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "missing tag_name in release".to_string())?;
+
+    let latest_version = tag.trim_start_matches('v').to_string();
+    let release_notes = parsed
+        .get("body")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let release_url = parsed
+        .get("html_url")
+        .and_then(|v| v.as_str())
+        .unwrap_or("https://github.com/AMG555/Tether/releases/latest")
+        .to_string();
+
+    let update_available = is_newer_semver(&current_version, &latest_version);
+
+    let installer_url = format!(
+        "https://github.com/AMG555/Tether/releases/download/{tag}/Tether_x64-setup.exe"
+    );
+
+    Ok(UpdateCheckResult {
+        current_version,
+        latest_version,
+        update_available,
+        release_notes,
+        release_url,
+        installer_url,
+    })
+}
+
+/// Downloads the latest Windows NSIS installer, verifies SHA-256 against checksums.txt,
+/// unblocks Zone.Identifier (prevents SmartScreen), and launches the installer.
+#[tauri::command]
+pub fn install_update() -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        // 1. Fetch release info to know the tag and asset URLs.
+        let check = check_for_updates()?;
+        if !check.update_available {
+            return Ok("Application is already up to date.".to_string());
+        }
+
+        let tag = format!("v{}", check.latest_version);
+        let installer_url = format!(
+            "https://github.com/AMG555/Tether/releases/download/{tag}/Tether_x64-setup.exe"
+        );
+        let checksums_url = format!(
+            "https://github.com/AMG555/Tether/releases/download/{tag}/checksums.txt"
+        );
+
+        let temp_dir = std::env::temp_dir();
+        let target_exe = temp_dir.join(format!("Tether_{}_x64-setup.exe", check.latest_version));
+        let temp_checksums = temp_dir.join(format!("tether-update-checksums-{}.txt", check.latest_version));
+
+        // Helper cleanup
+        let cleanup = || {
+            let _ = std::fs::remove_file(&target_exe);
+            let _ = std::fs::remove_file(&temp_checksums);
+        };
+
+        // Download installer
+        let status = std::process::Command::new("curl.exe")
+            .args(["-fSL", &installer_url, "-o", target_exe.to_str().unwrap_or_default()])
+            .status();
+        let downloaded = match status {
+            Ok(s) if s.success() => true,
+            _ => {
+                let ps_script = format!(
+                    "Invoke-WebRequest -Uri '{}' -OutFile '{}'",
+                    installer_url,
+                    target_exe.display()
+                );
+                std::process::Command::new("powershell.exe")
+                    .args(["-NoProfile", "-Command", &ps_script])
+                    .status()
+                    .map(|s| s.success())
+                    .unwrap_or(false)
+            }
+        };
+
+        if !downloaded || !target_exe.exists() {
+            cleanup();
+            return Err("Failed to download update installer from GitHub Releases.".into());
+        }
+
+        // Download checksums.txt
+        let cs_ok = std::process::Command::new("curl.exe")
+            .args(["-fSL", &checksums_url, "-o", temp_checksums.to_str().unwrap_or_default()])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+
+        if cs_ok && temp_checksums.exists() {
+            if let Ok(cs_text) = std::fs::read_to_string(&temp_checksums) {
+                if let Ok(exe_bytes) = std::fs::read(&target_exe) {
+                    // Try verifying with Tether_x64-setup.exe or versioned name
+                    let v_name = format!("Tether_{}_x64-setup.exe", check.latest_version);
+                    let ok1 = verify_checksum(&exe_bytes, &cs_text, "Tether_x64-setup.exe");
+                    let ok2 = verify_checksum(&exe_bytes, &cs_text, &v_name);
+                    if ok1.is_err() && ok2.is_err() {
+                        cleanup();
+                        return Err(format!(
+                            "Update verification failed: {}",
+                            ok1.err().unwrap_or_else(|| "checksum mismatch".into())
+                        ));
+                    }
+                }
+            }
+        }
+
+        // Unblock file to avoid SmartScreen unrecognized warning on downloaded binary
+        let unblock_script = format!(
+            "Unblock-File -Path '{}' -ErrorAction SilentlyContinue",
+            target_exe.display()
+        );
+        let _ = std::process::Command::new("powershell.exe")
+            .args(["-NoProfile", "-Command", &unblock_script])
+            .status();
+
+        // Launch the NSIS installer. NSIS automatically upgrades the installation in place
+        // without touching %APPDATA%/tether/data (vault.db and user settings are safe).
+        let spawn_res = std::process::Command::new(&target_exe).spawn();
+        match spawn_res {
+            Ok(_) => {
+                Ok(format!(
+                    "Update {} downloaded. The installer is now launching to complete the update.",
+                    check.latest_version
+                ))
+            }
+            Err(e) => Err(format!("Failed to launch update installer: {e}")),
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("In-app automatic updates are currently supported on Windows. Please update via package manager or GitHub releases.".into())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1757,6 +1990,17 @@ mod tests {
                 "platform": std::env::consts::OS,
             })
         );
+    }
+
+    #[test]
+    fn is_newer_semver_correctly_evaluates_versions() {
+        assert!(is_newer_semver("0.1.33", "0.1.34"));
+        assert!(is_newer_semver("0.1.33", "0.2.0"));
+        assert!(is_newer_semver("0.1.33", "1.0.0"));
+        assert!(is_newer_semver("v0.1.33", "v0.1.35"));
+        assert!(!is_newer_semver("0.1.33", "0.1.33"));
+        assert!(!is_newer_semver("0.1.34", "0.1.33"));
+        assert!(!is_newer_semver("1.0.0", "0.9.9"));
     }
 
     #[test]

@@ -549,6 +549,8 @@ pub fn run() -> Result<(), tauri::Error> {
             commands::get_capture_status,
             commands::get_active_companion,
             commands::set_active_companion,
+            commands::check_for_updates,
+            commands::install_update,
         ])
         .build(tauri::generate_context!())?
         .run(|app, event| {

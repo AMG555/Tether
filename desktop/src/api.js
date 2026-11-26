@@ -531,3 +531,34 @@ export async function setActiveCompanion(state) {
     // Best-effort — if disk write fails the UI still works via the in-memory value.
   }
 }
+
+/**
+ * Checks GitHub Releases for a newer application release.
+ * @returns {Promise<{currentVersion: string, latestVersion: string, updateAvailable: boolean, releaseNotes: string, releaseUrl: string, installerUrl: string}>}
+ */
+export async function checkForUpdates() {
+  const invoke = getInvoker();
+  if (!invoke) {
+    return {
+      currentVersion: '0.1.33',
+      latestVersion: '0.1.33',
+      updateAvailable: false,
+      releaseNotes: 'Running in browser/offline dev mode.',
+      releaseUrl: '',
+      installerUrl: '',
+    };
+  }
+  return await invoke('check_for_updates');
+}
+
+/**
+ * Downloads and launches the verified update installer.
+ * @returns {Promise<string>} Status message from updater.
+ */
+export async function installUpdate() {
+  const invoke = getInvoker();
+  if (!invoke) {
+    throw new Error('Updater not supported in browser preview.');
+  }
+  return await invoke('install_update');
+}

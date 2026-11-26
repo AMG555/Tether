@@ -24,6 +24,8 @@ import {
   getCaptureStatus,
   getActiveCompanion,
   setActiveCompanion,
+  checkForUpdates,
+  installUpdate,
 } from './api.js';
 
 // Global error handlers: guarantee the main window never crashes
@@ -2523,6 +2525,69 @@ async function setupSettingsView() {
         }
       });
     }
+  }
+
+  // Application Updates
+  const checkUpdatesBtn = document.getElementById('check-updates-btn');
+  const installUpdateBtn = document.getElementById('install-update-btn');
+  const updateDesc = document.getElementById('update-status-desc');
+  const updateBanner = document.getElementById('update-banner');
+  const updateBannerText = document.getElementById('update-banner-text');
+
+  if (checkUpdatesBtn) {
+    checkUpdatesBtn.addEventListener('click', async () => {
+      checkUpdatesBtn.disabled = true;
+      checkUpdatesBtn.textContent = 'Checking…';
+      if (updateDesc) updateDesc.textContent = 'Contacting GitHub Releases…';
+      try {
+        const update = await checkForUpdates();
+        if (update.updateAvailable) {
+          if (updateDesc) {
+            updateDesc.innerHTML = `<strong>New version v${escapeHtml(update.latestVersion)} available!</strong> (Current: v${escapeHtml(update.currentVersion)})`;
+          }
+          if (updateBanner && updateBannerText) {
+            updateBanner.classList.remove('hidden');
+            updateBannerText.innerHTML = `<strong>Tether v${escapeHtml(update.latestVersion)} is ready.</strong> Click "Update Now" to download and install automatically.`;
+          }
+          if (installUpdateBtn) {
+            installUpdateBtn.classList.remove('hidden');
+          }
+          showToast(`New update v${update.latestVersion} found!`, 'ok');
+        } else {
+          if (updateDesc) {
+            updateDesc.textContent = `Tether v${update.currentVersion} is up to date. You are running the latest release.`;
+          }
+          if (updateBanner) updateBanner.classList.add('hidden');
+          if (installUpdateBtn) installUpdateBtn.classList.add('hidden');
+          showToast(`Tether is up to date (v${update.currentVersion}).`, 'ok');
+        }
+      } catch (err) {
+        if (updateDesc) updateDesc.textContent = 'Unable to check for updates right now.';
+        showToast(`Update check failed: ${err.message}`, 'error');
+      } finally {
+        checkUpdatesBtn.disabled = false;
+        checkUpdatesBtn.textContent = 'Check for Updates';
+      }
+    });
+  }
+
+  if (installUpdateBtn) {
+    installUpdateBtn.addEventListener('click', async () => {
+      installUpdateBtn.disabled = true;
+      installUpdateBtn.textContent = 'Downloading…';
+      if (updateDesc) updateDesc.textContent = 'Downloading verified installer from GitHub Releases…';
+      try {
+        const msg = await installUpdate();
+        showToast(msg, 'ok');
+        if (updateDesc) {
+          updateDesc.textContent = 'Installer launched. Follow the prompt to complete the update.';
+        }
+      } catch (err) {
+        showToast(`Update installation failed: ${err.message}`, 'error');
+        installUpdateBtn.disabled = false;
+        installUpdateBtn.textContent = 'Update Now';
+      }
+    });
   }
 
   // Shortcut customiser — renders the remappable shortcut table in Settings

@@ -29,6 +29,8 @@ fn main() {
             "get_capture_status",
             "get_active_companion",
             "set_active_companion",
+            "check_for_updates",
+            "install_update",
         ]),
     ))
     .expect("failed to configure the Tauri command allowlist");

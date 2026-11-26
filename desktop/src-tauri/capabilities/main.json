@@ -27,6 +27,8 @@
     "allow-hide-companion-overlay",
     "allow-get-capture-status",
     "allow-get-active-companion",
-    "allow-set-active-companion"
+    "allow-set-active-companion",
+    "allow-check-for-updates",
+    "allow-install-update"
   ]
 }

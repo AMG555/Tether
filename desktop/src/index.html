@@ -683,6 +683,24 @@
               </dl>
             </div>
 
+            <!-- Application Updates -->
+            <div class="settings-card">
+              <h3 class="card-title">Software Updates</h3>
+              <div class="setting-item">
+                <div class="setting-text">
+                  <span class="setting-label">Version &amp; Release Channel</span>
+                  <p class="setting-hint" id="update-status-desc">Installed version is up to date. Check GitHub Releases for new updates without leaving the application.</p>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <button type="button" id="check-updates-btn" class="btn btn-secondary">Check for Updates</button>
+                  <button type="button" id="install-update-btn" class="btn btn-primary hidden">Update Now</button>
+                </div>
+              </div>
+              <div id="update-banner" class="update-banner hidden" role="status">
+                <div id="update-banner-text" class="update-banner-text">A new version of Tether is available!</div>
+              </div>
+            </div>
+
             <!-- Danger Zone & Uninstall Options -->
             <!-- Keyboard Shortcut Customisation -->
             <div class="settings-card">
